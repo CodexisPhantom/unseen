@@ -13,6 +13,12 @@ milestones.
 - Primary keys of app tables: `INTEGER PRIMARY KEY`. The compat API needs
   integer ids.
 - Timestamps: UTC, ISO 8601 text.
+- Secret columns (marked "secret" below) hold ciphertext, never plain text.
+  See [11-security.md](11-security.md) and ADR 0011.
+- Structured values that are always read and written as a whole (quality
+  profile items, custom format conditions, indexer categories) are JSON
+  columns inside the database. Anything another table points at is a real
+  table with foreign keys.
 - Drop from entities to raw SQL only for: bulk upserts during import, FTS,
   and reports that need window functions. Keep raw SQL inside `crates/db`.
 
@@ -45,12 +51,18 @@ App columns added to `user` (allowed on the four core entities):
 | `roles` | `id` int PK, `name` text, `description` text null, `is_owner` bool default false, `created_at`, `updated_at` | unique(`name`); partial unique index where `is_owner` = 1 |
 | `role_permissions` | `role_id` int FK roles cascade, `permission` text | PK(`role_id`, `permission`) |
 | `user_roles` | `user_id` text FK user cascade, `role_id` int FK roles cascade | PK(`user_id`, `role_id`); index(`role_id`) |
+| `user_permissions` | `user_id` text FK user cascade, `permission` text | PK(`user_id`, `permission`) |
+| `audit_log` | `id` int PK, `created_at`, `actor_user_id` text null FK user set null, `actor_name` text, `api_key_id` int null, `action` text, `target_kind` text null, `target_id` text null, `data` json null (never secrets), `ip_address` null | index(`created_at`); index(`actor_user_id`); index(`target_kind`, `target_id`) |
 | `api_keys` | `id` int PK, `user_id` text FK user cascade, `name`, `key_hash` text, `key_prefix` text, `last_used_at` null, `created_at`, `revoked_at` null | unique(`key_hash`); index(`user_id`) |
 | `api_key_permissions` | `api_key_id` int FK api_keys cascade, `permission` text | PK(`api_key_id`, `permission`) |
 
 The Owner role has no rows in `role_permissions`. `is_owner` means "every
 permission in the catalog". Unknown permission strings in the database are
-ignored at load time.
+ignored at load time. `user_permissions` holds direct grants; a user's
+effective permissions are the union of their roles and their direct grants.
+
+`audit_log` is append-only. `actor_name` is copied at write time so a row
+stays readable after the user is deleted.
 
 `api_keys` is used only if the spike rejects the Better Auth API-key plugin
 (ADR 0006).
@@ -60,23 +72,44 @@ ignored at load time.
 | Table | Columns | Keys and constraints |
 |---|---|---|
 | `root_folders` | `id` int PK, `path` text, `created_at` | unique(`path`) |
-| `quality_profiles` | `id` int PK, `name`, `upgrade_allowed` bool, `cutoff_quality_id` int, `items` json (ordered qualities and groups, allowed flag), `created_at`, `updated_at` | unique(`name`) |
+| `quality_profiles` | `id` int PK, `name`, `upgrade_allowed` bool, `cutoff_quality_id` int, `items` json (ordered qualities and groups, allowed flag), `language` text default `any`, `min_format_score` int default 0, `cutoff_format_score` int default 0, `min_upgrade_format_score` int default 1, `trash_id` text null, `created_at`, `updated_at` | unique(`name`) |
+| `quality_definitions` | `quality_id` int PK, `title` text, `min_size` real, `preferred_size` real null, `max_size` real null (megabytes per minute) | seeded with Radarr's defaults |
+| `custom_formats` | `id` int PK, `name`, `include_when_renaming` bool default false, `specifications` json (conditions, Radarr's format), `trash_id` text null, `trash_synced` bool default false, `created_at`, `updated_at` | unique(`name`); unique(`trash_id`) |
+| `quality_profile_custom_formats` | `quality_profile_id` int FK cascade, `custom_format_id` int FK cascade, `score` int | PK(`quality_profile_id`, `custom_format_id`) |
+| `collections` | `id` int PK, `tmdb_id` int, `title`, `sort_title`, `overview` null, `poster_path` null, `monitored` bool default false, `root_folder_id` int null FK, `quality_profile_id` int null FK, `minimum_availability` text, `added_at`, `updated_at` | unique(`tmdb_id`) |
 | `tags` | `id` int PK, `label` text | unique(`label`) |
-| `movies` | `id` int PK, `tmdb_id` int, `imdb_id` text null, `title`, `original_title` null, `sort_title`, `year` int, `overview` null, `runtime` int null, `status` text, `in_cinemas` null, `digital_release` null, `physical_release` null, `poster_path` null, `root_folder_id` int FK, `folder_name` text, `quality_profile_id` int FK, `monitored` bool, `minimum_availability` text, `added_at`, `updated_at` | unique(`tmdb_id`); index(`quality_profile_id`); index(`root_folder_id`) |
+| `movies` | `id` int PK, `tmdb_id` int, `imdb_id` text null, `title`, `original_title` null, `sort_title`, `year` int, `overview` null, `runtime` int null, `status` text, `in_cinemas` null, `digital_release` null, `physical_release` null, `poster_path` null, `collection_id` int null FK set null, `root_folder_id` int FK, `folder_name` text, `monitored` bool, `minimum_availability` text, `added_at`, `updated_at` | unique(`tmdb_id`); index(`root_folder_id`); index(`collection_id`) |
+| `movie_profiles` | `id` int PK, `movie_id` int FK cascade, `quality_profile_id` int FK restrict, `is_primary` bool, `created_at` | unique(`movie_id`, `quality_profile_id`); partial unique(`movie_id`) where `is_primary` = 1 |
 | `movie_tags` | `movie_id` FK cascade, `tag_id` FK cascade | PK(`movie_id`, `tag_id`) |
-| `movie_files` | `id` int PK, `movie_id` int FK cascade, `relative_path` text, `size` int, `quality_id` int, `release_group` null, `edition` null, `scene_name` null, `media_info` json null, `added_at` | unique(`movie_id`) in V1 |
+| `movie_files` | `id` int PK, `movie_id` int FK cascade, `relative_path` text, `size` int, `quality_id` int, `release_group` null, `edition` null, `scene_name` null, `media_info` json null, `languages` json null, `movie_profile_id` int null FK set null, `added_at` | unique(`movie_profile_id`); unique(`movie_id`, `relative_path`) |
 
-Qualities are a Rust enum in `core` with fixed ids, not a table.
+Qualities are a Rust enum in `core` with fixed ids, not a table. Their size
+limits are rows in `quality_definitions`.
+
+A movie has one row in `movie_profiles` per attached quality profile. A file
+with `movie_profile_id` set is the managed file of that profile. A file with
+`movie_profile_id` null is unmanaged: listed, never upgraded or deleted
+automatically. SQLite allows several nulls in a unique index, so one movie
+can have several unmanaged files.
+
+Collections created from a monitored collection carry the defaults (root
+folder, quality profile, minimum availability) for movies added from it.
 
 ## Search and download tables
 
 | Table | Columns | Keys and constraints |
 |---|---|---|
-| `indexers` | `id` int PK, `name`, `kind` text (`torznab`), `url`, `api_key` text (secret), `categories` json, `priority` int default 25, `enabled` bool, `created_at` | unique(`name`) |
-| `download_clients` | `id` int PK, `name`, `kind` text (`qbittorrent`), `url`, `username` null, `password` null (secret), `category` text, `enabled` bool, `created_at` | unique(`name`) |
-| `downloads` | `id` int PK, `movie_id` int FK, `indexer_id` int null FK set null, `download_client_id` int FK, `client_download_id` text (torrent hash), `release_title`, `quality_id` int, `size` int, `state` text, `error` null, `attempts` int default 0, `grabbed_at`, `completed_at` null, `imported_at` null | unique(`download_client_id`, `client_download_id`); index(`state`); index(`movie_id`) |
+| `indexers` | `id` int PK, `name`, `kind` text (`torznab`), `url`, `api_key` text (secret), `categories` json, `priority` int default 25, `use_proxy` bool default true, `enabled` bool, `created_at` | unique(`name`) |
+| `indexer_tags` | `indexer_id` FK cascade, `tag_id` FK cascade | PK(`indexer_id`, `tag_id`) |
+| `download_clients` | `id` int PK, `name`, `kind` text (`qbittorrent`), `url`, `username` null, `password` null (secret), `category` text, `remove_completed` bool default false, `enabled` bool, `created_at` | unique(`name`) |
+| `download_client_tags` | `download_client_id` FK cascade, `tag_id` FK cascade | PK(`download_client_id`, `tag_id`) |
+| `downloads` | `id` int PK, `movie_id` int FK, `movie_profile_id` int null FK set null, `indexer_id` int null FK set null, `download_client_id` int FK, `client_download_id` text (torrent hash), `release_title`, `quality_id` int, `custom_format_score` int default 0, `size` int, `state` text, `error` null, `attempts` int default 0, `grabbed_at`, `completed_at` null, `imported_at` null | unique(`download_client_id`, `client_download_id`); index(`state`); index(`movie_id`) |
 | `blocklist` | `id` int PK, `movie_id` int FK cascade, `release_title`, `indexer_id` null, `reason`, `created_at` | index(`movie_id`) |
 | `history` | `id` int PK, `movie_id` int null FK set null, `event` text, `data` json, `created_at` | index(`movie_id`, `created_at`) |
+
+Tag rule, as in Radarr: an indexer or download client without tags is used
+for every movie. With tags, it is used only for movies that share at least
+one tag.
 
 ## System tables
 
@@ -85,9 +118,11 @@ Qualities are a Rust enum in `core` with fixed ids, not a table.
 | `settings` | `key` text PK, `value` json, `updated_at` | |
 | `scheduled_tasks` | `name` text PK, `interval_seconds` int, `last_run_at` null, `last_status` null, `last_error` null | |
 | `import_sources` | `id` int PK, `kind` text (`radarr`), `name`, `url`, `api_key` (secret), `target_quality_profile_id` int null FK, `last_import_at` null | unique(`url`) |
+| `trash_guide_items` | `id` int PK, `kind` text (`custom_format`, `cf_group`, `quality_profile`, `quality_size`), `trash_id` text, `name`, `data` json, `guide_commit` text, `updated_at` | unique(`kind`, `trash_id`) |
 | `import_map` | `source_id` int FK cascade, `resource` text, `source_resource_id` int, `local_id` int | PK(`source_id`, `resource`, `source_resource_id`) |
 
-`import_map` makes instance import safe to re-run.
+`import_map` makes instance import safe to re-run. `trash_guide_items` is a
+local copy of the published TRaSH guide data; it can be rebuilt at any time.
 
 ## ER diagram
 
@@ -101,10 +136,18 @@ erDiagram
   user ||--o{ api_keys : owns
   api_keys ||--o{ api_key_permissions : ""
   root_folders ||--o{ movies : ""
-  quality_profiles ||--o{ movies : ""
+  collections ||--o{ movies : ""
+  movies ||--|{ movie_profiles : ""
+  quality_profiles ||--o{ movie_profiles : ""
+  movie_profiles ||--o| movie_files : ""
+  quality_profiles ||--o{ quality_profile_custom_formats : ""
+  custom_formats ||--o{ quality_profile_custom_formats : ""
+  user ||--o{ user_permissions : ""
+  indexers ||--o{ indexer_tags : ""
+  download_clients ||--o{ download_client_tags : ""
   movies ||--o{ movie_tags : ""
   tags ||--o{ movie_tags : ""
-  movies ||--o| movie_files : ""
+  movies ||--o{ movie_files : ""
   movies ||--o{ downloads : ""
   indexers ||--o{ downloads : ""
   download_clients ||--o{ downloads : ""
@@ -113,9 +156,19 @@ erDiagram
   import_sources ||--o{ import_map : ""
 ```
 
+## Decisions (2026-11-15)
+
+- Secrets are encrypted at rest.
+- `quality_profiles.items` is a JSON column in the database. It is always
+  read and written as one ordered list, and Radarr's API uses the same
+  shape. Custom format scores are a child table because they point at
+  `custom_formats`.
+- Tags apply to indexers and download clients in V1.
+- One movie can have several files (`movie_profiles`). Collections,
+  custom formats, quality definitions, direct grants and the audit log have
+  tables in V1.
+
 ## Open questions
 
-- Are secrets (`api_key`, `password`) encrypted at rest? See [11-security.md](11-security.md).
-- Is `quality_profiles.items` JSON, or a child table?
-- Do tags also apply to indexers and download clients in V1, as in Radarr?
-- Exact auth columns: confirm from the generated file.
+- Exact auth columns: confirm from the generated file in the spike (issue #3).
+- Retention of `audit_log` and `history` rows: keep forever, or prune by age.

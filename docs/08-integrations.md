@@ -5,14 +5,21 @@ documentation when its issue is implemented.
 
 All clients: one shared `reqwest` client, timeouts (10 s connect, 30 s total),
 a user agent `Unseen/<version>`, and typed errors that map to HTTP 502 in our
-API. Tests use recorded fixtures served by a local mock HTTP server
+API. Every user-entered URL passes the outbound URL check in
+[11-security.md](11-security.md). Tests use recorded fixtures served by a local mock HTTP server
 (`wiremock`). No test calls the real service.
+
+## Metadata providers
+
+`core` defines a metadata provider trait: search, lookup by id, details,
+collection details. TMDB is the V1 implementation. TVDB follows in M7. The
+rest of the code depends on the trait only.
 
 ## TMDB (M2)
 
 | | |
 |---|---|
-| Endpoints | `GET /3/search/movie`, `GET /3/movie/{id}?append_to_response=external_ids,release_dates`, `GET /3/find/{imdb_id}`, `GET /3/configuration` |
+| Endpoints | `GET /3/search/movie`, `GET /3/movie/{id}?append_to_response=external_ids,release_dates`, `GET /3/find/{imdb_id}`, `GET /3/collection/{id}`, `GET /3/configuration` |
 | Auth | API key or bearer token set by the Owner in settings |
 | Rate limits | About 40 requests per second per IP; back off on 429 with `Retry-After` |
 | Failure | Add fails with 502. Refresh keeps the stored metadata. |
@@ -31,6 +38,21 @@ Open question: ship a shared TMDB key, or require the Owner's own key.
 | Mock | XML fixtures: caps, results with `torznab:attr`, error response |
 
 Use only the search modes and parameters that `caps` advertises.
+
+Proxy: one optional proxy (HTTP, HTTPS or SOCKS5, with optional credentials)
+in settings. It applies to indexer traffic only. Each indexer has a "use
+proxy" switch, default on. Local addresses bypass the proxy by default.
+TMDB, download clients and import sources are never proxied.
+
+## TRaSH guides (M5)
+
+| | |
+|---|---|
+| Source | The JSON files in the public TRaSH-Guides GitHub repository (Radarr custom formats, custom format groups, quality profiles, quality sizes) |
+| Auth | None |
+| Rate limits | One download of the repository archive per sync; default once a day; conditional request so an unchanged guide costs nothing |
+| Failure | Keep the stored copy; report the error on the task |
+| Mock | A small copy of the guide folder as fixtures |
 
 ## Newznab (M9)
 
@@ -62,7 +84,7 @@ in M10.
 
 | | |
 |---|---|
-| Endpoints (v3, read-only) | `GET /api/v3/system/status`, `/movie`, `/rootfolder`, `/qualityprofile`, `/tag`, `/indexer`, `/downloadclient` |
+| Endpoints (v3, read-only) | `GET /api/v3/system/status`, `/movie`, `/collection`, `/rootfolder`, `/qualityprofile`, `/qualitydefinition`, `/customformat`, `/tag`, `/indexer`, `/downloadclient` |
 | Auth | `X-Api-Key` header |
 | Rate limits | None |
 | Failure | Import stops with a report; nothing partial is hidden; safe to re-run |
@@ -76,7 +98,7 @@ secret.
 
 Sonarr: v3, same pattern with `/series`. Prowlarr: API v1, `GET /api/v1/indexer`.
 
-## Open questions
+## Decisions (2026-11-15)
 
-- Optional HTTP proxy for indexer traffic.
-- Bazarr settings import: practical or not.
+- Optional proxy for indexer traffic: yes, in V1.
+- Bazarr settings import: not in V1. Decide in the subtitles design (M10).

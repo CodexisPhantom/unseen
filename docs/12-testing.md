@@ -45,13 +45,32 @@ On every pull request:
 
 On `main`: also the Playwright tests and the image push.
 
+The Rust tests for `core` and the importer also run on Windows
+([09-filesystem.md](09-filesystem.md)).
+
+## Coverage
+
+Aim: as high as the code allows. Measured with `cargo llvm-cov` and Vitest
+coverage on every pull request.
+
+| Scope | Minimum line coverage |
+|---|---|
+| `crates/core` (parsing, scoring, custom formats, naming, permissions, state machines) | 90% |
+| Rust workspace overall | 80% |
+| `web/src/lib` (stores, helpers, API wrappers) | 80% |
+
+A pull request fails below a minimum. The minimums go up when the real
+numbers allow it; they never go down. Generated code (auth schema, API
+client) and `main` wiring are excluded.
+
 ## Not tested automatically
 
 - Real indexers, real TMDB.
 - A real qBittorrent, except one optional local test.
-- Seerr end to end: a manual checklist in M6, automated later if it pays off.
+- Seerr end to end: a manual checklist in M6. Not automated with containers in CI.
 
-## Open questions
+## Decisions (2026-11-15)
 
-- Coverage target, if any.
-- Automate the Seerr test with containers in CI.
+- Coverage: measured and enforced with the minimums above.
+- The Seerr test stays manual. The replayed Seerr request sequence in the
+  contract tests covers regressions in CI.

@@ -42,5 +42,9 @@ SQLite databases, running their plugins or custom scripts.
   supported.
 - Upstream API changes need attention; the pinned upstream schema makes them
   visible in CI.
-- Custom formats are postponed. Recyclarr and TRaSH guides do not work in V1.
+- Amended 2026-11-15: custom formats and a built-in TRaSH guide browser are
+  in V1. They use Radarr's custom format JSON unchanged. Recyclarr needs
+  compat write endpoints and comes after V1.
+- Amended 2026-11-15: a movie can have several quality profiles and files
+  (ADR 0010). The compat API shows the primary one.
 - DTOs and mapping live in `crates/arr-compat`, away from the core types.

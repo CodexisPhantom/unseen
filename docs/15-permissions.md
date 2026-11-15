@@ -18,9 +18,9 @@ Fixed in code as a Rust enum in `crates/core`. Format `resource:action`.
 
 | Permission | Meaning |
 |---|---|
-| `library:read` | See movies, files and tags |
-| `library:add` | Add a movie |
-| `library:edit` | Edit a movie, its tags, monitored state; create and rename tags |
+| `library:read` | See movies, collections, files and tags |
+| `library:add` | Add a movie; add a profile to a movie |
+| `library:edit` | Edit a movie, its tags, monitored state; monitor a collection; create and rename tags |
 | `library:delete` | Remove a movie, with or without files |
 | `search:run` | Start a manual or automatic search |
 | `release:grab` | Send a chosen release to a download client |
@@ -32,16 +32,17 @@ Fixed in code as a Rust enum in `crates/core`. Format `resource:action`.
 | `indexers:manage` | Create, edit, delete and test indexers |
 | `clients:read` | See download clients without secrets |
 | `clients:manage` | Create, edit, delete and test download clients |
-| `profiles:read` | See quality profiles and qualities |
-| `profiles:manage` | Create, edit and delete quality profiles |
+| `profiles:read` | See quality profiles, qualities, quality definitions, custom formats and the TRaSH guide browser |
+| `profiles:manage` | Create, edit and delete quality profiles and custom formats; edit quality definitions; apply TRaSH guide items |
 | `settings:read` | See settings and root folders |
 | `settings:manage` | Change settings and root folders |
-| `users:manage` | Create, edit, disable and delete users; assign roles |
+| `users:manage` | Create, edit, disable and delete users; assign roles and direct grants |
 | `roles:manage` | Create, edit and delete roles |
 | `apikeys:manage` | Manage API keys of other users |
 | `system:logs` | Read logs |
 | `system:backup` | Create and download backups; restore |
 | `system:tasks` | See scheduled tasks and run them now |
+| `system:audit` | Read the audit log |
 
 Every user manages their own API keys without a permission.
 
@@ -53,25 +54,44 @@ Every user manages their own API keys without a permission.
   deleted or lose the role.
 - Only an Owner can modify an Owner or grant the Owner role.
 
+- Ownership transfer: an Owner opens "Transfer ownership", picks an enabled
+  user and confirms with their own password. In one transaction the target
+  gets the Owner role and the current Owner loses it (and keeps or receives
+  another role chosen in the dialog). The action is written to the audit log
+  and both users' sessions reload their permissions. Granting the Owner role
+  to a second user without giving it up stays possible.
+
 ## Custom roles
 
 - A named set of permissions, stored in the database, managed in the UI.
-- A user can have several roles. Effective permissions are the union.
-- A user without a role can log in and sees nothing.
+- A user can have several roles. Effective permissions are the union of all
+  roles and the user's direct grants.
+- A user without a role or grant can log in and sees nothing.
 - Templates on the roles page only pre-fill the form:
 
 | Template | Permissions |
 |---|---|
-| Admin | Every permission in the current catalog, listed explicitly. Does not gain future permissions; the Owner-only rules still apply |
+| Admin | Every permission in the catalog at the time the role is created, listed explicitly. Does not gain future permissions; the Owner-only rules still apply |
 | Member | `library:read`, `library:add`, `search:run`, `queue:read` |
 | Read-only | `library:read`, `queue:read` |
+
+## Direct grants
+
+A permission can be given to one user without creating a role, for example
+`queue:manage` for one family member. Stored in `user_permissions`.
+
+- Grants only add. There is no "deny" entry; a deny rule would make the
+  effective set hard to predict.
+- The users page shows roles and direct grants separately, and the effective
+  set with the source of each permission.
 
 ## Escalation rules
 
 - With `roles:manage`: a role may only contain permissions the editor holds.
   Editing a role that contains a permission the editor lacks is refused.
 - With `users:manage`: only roles whose permissions the editor fully holds
-  can be assigned or removed.
+  can be assigned or removed, and only permissions the editor holds can be
+  granted directly or taken away.
 - Nobody but an Owner can change an Owner's account, roles or password.
 - A user cannot remove their own last path to `roles:manage` by accident:
   the UI asks for confirmation. Open question: enforce or only warn.
@@ -107,14 +127,17 @@ The generated OpenAPI document is authoritative. This table is the plan.
 | `GET /health`, `POST /setup`, `/api/auth/*` sign-in and sign-out | public |
 | `GET /me`, `GET/POST/DELETE /me/api-keys` | authenticated, no permission |
 | `GET /permissions`, `/roles` (all methods) | `roles:manage` |
-| `/users` (all methods) | `users:manage` |
+| `/users` (all methods), `PUT /users/{id}/permissions` | `users:manage` |
+| `POST /owner/transfer` | authenticated; the handler requires the Owner role and the password |
+| `GET /audit-log` | `system:audit` |
 | `/api-keys` (other users' keys) | `apikeys:manage` |
-| `GET /movies`, `/movies/{id}`, `/tags` | `library:read` |
-| `GET /movies/lookup`, `POST /movies` | `library:add` |
-| `PATCH /movies/{id}`, `POST/PATCH/DELETE /tags` | `library:edit` |
-| `DELETE /movies/{id}` | `library:delete` |
-| `GET /quality-profiles`, `/qualities` | `profiles:read` |
-| `POST/PATCH/DELETE /quality-profiles` | `profiles:manage` |
+| `GET /movies`, `/movies/{id}`, `/movies/{id}/files`, `/collections`, `/tags` | `library:read` |
+| `GET /movies/lookup`, `POST /movies`, `POST /movies/{id}/profiles` | `library:add` |
+| `PATCH /movies/{id}`, `PATCH /collections/{id}`, `POST/PATCH/DELETE /tags` | `library:edit` |
+| `DELETE /movies/{id}`, `DELETE /movies/{id}/profiles/{pid}`, `DELETE /movies/{id}/files/{fid}` | `library:delete` |
+| `GET /quality-profiles`, `/qualities`, `/quality-definitions`, `/custom-formats`, `/trash-guides`, `POST /custom-formats/test` | `profiles:read` |
+| `POST/PATCH/DELETE /quality-profiles`, `/custom-formats`; `PATCH /quality-definitions`; `POST /custom-formats/import`, `/trash-guides/apply` | `profiles:manage` |
+| `POST /trash-guides/sync` | `system:tasks` |
 | `GET /root-folders`, `/settings` | `settings:read` |
 | `POST/DELETE /root-folders`, `PATCH /settings` | `settings:manage` |
 | `POST /library/scan`, `/library/adopt`, `/import-sources/*` | `import:run` |
@@ -136,11 +159,28 @@ The generated OpenAPI document is authoritative. This table is the plan.
 `roles:manage` must still list roles. Open question: a second read route, or
 include assignable roles in the users API.
 
+## Scoping per library (after V1)
+
+Decided direction, not built in V1: access is scoped per library, not per
+root folder. A library is a named group of root folders ("Movies", "Kids").
+A role assignment or a direct grant then applies to all libraries or to
+chosen ones. In V1 every permission covers the whole server. Adding
+libraries later is a migration that puts every root folder into one default
+library, so V1 data needs no special preparation. Planned for M11.
+
+## Decisions (2026-11-15)
+
+- Scoping: per library, after V1.
+- Direct per-user grants: yes, in V1.
+- Ownership transfer: yes, in V1.
+- Audit log: yes, in V1, with the permission `system:audit` (25 permissions
+  in total).
+- Request and approval flow: wanted, after V1. Seerr covers it until then. A
+  design issue is in M11.
+- Admin template: every permission in the catalog when the role is created.
+  It is only a form pre-fill; the Owner can untick anything.
+
 ## Open questions
 
-- Scoping per library or root folder ("kids can only see the kids folder").
-- Direct per-user grants in addition to roles.
-- Ownership transfer flow.
-- Audit log.
-- Request and approval flow.
-- Exact content of the Admin template.
+- Does a request flow need new permissions (`requests:create`,
+  `requests:approve`)? Decide in its design.

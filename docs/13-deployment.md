@@ -1,6 +1,6 @@
 # 13 Deployment and operations
 
-Status: draft. Image name and port are placeholders.
+Status: draft.
 
 ## docker-compose example
 
@@ -49,6 +49,16 @@ services:
     restart: unless-stopped
 ```
 
+## Images
+
+Published to two registries with the same tags (`latest`, `x.y.z`, `x.y`):
+
+- GitHub Container Registry: `ghcr.io/codexisphantom/unseen`
+- Docker Hub: `codexisphantom/unseen`
+
+Docker is the only supported install for now. No plain binary download and
+no systemd unit yet.
+
 ## Volumes
 
 | Mount | Contents |
@@ -68,8 +78,12 @@ services:
 
 Structured logs on stdout (`UNSEEN_LOG_FORMAT`). Secrets are never logged.
 Unimplemented compat endpoints log at `warn` with method and path.
-`system:logs` gives access to recent logs in the UI (open question: file or
-in-memory ring buffer).
+Logs are also written to daily files in `/config/logs`, kept for
+`logs.retention_days` (default 14). `system:logs` gives access to them in the
+UI: `GET /api/v1/logs` returns the most recent lines with a level filter and
+a text filter, and the page can download a file for a bug report. Files are
+used instead of a memory buffer so that the lines before a crash or restart
+are still there.
 
 ## Health
 
@@ -96,8 +110,13 @@ The Docker image declares it as `HEALTHCHECK`.
    Seerr to Unseen with URL base `/radarr`.
 6. Roll back: stop Unseen, start Radarr. Files were never moved.
 
+## Decisions (2026-11-15)
+
+- Port 7979 ([10-configuration.md](10-configuration.md)).
+- Registries: Docker Hub and GitHub Container Registry.
+- Non-Docker installs: not for now.
+- Log access through `system:logs`: yes, in V1.
+
 ## Open questions
 
-- Port number and image registry.
-- Non-Docker installs: plain binary, systemd unit.
-- Log access for `system:logs`.
+- Multi-arch images (amd64 and arm64) from the first release, or later.

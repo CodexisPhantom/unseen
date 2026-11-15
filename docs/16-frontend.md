@@ -37,24 +37,30 @@ src/routes/
   login/
   (app)/                    authenticated shell: sidebar, header
     +layout.ts              loads /me, redirects to /login or /setup
-    library/                list and movie detail
+    library/                list, movie detail, collections
     add/                    search TMDB and add
     activity/               queue
-    settings/               general, root folders, profiles, indexers, clients
+    settings/               general, root folders, profiles, quality sizes,
+                            custom formats, TRaSH guides, indexers, clients
     users/  roles/  api-keys/
     import/                 adopt folder, import from Radarr
-    system/                 tasks
+    system/                 tasks, logs, audit log
 ```
 
 ## API client
 
 - `openapi-typescript` generates `src/lib/api/schema.d.ts` from the committed
-  `openapi.json`. `openapi-fetch` is the runtime (open question: confirm).
+  `openapi.json`. `openapi-fetch` is the runtime.
 - One client instance in `src/lib/api/client.ts`. Components never call
   `fetch` directly.
 - Errors are problem details ([05-api.md](05-api.md)); a helper turns `code`
   into a message or a form error.
 - A 401 response sends the user to `/login`.
+
+- Server data is read and cached with TanStack Query
+  (`@tanstack/svelte-query`, the version with Svelte 5 runes support; confirm
+  in the scaffold issue). Query functions call the API client. Mutations
+  invalidate by query key.
 
 ## Auth
 
@@ -67,8 +73,10 @@ targets (`1.7.6`), pointed at `/api/auth`. Used for sign-in and sign-out only.
   using `$state` and `$derived`.
 - `session.svelte.ts`: user, roles, permissions from `/me`.
 - `events.svelte.ts`: one `EventSource` on `/api/v1/events`, opened in the
-  `(app)` layout, closed on logout. Handlers update the stores. Reconnects
-  refetch the affected lists.
+  `(app)` layout, closed on logout. Handlers invalidate or patch the
+  matching queries. A reconnect invalidates everything.
+- Runes modules hold client state only (session, UI state). Server data
+  lives in the query cache, not in hand-written stores.
 - No Svelte 4 stores in new code.
 
 ## Permission-based hiding
@@ -90,13 +98,15 @@ Anything missing is built on Bits UI in the same style.
 
 Planned set: sidebar, button, input, label, select, checkbox, switch, dialog,
 sheet, dropdown-menu, table, tabs, badge, card, alert, sonner, skeleton,
-progress, tooltip, form, separator, avatar, breadcrumb.
+progress, tooltip, form, field, separator, avatar, breadcrumb.
 
 - Tables: the shadcn-svelte data table with `@tanstack/svelte-table`
   (TanStack Table v9).
 - Forms: the shadcn-svelte form components (formsnap, sveltekit-superforms,
   zod) in client-only mode: `superForm(defaults(zod4(schema)), { SPA: true })`,
   submit through the API client in `onUpdate`.
+- `Field` is used for the layout of controls that are not part of a
+  validated form (filters, single switches that save at once).
 
 ## Theming
 
@@ -107,9 +117,15 @@ progress, tooltip, form, separator, avatar, breadcrumb.
   system.
 - Use tokens (`bg-background`, `text-muted-foreground`), never raw colours.
 
-## Open questions
+## Decisions (2026-11-15)
 
-- `openapi-fetch` or a thinner hand-written wrapper.
-- shadcn-svelte now also ships a `Field` component; decide Form or Field.
-- Data fetching and caching helper (plain runes or TanStack Query).
-- Hosting under a sub-path.
+- `openapi-fetch`. It is a few kilobytes, fully typed from the generated
+  schema, and a hand-written wrapper would repeat it.
+- Forms: the Form components (formsnap and superforms in SPA mode) for every
+  validated form, because they give validation, server error mapping and
+  dirty state without own code. `Field` for layout outside validated forms.
+- Data fetching: TanStack Query. Caching, request deduplication and
+  invalidation from SSE events would otherwise be written by hand.
+- Sub-path hosting: not in V1. SvelteKit fixes the base path at build time
+  and the UI is embedded in the binary, so a runtime base path needs extra
+  work. Use a subdomain. Planned for M11.

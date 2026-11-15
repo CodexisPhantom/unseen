@@ -35,20 +35,81 @@ Bluray-2160p, Remux-2160p, BR-DISK, Raw-HD
 
 Quality ids match Radarr's ids so the compat API can return them unchanged.
 
+## Quality definitions (size limits)
+
+As in Radarr: each quality has a minimum, a preferred and a maximum size in
+megabytes per minute of runtime. The table is seeded with Radarr's defaults
+and editable (`profiles:manage`). Instance import and the TRaSH guide's
+quality sizes can overwrite it. A release whose size is outside minimum and
+maximum is rejected. A movie without a known runtime skips the check.
+
 ## Quality profile
 
 - An ordered list of qualities or quality groups, each allowed or not.
 - `cutoff`: the quality at which upgrades stop.
 - `upgradeAllowed`: whether a better release replaces an existing file.
+- `language`: `any`, `original`, or one language, as in Radarr. Default
+  `any`. Finer language preferences are expressed with language conditions
+  in custom formats, which is how the TRaSH guides do it.
+- Custom format scores: one score per custom format, default 0.
+- `minFormatScore`: releases with a lower total score are rejected.
+- `cutoffFormatScore`: upgrades for score stop when the file reaches it.
+- `minUpgradeFormatScore`: smallest score gain that counts as an upgrade.
+
+## Custom formats
+
+Same model and JSON format as Radarr, so that formats exported from Radarr
+and published by the TRaSH guides load unchanged.
+
+- A custom format is a name and a list of conditions (specifications).
+- Each condition has a type, a value, `negate` and `required`.
+- A format matches when every required condition matches and, if there are
+  non-required conditions, at least one of each type matches. Verify the
+  exact rule against Radarr's source before implementing.
+- Condition types in V1: release title (regex), release group (regex),
+  edition (regex), language, source, resolution, quality modifier (remux and
+  others), size, indexer flag, year. Regex syntax is .NET's upstream; the
+  Rust engine must accept every regex in the TRaSH guide data (a test loads
+  all of them).
+- The total score of a release for a profile is the sum of the scores of the
+  matching formats.
+- Formats with `includeWhenRenaming` appear in the `{Custom Formats}` naming
+  token.
+- A test endpoint takes a release name and returns the matching formats and
+  the score per profile.
+
+## TRaSH guides
+
+Unseen reads the JSON that the TRaSH guides publish in their repository
+(custom formats, custom format groups, quality profiles with score sets,
+quality sizes for Radarr). Verify the paths and file formats when the issue
+is implemented.
+
+- A scheduled task downloads the guide data and stores it locally.
+- The guide browser lists everything with its description, searchable by
+  name and by purpose (for example "HDR", "unwanted", "French audio").
+- Applying shows a preview first: which custom formats are created or
+  changed, which scores change in which profile, which quality sizes change.
+- An applied item can be kept in sync. When the guide changes, the task
+  updates synced items and reports what changed. Items the user edited are
+  not overwritten; the user sees the difference and chooses.
+- The data and its licence stay with the TRaSH guides project; the UI links
+  to the guide page of each item.
 
 ## Rejection rules (in order)
 
 1. The title or year does not match the movie.
 2. Quality is not allowed in the profile.
 3. The release is on the blocklist.
-4. Size is outside the limits for its quality (limits: open question).
-5. The movie already has a file and upgrades are off, or the cutoff is met.
-6. The release is not better than the existing file.
+4. Size is outside the quality definition limits.
+5. Language does not satisfy the profile language. A release name without a
+   language tag counts as the movie's original language (verify against
+   Radarr).
+6. The custom format score is below `minFormatScore`.
+7. The movie profile already has a file and upgrades are off, or both the
+   quality cutoff and the format score cutoff are met.
+8. The release is not better than the existing file.
+9. The indexer has tags and shares none with the movie.
 
 A rejected release is still listed in manual search, with its reasons.
 
@@ -57,18 +118,26 @@ A rejected release is still listed in manual search, with its reasons.
 Compare in this order, first difference wins:
 
 1. Quality rank in the profile.
-2. Revision: repack/proper version, higher wins.
-3. Indexer priority.
-4. Seeders (torrents), on a log scale.
-5. Size, larger wins.
+2. Custom format score.
+3. Revision: repack/proper version, higher wins.
+4. Indexer priority.
+5. Seeders (torrents), on a log scale.
+6. Size, closest to the preferred size of the quality definition; larger
+   wins when no preferred size is set.
 
-Custom formats are out of scope until after V1. Open question.
+Verify this order against Radarr's decision comparer before implementing.
 
 ## Upgrade rules
 
-A release upgrades an existing file when `upgradeAllowed` is on, the existing
-quality is below the cutoff, and the release ranks higher on step 1 or step 2
-above.
+A release upgrades the file of a movie profile when `upgradeAllowed` is on
+and one of these is true:
+
+- the existing quality is below the cutoff and the release has a higher
+  quality rank;
+- the quality is the same, the existing format score is below
+  `cutoffFormatScore`, and the release scores at least
+  `minUpgradeFormatScore` more;
+- the quality and score are the same and the release is a higher revision.
 
 ## Test table
 
@@ -95,8 +164,15 @@ implementing, run each name through a real Radarr
 | `Some Movie (2019) [1080p] [BluRay] [YTS.MX]` | Some Movie | 2019 | Bluray-1080p | YTS.MX | bracket style |
 | `Some.Movie.2019.1080p.x264-GROUP` | Some Movie | 2019 | Unknown resolution source | GROUP | check what Radarr reports |
 
+## Decisions (2026-11-15)
+
+- Size limits reuse Radarr's quality definitions.
+- Language: profile language as in Radarr, plus language conditions in custom
+  formats. This keeps instance import and the TRaSH guides lossless; a
+  separate preferred list would be a second, incompatible mechanism.
+- Custom formats and the TRaSH guide browser are in V1.
+
 ## Open questions
 
-- Size limits per quality: reuse Radarr's quality definitions?
-- Language handling: profile language as in Radarr, or a simple preferred list?
-- Custom formats.
+- Regex compatibility: which Rust regex engine accepts all upstream patterns
+  (look-around is used in the guide data)?

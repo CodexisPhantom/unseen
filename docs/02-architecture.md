@@ -11,8 +11,9 @@ Status: draft.
 | `qbittorrent` | Torrent client, uses the `gluetun` network | Behind VPN |
 | `sabnzbd` | Usenet client (M9) | Direct |
 
-Unseen talks to indexers and TMDB directly, not through the VPN. Open
-question: optional proxy setting for indexer traffic.
+Unseen talks to indexers and TMDB directly, not through the VPN. An optional
+HTTP or SOCKS5 proxy can be set for indexer traffic
+([08-integrations.md](08-integrations.md)).
 
 ```mermaid
 flowchart LR
@@ -44,7 +45,7 @@ are configured with URL base `/radarr` or `/sonarr`.
 
 | Crate | Contains | May depend on |
 |---|---|---|
-| `core` | Domain logic, permission catalog, parsing, scoring, traits for storage and external services | nothing in the workspace |
+| `core` | Domain logic, permission catalog, parsing, scoring, custom formats, traits for storage, metadata providers and external services | nothing in the workspace |
 | `db` | SeaORM entities, generated auth schema, queries, migrations | `core` |
 | `arr-compat` | Radarr/Sonarr v3 DTOs, mapping to and from core types, import client | `core` |
 | `api` | Axum routes, SSE, OpenAPI, auth wiring, permission extractor, static files, `main` | `core`, `db`, `arr-compat` |
@@ -74,7 +75,7 @@ sequenceDiagram
   API->>API: require library:add, else 403
   API->>Core: add movie
   Core->>TMDB: fetch metadata
-  Core->>DB: insert movie (wanted item: missing)
+  Core->>DB: insert movie and its profile (wanted item: missing)
   API-->>UI: 201 movie
   Note over Core: scheduler or "search now"
   Core->>IDX: Torznab search

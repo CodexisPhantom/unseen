@@ -12,10 +12,16 @@ This document explains the conventions. The compat APIs are in
 | Setup | `/setup` (public while no user exists) | M1 |
 | Current user | `/me` | M1 |
 | Users, roles, API keys | `/users`, `/roles`, `/api-keys` | M1 |
+| Audit log | `/audit-log` | M1 |
 | Permission catalog | `/permissions` | M1 |
-| Movies | `/movies`, `/movies/lookup` | M2 |
+| Movies | `/movies`, `/movies/lookup`, `/movies/{id}/profiles`, `/movies/{id}/files` | M2 |
+| Collections | `/collections` | M2 |
 | Root folders, tags | `/root-folders`, `/tags` | M2 |
 | Quality profiles, qualities | `/quality-profiles`, `/qualities` | M2 |
+| Quality definitions | `/quality-definitions` | M3 |
+| Custom formats | `/custom-formats`, `/custom-formats/import`, `/custom-formats/test` | M3 |
+| TRaSH guides | `/trash-guides`, `/trash-guides/apply`, `/trash-guides/sync` | M5 |
+| Logs | `/logs` | M5 |
 | Library adoption | `/library/scan`, `/library/adopt` | M2 |
 | Indexers | `/indexers`, `/indexers/{id}/test` | M3 |
 | Releases | `/movies/{id}/releases`, `/releases/grab` | M3, M4 |
