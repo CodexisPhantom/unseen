@@ -1,6 +1,6 @@
 # 14 Sonarr/Radarr compatibility
 
-Status: draft. Scope decision: ADR 0008.
+Status: reviewed (2026-11-16). Scope decision: ADR 0008.
 
 "Compatible" means the four layers below. Anything not listed is not promised.
 

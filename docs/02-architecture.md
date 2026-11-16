@@ -1,6 +1,6 @@
 # 02 Architecture overview
 
-Status: draft.
+Status: reviewed (2026-11-16).
 
 ## Components and containers
 

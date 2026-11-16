@@ -1,6 +1,6 @@
 # 07 Release parsing and scoring
 
-Status: draft. Movies only. Episode parsing is added in M7.
+Status: reviewed (2026-11-16). Movies only. Episode parsing is added in M7.
 
 ## Parsed fields
 
