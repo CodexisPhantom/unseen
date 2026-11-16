@@ -1,6 +1,6 @@
 # 09 File handling
 
-Status: draft. Movies only.
+Status: reviewed (2026-11-16). Movies only.
 
 ## Folder layout
 

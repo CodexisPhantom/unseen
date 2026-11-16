@@ -1,6 +1,6 @@
 # 06 State machines
 
-Status: draft.
+Status: reviewed (2026-11-16).
 
 ## Wanted item
 

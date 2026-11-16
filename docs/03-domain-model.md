@@ -1,6 +1,6 @@
 # 03 Domain model and glossary
 
-Status: draft. Terms match Sonarr/Radarr unless the "Differs" column says so.
+Status: reviewed (2026-11-16). Terms match Sonarr/Radarr unless the "Differs" column says so.
 
 ## Entities
 

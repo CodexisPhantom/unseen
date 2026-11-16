@@ -1,6 +1,6 @@
 # 15 Accounts and access control
 
-Status: draft. Decisions: ADR 0006 (authentication), ADR 0007 (authorization).
+Status: reviewed (2026-11-16). Decisions: ADR 0006 (authentication), ADR 0007 (authorization).
 
 ## First run
 

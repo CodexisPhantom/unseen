@@ -1,6 +1,6 @@
 # 08 External integration contracts
 
-Status: draft. Verify every endpoint against the provider's current
+Status: reviewed (2026-11-16). Verify every endpoint against the provider's current
 documentation when its issue is implemented.
 
 All clients: one shared `reqwest` client, timeouts (10 s connect, 30 s total),

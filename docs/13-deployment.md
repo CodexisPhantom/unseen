@@ -1,6 +1,6 @@
 # 13 Deployment and operations
 
-Status: draft.
+Status: reviewed (2026-11-16).
 
 ## docker-compose example
 
