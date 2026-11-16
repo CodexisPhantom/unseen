@@ -17,7 +17,8 @@ done.
 | Command | Does |
 |---|---|
 | `just dev` | Runs the API with reload and the Vite dev server |
-| `just check` | `cargo fmt --check`, `cargo clippy -- -D warnings`, `pnpm check` |
+| `just check` | `cargo fmt --check`, `cargo clippy -- -D warnings`, `pnpm check`, `pnpm lint` |
+| `just coverage` | Rust tests with `cargo llvm-cov`; fails below the minimums in docs/12 |
 | `just test` | Rust tests and frontend tests |
 | `just gen` | Regenerates `openapi.json` and the TypeScript client |
 | `just gen-auth` | Regenerates `crates/db/src/auth_schema.rs` with the Better Auth CLI |

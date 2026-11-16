@@ -17,10 +17,17 @@ check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
     pnpm --dir web check
+    pnpm --dir web lint
 
 # Run all tests
 test:
     cargo test --workspace
+    pnpm --dir web test
+
+# Run the Rust tests with cargo-llvm-cov; fail below the minimums in docs/12-testing.md
+coverage:
+    cargo llvm-cov --workspace --ignore-filename-regex "(auth_schema|main)\.rs$" --fail-under-lines 80
+    cargo llvm-cov --package core --fail-under-lines 90
 
 # Build the frontend into web/build
 web-build:
