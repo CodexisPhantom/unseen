@@ -41,9 +41,12 @@ pub async fn health(State(state): State<AppState>) -> (StatusCode, Json<Health>)
         }
     };
     let version = env!("CARGO_PKG_VERSION").into();
-    (status, Json(Health {
-        version,
-        database,
-        drift_probe: true,
-    }))
+    (
+        status,
+        Json(Health {
+            version,
+            database,
+            drift_probe: true,
+        }),
+    )
 }
