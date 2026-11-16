@@ -1,6 +1,6 @@
 # 01 Product brief
 
-Status: draft.
+Status: reviewed (2026-11-16).
 
 ## Problem
 
@@ -29,6 +29,8 @@ multi-user permissions.
 - Music, books or other media types.
 - Public sign-up or multi-tenant hosting.
 
+Confirmed in the review of 2026-11-16.
+
 ## Target user
 
 One household. The Owner runs the server. A few family members or friends
@@ -37,10 +39,23 @@ settings".
 
 ## V1
 
-Contains: movies, collections, torrents (Torznab), qBittorrent, accounts and
-permissions, an audit log, custom formats, a built-in TRaSH guides browser,
-adoption of an existing Radarr library, import from running Radarr instances,
-the Radarr API subset that Seerr needs.
+V1 is the result of milestones M0 to M6. It contains:
+
+- Accounts: Owner setup, login, roles, per-user grants, API keys, an audit
+  log, ownership transfer.
+- Library: movies from TMDB, collections, tags, root folders, several
+  quality profiles and files per movie, adoption of an existing Radarr
+  library in place.
+- Search: Torznab indexers with an optional proxy, quality profiles with
+  size limits, custom formats, manual search with scored results.
+- Download and import: qBittorrent, a live queue, import with Radarr naming,
+  sidecar subtitle files, removal of torrents after seeding.
+- Automation: scheduler, RSS sync, automatic search, upgrades, blocklist, a
+  built-in TRaSH guides browser, a log viewer.
+- Radarr compatibility: import from running Radarr instances and the Radarr
+  API subset that Seerr needs.
+- Operations: one Docker image, published to two registries; integration
+  secrets encrypted at rest.
 
 Leaves out: TV, Usenet, subtitles, notifications, backup UI, 2FA and
 passkeys, Prowlarr import, Recyclarr support, a request and approval flow,
@@ -50,13 +65,13 @@ per-library access scoping, a recycle bin, sub-path hosting.
 
 | Milestone | Features |
 |---|---|
-| M0 | Workspace, app shell, CI, Docker image, OpenAPI client, auth spike, docs |
+| M0 | Workspace, app shell, embedded UI, CI, Docker image, OpenAPI client, auth spike, docs |
 | M1 | Owner setup, login, roles, per-user grants, users, API keys, permission on every route, audit log, ownership transfer |
-| M2 | Add movie from TMDB, several profiles and files per movie, collections, root folders, quality profiles, encrypted secrets, adopt Radarr folder |
-| M3 | Torznab indexers, proxy, quality size limits, custom formats, manual search, scored results |
+| M2 | Add movie from TMDB, several profiles and files per movie, collections, tags, root folders, quality profiles, encrypted secrets, adopt Radarr folder |
+| M3 | Torznab indexers, proxy, SSRF check on outbound URLs, quality size limits, custom formats, manual search, scored results |
 | M4 | qBittorrent handoff, live queue, import with Radarr naming, sidecar subtitles, removal after seeding |
-| M5 | Scheduler, RSS sync, automatic search, upgrades, blocklist, TRaSH guides, log viewer |
-| M6 | Import from Radarr, `/radarr/api/v3` subset, Seerr verified |
+| M5 | Scheduler, RSS sync, automatic search, upgrades, blocklist, new movies of monitored collections, TRaSH guides, log viewer |
+| M6 | Import from Radarr, `/radarr/api/v3` subset, Seerr verified, images published |
 | M7 | Shows, seasons, episodes, season packs, TVDB as a second metadata provider |
 | M8 | Adopt and import Sonarr, `/sonarr/api/v3` subset |
 | M9 | Newznab, SABnzbd |
@@ -82,3 +97,6 @@ per-library access scoping, a recycle bin, sub-path hosting.
 ## Open questions
 
 - Which metadata providers after TMDB and TVDB (IMDb datasets, Trakt, AniDB)?
+  Kept open on purpose: no feature before M7 needs a third provider. The
+  provider trait and the child id table make a new provider an addition, so
+  the choice can wait for the feature that needs it.
