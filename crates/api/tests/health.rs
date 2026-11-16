@@ -36,6 +36,13 @@ async fn unknown_route_returns_problem_details() {
     assert_eq!(body["type"], "https://unseen.invalid/problems/not_found");
 }
 
+#[tokio::test]
+async fn compat_prefixes_do_not_fall_back_to_the_app() {
+    let (status, content_type, _) = get("/radarr/api/v3/nope").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(content_type, "application/problem+json");
+}
+
 #[test]
 fn openapi_document_describes_health() {
     let document = serde_json::to_value(api::openapi()).unwrap();

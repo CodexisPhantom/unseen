@@ -2,6 +2,7 @@
 
 pub mod error;
 mod health;
+mod web;
 
 use axum::Router;
 use db::DatabaseConnection;
@@ -33,7 +34,5 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 
 pub fn router(state: AppState) -> Router {
     let (router, _) = routes().split_for_parts();
-    router
-        .fallback(async || Problem::not_found())
-        .with_state(state)
+    router.fallback(web::serve).with_state(state)
 }
