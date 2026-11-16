@@ -1,0 +1,15 @@
+[package]
+name = "core"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+# The library is named `unseen_core` because a dependency named `core` would
+# shadow the standard library's `core` crate in every crate that uses it.
+[lib]
+name = "unseen_core"
+
+[dependencies]
+
+[lints]
+workspace = true
