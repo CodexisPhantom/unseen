@@ -1,6 +1,6 @@
 # 10 Configuration reference
 
-Status: draft.
+Status: reviewed (2026-11-16).
 
 Rule: what the process needs before the database is open lives in
 environment variables. Everything else lives in the database and is edited
@@ -21,7 +21,21 @@ in the UI. There is no config file.
 | `UMASK` | `022` | File creation mask |
 | `TZ` | `UTC` | Time zone for logs and schedules |
 
+`PUID`, `PGID` and `UMASK` are read by the entrypoint of the Docker image,
+not by the binary. The image's `HEALTHCHECK` calls port 7979: keep the port
+of `UNSEEN_BIND` in a container and change the published port instead.
+
+State after M0: the binary reads `UNSEEN_DATA_DIR` and `UNSEEN_BIND`; the
+image handles `PUID`, `PGID`, `UMASK` and `TZ`. Each other variable is read
+from the issue that needs it: `UNSEEN_SECRET` and `UNSEEN_BASE_URL` with
+authentication (M1), `UNSEEN_TRUSTED_PROXIES` with the first use of the
+client address (M1), `UNSEEN_LOG_LEVEL` and `UNSEEN_LOG_FORMAT` with the log
+files (M5). Until then the log level is `info` and the format is text.
+
 ## Database settings (table `settings`)
+
+Location: one row per key in the table `settings`, edited in the UI under
+Settings. A missing row means the default below.
 
 | Key | Default | Permission to change |
 |---|---|---|
