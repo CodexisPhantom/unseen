@@ -31,15 +31,17 @@ Rule for changes: regenerate the file with `just gen-auth`, then write one of
 our own migrations that applies the difference. `create_auth_tables` runs only
 in the first migration; it fails if tables exist and never alters them.
 
-The columns below are the expected upstream Better Auth core schema. Confirm
-them against the generated file in the M0 spike.
+The columns below are copied from the schema that `better-auth-rs generate`
+(1.0.0-alpha.5, SQLite, default options) created in the M0 spike. Every
+column is `NOT NULL` unless marked null. `date` is the declared SQLite type
+of the timestamp columns.
 
-| Table | Columns |
-|---|---|
-| `user` | `id` text PK, `name`, `email` unique, `emailVerified` bool, `image` null, `createdAt`, `updatedAt` |
-| `session` | `id` text PK, `token` unique, `userId` FK user, `expiresAt`, `ipAddress` null, `userAgent` null, `createdAt`, `updatedAt` |
-| `account` | `id` text PK, `userId` FK user, `accountId`, `providerId`, `password` null (hash), token columns null, `createdAt`, `updatedAt` |
-| `verification` | `id` text PK, `identifier`, `value`, `expiresAt`, `createdAt`, `updatedAt` |
+| Table | Columns | Keys and constraints |
+|---|---|---|
+| `user` | `id` text PK, `name` text, `email` text, `emailVerified` integer, `image` text null, `createdAt` date, `updatedAt` date | unique(`email`) |
+| `session` | `id` text PK, `expiresAt` date, `token` text, `createdAt` date, `updatedAt` date, `ipAddress` text null, `userAgent` text null, `userId` text FK user cascade | unique(`token`); index `session_userId_idx`(`userId`) |
+| `account` | `id` text PK, `accountId` text, `providerId` text, `userId` text FK user cascade, `accessToken` text null, `refreshToken` text null, `idToken` text null, `accessTokenExpiresAt` date null, `refreshTokenExpiresAt` date null, `scope` text null, `password` text null (hash), `createdAt` date, `updatedAt` date | index `account_userId_idx`(`userId`) |
+| `verification` | `id` text PK, `identifier` text, `value` text, `expiresAt` date, `createdAt` date, `updatedAt` date | index `verification_identifier_idx`(`identifier`) |
 
 App columns added to `user` (allowed on the four core entities):
 `disabled` bool not null default false.
@@ -64,8 +66,9 @@ effective permissions are the union of their roles and their direct grants.
 `audit_log` is append-only. `actor_name` is copied at write time so a row
 stays readable after the user is deleted.
 
-`api_keys` is used only if the spike rejects the Better Auth API-key plugin
-(ADR 0006).
+API keys use our own tables, not the Better Auth API-key plugin. The plugin
+works, but it writes on every verification, uses text ids and has another
+permission shape (ADR 0006, check 5).
 
 ## Library tables
 
@@ -170,5 +173,4 @@ erDiagram
 
 ## Open questions
 
-- Exact auth columns: confirm from the generated file in the spike (issue #3).
 - Retention of `audit_log` and `history` rows: keep forever, or prune by age.

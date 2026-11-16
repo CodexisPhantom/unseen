@@ -56,6 +56,9 @@ Published to two registries with the same tags (`latest`, `x.y.z`, `x.y`):
 - GitHub Container Registry: `ghcr.io/codexisphantom/unseen`
 - Docker Hub: `codexisphantom/unseen`
 
+The image must contain the OpenSSL 3 and ICU 78 shared libraries: the
+binary links both (ADR 0006).
+
 Docker is the only supported install for now. No plain binary download and
 no systemd unit yet.
 
