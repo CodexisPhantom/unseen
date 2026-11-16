@@ -21,6 +21,10 @@ test:
 build:
     cargo build --workspace --release
 
+# Regenerate crates/db/src/auth_schema.rs with the Better Auth CLI
+gen-auth:
+    better-auth-rs generate --output crates/db/src/auth_schema.rs --force
+
 # Regenerate openapi.json and the TypeScript client (stub until the OpenAPI issue)
 gen:
     @echo "gen: nothing to generate yet"

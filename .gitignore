@@ -3,3 +3,4 @@
 .projectmem/watch.log
 .projectmem/structure.json
 /target
+/.deps

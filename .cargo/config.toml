@@ -1,0 +1,3 @@
+[env]
+# rust_icu (a dependency of better-auth) links the system ICU of this version.
+RUST_ICU_MAJOR_VERSION_NUMBER = "78"

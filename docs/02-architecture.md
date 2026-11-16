@@ -53,7 +53,9 @@ are configured with URL base `/radarr` or `/sonarr`.
 Rules:
 - `core` has no HTTP server code and no SeaORM types.
 - `arr-compat` never touches the database. `api` connects it to `db`.
-- Only `api` knows about Axum and Better Auth RS.
+- Only `api` knows about Axum and builds the Better Auth instance. `db`
+  depends on `better-auth` (feature `seaorm2` only) because the generated
+  auth schema needs its derives.
 
 Open question: does `core` hold the HTTP clients for TMDB, Torznab and
 qBittorrent, or do they go in a separate `integrations` crate?
