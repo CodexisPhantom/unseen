@@ -59,6 +59,13 @@ Published to two registries with the same tags (`latest`, `x.y.z`, `x.y`):
 The image must contain the OpenSSL 3 and ICU 78 shared libraries: the
 binary links both (ADR 0006).
 
+The `Dockerfile` has three stages: frontend build (Node), binary build and
+runtime (both Ubuntu 26.04, which ships these libraries). The image is about
+180 MB. The entrypoint gives `/config` to `PUID:PGID`, applies `UMASK` and
+starts `unseen` as that user. `docker-compose.example.yml` in the repository
+root is the example above; use `build: .` in place of `image` to build from
+source.
+
 Docker is the only supported install for now. No plain binary download and
 no systemd unit yet.
 

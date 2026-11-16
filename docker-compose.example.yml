@@ -1,0 +1,49 @@
+# Example stack: Unseen with qBittorrent behind a Gluetun VPN, and SABnzbd.
+# See docs/13-deployment.md. Copy to docker-compose.yml and adjust.
+services:
+  unseen:
+    image: ghcr.io/codexisphantom/unseen:latest
+    # To build from source instead of pulling: replace `image` with `build: .`
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+      # - UNSEEN_BASE_URL=https://unseen.example.com
+    volumes:
+      - ./config/unseen:/config
+      # Downloads and library under one mount, so hardlinks work.
+      - /data:/data
+    ports:
+      - "7979:7979"
+    restart: unless-stopped
+
+  gluetun:
+    image: qmcgaw/gluetun
+    cap_add: [NET_ADMIN]
+    environment:
+      - VPN_SERVICE_PROVIDER=... # see the Gluetun wiki for your provider
+    ports:
+      - "8080:8080" # qBittorrent WebUI, reached by Unseen
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - WEBUI_PORT=8080
+    volumes:
+      - ./config/qbittorrent:/config
+      - /data/torrents:/data/torrents
+    restart: unless-stopped
+
+  sabnzbd: # used from M9
+    image: lscr.io/linuxserver/sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config/sabnzbd:/config
+      - /data/usenet:/data/usenet
+    restart: unless-stopped

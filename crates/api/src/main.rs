@@ -26,6 +26,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind = std::env::var("UNSEEN_BIND").unwrap_or("0.0.0.0:7979".into());
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(%bind, "listening");
-    axum::serve(listener, api::router(api::AppState { db })).await?;
+    axum::serve(listener, api::router(api::AppState { db }))
+        .with_graceful_shutdown(shutdown())
+        .await?;
+    tracing::info!("stopped");
     Ok(())
+}
+
+/// Resolves on Ctrl+C, and on SIGTERM (what `docker stop` sends). The process
+/// is PID 1 in the container, where SIGTERM does nothing without a handler.
+async fn shutdown() {
+    let ctrl_c = tokio::signal::ctrl_c();
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut terminate = signal(SignalKind::terminate()).expect("install SIGTERM handler");
+        tokio::select! {
+            _ = ctrl_c => {}
+            _ = terminate.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = ctrl_c.await;
 }
