@@ -1,6 +1,6 @@
 # 12 Testing strategy
 
-Status: draft.
+Status: reviewed (2026-11-16).
 
 ## Layers
 
@@ -33,20 +33,30 @@ Status: draft.
    and types as the recorded one.
 4. Client check: one test replays the exact request sequence that Seerr sends.
 
+This method is final (review of 2026-11-16). Steps 2 to 4 run in CI from M6;
+step 1 is run by hand when the pinned Radarr version changes.
+
 ## CI
 
-On every pull request:
+`.github/workflows/ci.yml` runs four jobs on every pull request and on every
+push to `main`:
 
-1. `cargo fmt --check`, `cargo clippy -- -D warnings`
-2. `cargo test --workspace`
-3. `pnpm check`, `pnpm lint`, `pnpm test`, `pnpm build`
-4. OpenAPI and generated client are up to date (`just gen` produces no diff)
-5. Docker image builds
+| Job | Steps |
+|---|---|
+| Rust | `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `just coverage` (all Rust tests under `cargo llvm-cov`, with the minimums below); `just gen`, then `git diff --exit-code` |
+| Web | `pnpm check` (static-SPA check and `svelte-check`), `pnpm lint` (ESLint), `pnpm test` (Vitest with coverage), `pnpm build` |
+| Core tests on Windows | `cargo test -p core` |
+| Docker image | Builds the image, no push |
 
-On `main`: also the Playwright tests and the image push.
+The Rust job runs in an `ubuntu:26.04` container, because the auth library
+links OpenSSL 3 and ICU 78 (ADR 0006).
 
-The Rust tests for `core` and the importer also run on Windows
-([09-filesystem.md](09-filesystem.md)).
+Planned, not in the workflow yet:
+
+- The importer tests on Windows, when the importer exists (M4,
+  [09-filesystem.md](09-filesystem.md)).
+- The compat schema check, with the contract tests (M6).
+- On `main` only: the Playwright tests, and the image push on a release (M6).
 
 ## Coverage
 
@@ -70,8 +80,7 @@ Not counted, because no test of ours can or should cover it:
 `just coverage` runs the Rust part locally; `pnpm test` runs the web part.
 
 A pull request fails below a minimum. The minimums go up when the real
-numbers allow it; they never go down. Generated code (auth schema, API
-client) and `main` wiring are excluded.
+numbers allow it; they never go down.
 
 ## Not tested automatically
 
