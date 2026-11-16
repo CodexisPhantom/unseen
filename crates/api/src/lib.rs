@@ -1,10 +1,14 @@
 //! HTTP API: routes, the OpenAPI document and the Axum router.
 
+pub mod auth;
 pub mod error;
 mod health;
 mod web;
 
 use axum::Router;
+use axum::extract::FromRef;
+use better_auth::AuthResult;
+use better_auth::integrations::axum::AxumIntegration;
 use db::DatabaseConnection;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
@@ -15,6 +19,27 @@ use crate::error::Problem;
 #[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
+    pub auth: auth::Auth,
+    pub policy: auth::Policy,
+}
+
+impl AppState {
+    /// `db` must be migrated: the auth instance reads its tables.
+    pub async fn new(
+        db: DatabaseConnection,
+        secret: &str,
+        base_url: Option<&str>,
+    ) -> AuthResult<Self> {
+        let (auth, policy) = auth::build(db.clone(), secret, base_url).await?;
+        Ok(Self { db, auth, policy })
+    }
+}
+
+/// The library's extractors and router find the auth instance through this.
+impl FromRef<AppState> for auth::Auth {
+    fn from_ref(state: &AppState) -> Self {
+        state.auth.clone()
+    }
 }
 
 #[derive(OpenApi)]
@@ -34,5 +59,11 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 
 pub fn router(state: AppState) -> Router {
     let (router, _) = routes().split_for_parts();
-    router.fallback(web::serve).with_state(state)
+    // The auth routes are the library's own; they are not in our OpenAPI
+    // document.
+    let auth = state.auth.clone().axum_router_with_state();
+    router
+        .nest("/api/auth", auth)
+        .fallback(web::serve)
+        .with_state(state)
 }

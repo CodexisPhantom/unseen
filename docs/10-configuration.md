@@ -25,10 +25,11 @@ in the UI. There is no config file.
 not by the binary. The image's `HEALTHCHECK` calls port 7979: keep the port
 of `UNSEEN_BIND` in a container and change the published port instead.
 
-State after M0: the binary reads `UNSEEN_DATA_DIR` and `UNSEEN_BIND`; the
-image handles `PUID`, `PGID`, `UMASK` and `TZ`. Each other variable is read
-from the issue that needs it: `UNSEEN_SECRET` and `UNSEEN_BASE_URL` with
-authentication (M1), `UNSEEN_TRUSTED_PROXIES` with the first use of the
+State after the auth mount (#30): the binary reads `UNSEEN_DATA_DIR`,
+`UNSEEN_BIND`, `UNSEEN_SECRET` and `UNSEEN_BASE_URL`; the image handles
+`PUID`, `PGID`, `UMASK` and `TZ`. The generated secret is the file `secret`
+in the data directory. Each other variable is read from the issue that needs
+it: `UNSEEN_TRUSTED_PROXIES` with the first use of the
 client address (M1), `UNSEEN_LOG_LEVEL` and `UNSEEN_LOG_FORMAT` with the log
 files (M5). Until then the log level is `info` and the format is text.
 

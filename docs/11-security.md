@@ -34,9 +34,17 @@ Measured on the spike server (library defaults, http base URL, 2026-11-16):
 
 - Cookie `better-auth.session_token`, with `HttpOnly; SameSite=Lax; Path=/;
   Max-Age=604800`. No `Secure` flag, as expected on http.
-- The default lifetime is 7 days, not 30. The auth issue in M1 (#30) sets the
-  lifetime from `auth.session_days` and checks the `Secure` flag with an
-  https base URL.
+- The default lifetime is 7 days, not 30.
+
+Measured on the mounted router (#30, tests in `crates/api/tests/auth.rs`):
+
+- http or no base URL: `better-auth.session_token`, with `Max-Age=2592000;
+  Path=/; HttpOnly; SameSite=Lax`.
+- https base URL: `__Secure-better-auth.session_token`, with the same
+  attributes and `Secure`.
+- The lifetime is a constant of 30 days until the setting
+  `auth.session_days` exists. The library moves the expiry forward at most
+  once a day.
 
 ## Passwords
 
