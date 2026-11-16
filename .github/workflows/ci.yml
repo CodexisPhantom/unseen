@@ -1,9 +1,12 @@
 name: CI
 
+# A change that only touches Markdown runs no job: nothing here checks prose.
 on:
   pull_request:
+    paths-ignore: ["**.md"]
   push:
     branches: [main]
+    paths-ignore: ["**.md"]
 
 concurrency:
   group: ci-${{ github.ref }}
