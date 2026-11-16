@@ -4,18 +4,27 @@ Status: draft. Decision: ADR 0003, ADR 0009.
 
 ## Stack
 
-SvelteKit 2, Svelte 5 with runes, TypeScript, `adapter-static` with an SPA
+SvelteKit 3, Svelte 5 with runes, TypeScript, `adapter-static` with an SPA
 fallback (`fallback: 'index.html'`, `ssr = false`, `prerender = false` in the
 root layout). Tailwind CSS v4 through `@tailwindcss/vite`, configured in CSS
 (`@import "tailwindcss"`, `@theme`). No `tailwind.config.js`.
 
-Created with:
+Created with (2026-11-16: `sv` scaffolds SvelteKit 3, shadcn-svelte 1.8.1):
 
 ```
-pnpm dlx sv create web --add tailwindcss
+pnpm dlx sv create web --template minimal --types ts --add tailwindcss="plugins:none" --install pnpm
 cd web
-pnpm dlx shadcn-svelte@latest init
+pnpm dlx shadcn-svelte@latest init --preset vega --base-color neutral --css src/routes/layout.css
 ```
+
+What SvelteKit 3 changes against older guides:
+
+- The SvelteKit options are in `vite.config.ts`. There is no
+  `svelte.config.js`.
+- The library alias is `#lib` (package.json `imports`), not `$lib`. Import a
+  component folder by its index file:
+  `import { Button } from '#lib/components/ui/button/index.js'`.
+- The global CSS file is `src/routes/layout.css`.
 
 ## Forbidden because of adapter-static
 
@@ -25,8 +34,9 @@ pnpm dlx shadcn-svelte@latest init
 - `hooks.server.ts`
 - Any import from `$env/*/private`
 
-All data goes through the generated API client. A lint rule or CI check
-fails on the file names above.
+All data goes through the generated API client. `web/scripts/check-static.mjs`
+runs in `pnpm check` (and so in `just check`) and fails on the file names
+above.
 
 ## Routes
 
