@@ -162,7 +162,7 @@ implementing, run each name through a real Radarr
 | `Le.Fabuleux.Destin.d.Amelie.Poulain.2001.FRENCH.1080p.BluRay.x264-GROUP` | Le Fabuleux Destin d Amelie Poulain | 2001 | Bluray-1080p | GROUP | language French |
 | `2001.A.Space.Odyssey.1968.1080p.BluRay.x264-GROUP` | 2001 A Space Odyssey | 1968 | Bluray-1080p | GROUP | year-like title |
 | `Some Movie (2019) [1080p] [BluRay] [YTS.MX]` | Some Movie | 2019 | Bluray-1080p | YTS.MX | bracket style |
-| `Some.Movie.2019.1080p.x264-GROUP` | Some Movie | 2019 | Unknown resolution source | GROUP | check what Radarr reports |
+| `Some.Movie.2019.1080p.x264-GROUP` | Some Movie | 2019 | Unknown | GROUP | resolution without source; check what Radarr reports |
 
 ## Decisions (2026-11-15)
 
