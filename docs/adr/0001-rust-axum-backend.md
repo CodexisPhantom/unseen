@@ -15,7 +15,10 @@ Rust with Axum 0.8 and Tokio. A Cargo workspace with the crates `api`,
 
 ## Consequences
 
-- One static binary, low memory use, small Docker image.
+- One binary, low memory use. Amended 2026-11-16: the binary is not static
+  and the image is not small. It links OpenSSL 3 and ICU dynamically
+  (ADR 0006), and the image, built on Ubuntu 26.04 for these libraries, is
+  about 180 MB.
 - Background tasks are Tokio tasks in the same process; no separate worker.
 - Compile times are long and the contributor pool is smaller than for
   TypeScript or C#.

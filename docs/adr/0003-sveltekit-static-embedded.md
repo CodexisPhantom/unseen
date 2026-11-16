@@ -9,9 +9,13 @@ be a second process and a second runtime in the image.
 
 ## Decision
 
-SvelteKit 2 with Svelte 5 and `adapter-static` with an SPA fallback. The
+SvelteKit with Svelte 5 and `adapter-static` with an SPA fallback. The
 build output is embedded in the Rust binary with `rust-embed` and served by
 Axum. Unknown non-API paths return `index.html`.
+
+Amended 2026-11-16: the decision named SvelteKit 2. The scaffold of the same
+week produced SvelteKit 3, which is what the project uses. The decision is
+unchanged; the differences are in [16-frontend.md](../16-frontend.md).
 
 ## Consequences
 

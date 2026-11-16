@@ -18,8 +18,10 @@ CI fails when the committed files differ from the generated ones.
 ## Consequences
 
 - One source of truth for types, routes and permissions.
-- Every handler needs a utoipa annotation. A test checks that each route is
-  in the document.
+- Every handler needs a utoipa annotation. Amended 2026-11-16: routes are
+  registered through `utoipa-axum`'s `OpenApiRouter`, so a route cannot exist
+  without being in the document. The test that remains is the permission
+  check of each route (M1).
 - The compat APIs are not described by our document; they follow the
   upstream Radarr/Sonarr OpenAPI documents (ADR 0008).
 - Generated files are committed, so pull requests show API changes.
