@@ -1,7 +1,8 @@
 # Unseen
 
 One self-hosted app that replaces Sonarr, Radarr, Prowlarr and Bazarr, including
-multiple Sonarr/Radarr instances. Status: planning, no runnable code yet.
+multiple Sonarr/Radarr instances. Status: M0 (foundation) is built; no
+feature for users yet.
 
 ## Goal
 
@@ -22,7 +23,7 @@ Gluetun stay separate containers that Unseen drives through their APIs.
 | Auth | Better Auth RS for authentication, app-owned roles and permissions |
 | API types | utoipa generates OpenAPI, openapi-typescript generates the client |
 | Live updates | Server-Sent Events |
-| Frontend | SvelteKit 2, Svelte 5, Tailwind v4, shadcn-svelte, static build |
+| Frontend | SvelteKit 3, Svelte 5, Tailwind v4, shadcn-svelte, static build |
 | Packaging | Frontend embedded in the binary with rust-embed, small Docker image |
 
 ```
@@ -60,20 +61,20 @@ Details: [docs/02-architecture.md](docs/02-architecture.md).
    Seerr against `/radarr`.
 
 Not goals: a 100% drop-in v3 API, writing back to Sonarr/Radarr, reading their
-databases, running their plugins or custom scripts. Custom formats come after V1.
+databases, running their plugins or custom scripts.
 
 ## Roadmap
 
 | Milestone | Result |
 |---|---|
-| M0 Foundation | Workspace, app shell, CI, Docker image, auth spike, design docs |
-| M1 Accounts and permissions | Owner setup, login, roles, users, API keys |
-| M2 Movies library | Add movies from TMDB, quality profiles, adopt a Radarr folder |
-| M3 Search | Torznab indexers, manual search, scored results |
+| M0 Foundation | Workspace, app shell, embedded UI, CI, Docker image, auth spike, design docs |
+| M1 Accounts and permissions | Owner setup, login, roles, users, API keys, audit log |
+| M2 Movies library | Add movies from TMDB, collections, quality profiles, adopt a Radarr folder |
+| M3 Search | Torznab indexers, custom formats, manual search, scored results |
 | M4 Download and import | qBittorrent, live progress, Radarr-compatible import |
-| M5 Automation | Scheduler, RSS sync, automatic search |
+| M5 Automation | Scheduler, RSS sync, automatic search, TRaSH guides |
 | M6 Radarr compatibility | Import from Radarr, `/radarr/api/v3`, Seerr works |
-| **V1 line** | **movies, torrents, qBittorrent, accounts, Radarr compatibility** |
+| **V1 line** | **movies, torrents, qBittorrent, accounts, custom formats, Radarr compatibility** |
 | M7 TV shows | Shows, seasons, episodes, season packs |
 | M8 Sonarr compatibility | Adopt and import Sonarr, `/sonarr/api/v3` |
 | M9 Usenet | Newznab and SABnzbd |
