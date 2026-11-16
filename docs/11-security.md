@@ -1,6 +1,6 @@
 # 11 Security notes
 
-Status: draft. The permission model is in [15-permissions.md](15-permissions.md).
+Status: reviewed (2026-11-16). The permission model is in [15-permissions.md](15-permissions.md).
 
 ## Threat model
 
@@ -30,24 +30,50 @@ Handled by Better Auth RS (ADR 0006). Required settings:
 - Sessions of a disabled user are deleted at once.
 - Permissions are loaded per request, never stored in the session.
 
+Measured on the spike server (library defaults, http base URL, 2026-11-16):
+
+- Cookie `better-auth.session_token`, with `HttpOnly; SameSite=Lax; Path=/;
+  Max-Age=604800`. No `Secure` flag, as expected on http.
+- The default lifetime is 7 days, not 30. The auth issue in M1 (#30) sets the
+  lifetime from `auth.session_days` and checks the `Secure` flag with an
+  https base URL.
+
 ## Passwords
 
-Hashed by the auth library (Argon2; confirm parameters in the spike). Minimum
-length 10. No composition rules. Login is rate limited per IP and per account.
+Hashed by the auth library. Minimum length 10. No composition rules. Login
+is rate limited per IP and per account.
+
+Measured on the spike server (2026-11-16):
+
+- The default hasher is scrypt (N = 2^14, r = 16, p = 1), stored as
+  `salt:key` in hex. This is the format of Better Auth for TypeScript.
+- The library also ships `Argon2PasswordHasher` (Argon2id with the `argon2`
+  crate defaults, PHC string). It does not read scrypt hashes.
+- The default minimum length is 8; the maximum is 128.
+
+Decision (2026-11-16): Unseen uses `Argon2PasswordHasher` and a minimum
+length of 10. Both are set in the auth issue in M1 (#30), before the first
+user exists, because the hasher cannot be changed later without resetting
+every password.
 
 ## CSRF
 
-- Auth endpoints: the library's origin check.
+- Auth endpoints: the library's origin check. Measured on the spike server
+  (2026-11-16): a sign-in with a foreign `Origin` returns 403
+  `INVALID_ORIGIN`; a request without `Origin` is accepted (curl, companion
+  tools); the body must be `application/json` or
+  `application/x-www-form-urlencoded`, anything else returns 415.
 - `/api/v1`: cookie requests that change state must carry `Origin` matching
-  the base URL, and `Content-Type: application/json`. Confirm this is enough
-  in M1.
+  the base URL, and `Content-Type: application/json`. Kept to confirm in M1:
+  the check is written with the permission extractor (#31), and no route
+  that changes state exists before it.
 - API-key requests have no cookie and need no CSRF check.
 
 ## Secrets at rest
 
 | Secret | Storage |
 |---|---|
-| User passwords | Argon2 hash (auth library) |
+| User passwords | Argon2id hash (auth library, see Passwords) |
 | Unseen API keys | SHA-256 hash; shown once at creation; a short prefix is stored for display |
 | Indexer keys, download client passwords, TMDB key, proxy credentials, import source keys | In SQLite, encrypted (ADR 0011) |
 
@@ -133,6 +159,12 @@ The secret file decrypts them. Treat a backup that holds both as sensitive. See 
 
 ## Open questions
 
-- Audit log retention.
-- Rotation of `UNSEEN_SECRET` (re-encrypt all secrets): needed, or document
-  "re-enter the secrets".
+- Audit log retention. Kept open on purpose: the audit log issue (#116)
+  decides it; pruning needs no schema change.
+
+Answered (2026-11-16):
+
+- Rotation of `UNSEEN_SECRET`: no rotation command in V1. A changed or lost
+  secret means the integration secrets are entered again, and the UI shows
+  which ones cannot be read. The `v1:` prefix of the stored values leaves
+  room for a re-encryption command later.
