@@ -1,0 +1,11 @@
+.git
+.github
+.deps
+.projectmem
+target
+spikes
+docs
+**/node_modules
+web/build
+web/.svelte-kit
+web/coverage
