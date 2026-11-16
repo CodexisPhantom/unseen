@@ -53,8 +53,15 @@ entity field `user.email` is `Option<String>`, while the column is
 | `verification` | `id` text PK, `identifier` text, `value` text, `expiresAt` date, `createdAt` date, `updatedAt` date | index `verification_identifier_idx`(`identifier`) |
 
 App columns added to `user` (allowed on the four core entities):
-`disabled` bool not null default false. It does not exist yet; the users
-issue in M1 adds it with its own migration.
+`disabled` bool not null default false, added by migration
+`m0002_access_control`.
+
+An app column is not added to the generated entity. Regenerating
+`auth_schema.rs` with the column would also put it into
+`create_auth_tables`, and that changes what the released first migration
+creates. The column has a default instead, so the auth library, which does
+not name it in its inserts, still works; our code reads and writes it with
+its own queries.
 
 ## Access control tables
 
