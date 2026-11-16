@@ -1,6 +1,6 @@
 # 0006 Authentication library: Better Auth RS
 
-Status: proposed (2026-11-15). Becomes accepted when the M0 spike passes.
+Status: accepted (2026-11-16). The M0 spike passed; see "Spike results".
 
 ## Context
 
@@ -63,11 +63,61 @@ State of the library, checked on 2026-11-15:
 If any check fails: stop and report. Do not switch libraries without a new
 decision.
 
+## Spike results (2026-11-16)
+
+Code: `spikes/better-auth/`. Versions used: `better-auth` 1.0.0-alpha.5,
+SeaORM 2.0.4, Axum 0.8.9, Rust 1.95.0, `better-auth` TypeScript client 1.7.6.
+The same tests ran on Linux (Ubuntu 26.04 container) and on Windows 11 (MSVC).
+
+1. **Pass, with two system libraries.** It builds and runs on Linux and
+   Windows. `rustls` does not remove OpenSSL: `better-auth-api`, `josekit` and
+   `webauthn-rs-core` depend on `openssl` directly, whatever the TLS feature.
+   The build also links system ICU through `rust_icu` and needs
+   `RUST_ICU_MAJOR_VERSION_NUMBER` set. Tested with OpenSSL 3.5 and ICU 78.2
+   (Linux), ICU 78.3 (Windows). Other ICU versions were not tested. On
+   Windows, set `OPENSSL_DIR` and `RUST_ICU_LINK_SEARCH_DIR` to prebuilt
+   libraries; `openssl/vendored` fails with the perl shipped with Git.
+2. **Pass.** CLI-generated schema, `create_auth_tables` and `SeaOrmStore` on a
+   SQLite file. Sign-up, session read, sign-out, wrong password and sign-in
+   pass from `createAuthClient` of `better-auth/svelte` 1.7.6. The client ran
+   in Node with the cookie carried by hand, not in a browser.
+3. **Pass.** `AuthBuilder::validate_user_info` takes a callback that runs at
+   request time for every user creation. Rejecting there returns 403 with our
+   own code (`signup_closed`). `enable_signup` stays `true`. The callback runs
+   inside the sign-up transaction: see the pool note below.
+4. **Pass.** `auth.session_manager().revoke_all_user_sessions(user_id)`
+   deletes every session of any user from server code. A `SeaOrmHooks::
+   before_create_session` hook that returns `Cancel` stops new sessions for a
+   disabled user (sign-in then returns 401). `validate_user_info` is not
+   enough for this: its `SignIn` action is called for OAuth only.
+5. **Pass.** `auth.api_keys()?.verify(key, ..)` checks a key string from
+   server code, so our extractor can read `X-Api-Key` or `?apikey=` itself.
+   `enable_session_for_api_keys` is not needed. Costs of the plugin: its
+   default rate limit is 10 requests per 24 hours and must be turned off;
+   each verification writes `requestCount` and `lastRequest`; ids are text;
+   permissions are a JSON map of resource to actions, not our flat strings; a
+   key of a disabled user still verifies, so our extractor must check the
+   user. Decision (2026-11-16): we keep our own `api_keys` table and do not
+   enable the plugin.
+
+Found on the way:
+
+- SeaORM opens SQLite with a pool of one connection unless
+  `max_connections` is set. Auth callbacks and hooks run inside the auth
+  transaction, so a query on our `DatabaseConnection` from inside them waits
+  for the pool and times out. Keep such state in memory, or raise the pool
+  size with WAL.
+- The CLI writes a manual `impl AuthSchema`, not `#[derive(AuthSchema)]`.
+- Not tested: app columns on `user` (`disabled`) through `--schema-config`.
+
 ## Consequences
 
 - Wire compatibility lets us use the official Svelte client.
 - An alpha dependency in the security path: exact pin, upgrades reviewed,
   schema drift handled by our migrations.
-- If checks 3 to 5 need workarounds, they are our code: an Owner-setup
-  endpoint that creates the user server-side, session deletion through our
-  entities, and our own `api_keys` table.
+- Checks 3 and 4 need no workaround outside the library: an admission
+  callback closes sign-up, and the session manager plus a session hook
+  handle disabled users.
+- The binary links OpenSSL 3 and ICU dynamically. The Docker image and every
+  development machine need both. A fully static single binary is not
+  possible with this library version.

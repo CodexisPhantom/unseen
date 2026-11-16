@@ -1,0 +1,7 @@
+{
+  "name": "spike-better-auth-client",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node test.mjs" },
+  "dependencies": { "better-auth": "1.7.6" }
+}

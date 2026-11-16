@@ -7,8 +7,10 @@ done.
 
 - Rust stable (edition 2024), `just`
 - Node 22+, pnpm
-- OpenSSL 3 development headers, unless the M0 auth spike confirms a
-  rustls-only build
+- OpenSSL 3 and ICU 78 development files. `rustls` does not remove the
+  OpenSSL requirement (ADR 0006). Set `RUST_ICU_MAJOR_VERSION_NUMBER=78`. On
+  Windows also set `OPENSSL_DIR` and `RUST_ICU_LINK_SEARCH_DIR`, and put both
+  `bin` folders on `PATH`.
 
 ## Commands
 
