@@ -12,6 +12,7 @@ pub struct Health {
     /// Version of the running binary.
     version: String,
     database: DatabaseStatus,
+    drift_probe: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -40,5 +41,9 @@ pub async fn health(State(state): State<AppState>) -> (StatusCode, Json<Health>)
         }
     };
     let version = env!("CARGO_PKG_VERSION").into();
-    (status, Json(Health { version, database }))
+    (status, Json(Health {
+        version,
+        database,
+        drift_probe: true,
+    }))
 }
