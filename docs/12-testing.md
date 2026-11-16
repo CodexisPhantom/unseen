@@ -59,6 +59,16 @@ coverage on every pull request.
 | Rust workspace overall | 80% |
 | `web/src/lib` (stores, helpers, API wrappers) | 80% |
 
+Not counted, because no test of ours can or should cover it:
+
+- Rust: `crates/db/src/auth_schema.rs` (generated) and `crates/api/src/main.rs`
+  (process start; the end-to-end tests run it).
+- Web: the vendored shadcn-svelte code (`components/ui`, `hooks`, `utils.ts`),
+  the generated `api/schema.d.ts`, and modules that only create an instance
+  (`api/client.ts`). The list is in `web/vite.config.ts`.
+
+`just coverage` runs the Rust part locally; `pnpm test` runs the web part.
+
 A pull request fails below a minimum. The minimums go up when the real
 numbers allow it; they never go down. Generated code (auth schema, API
 client) and `main` wiring are excluded.

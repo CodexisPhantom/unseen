@@ -5,16 +5,17 @@
 	import ServerIcon from '@lucide/svelte/icons/server';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { afterNavigate } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 
 	// Placeholder entries; permission-based hiding comes with M1.
 	const entries = [
-		{ title: 'Library', href: '/library', icon: LibraryIcon },
-		{ title: 'Add', href: '/add', icon: PlusIcon },
-		{ title: 'Activity', href: '/activity', icon: ActivityIcon },
-		{ title: 'Settings', href: '/settings', icon: SettingsIcon },
-		{ title: 'System', href: '/system', icon: ServerIcon }
+		{ title: 'Library', href: resolve('library'), icon: LibraryIcon },
+		{ title: 'Add', href: resolve('add'), icon: PlusIcon },
+		{ title: 'Activity', href: resolve('activity'), icon: ActivityIcon },
+		{ title: 'Settings', href: resolve('settings'), icon: SettingsIcon },
+		{ title: 'System', href: resolve('system'), icon: ServerIcon }
 	];
 
 	const sidebar = Sidebar.useSidebar();
@@ -28,7 +29,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton size="lg">
 					{#snippet child({ props })}
-						<a href="/" {...props}>
+						<a href={resolve('')} {...props}>
 							<span
 								class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
 							>
