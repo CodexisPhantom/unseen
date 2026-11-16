@@ -1,6 +1,6 @@
 # 16 Frontend conventions
 
-Status: draft. Decision: ADR 0003, ADR 0009.
+Status: reviewed (2026-11-16). Decision: ADR 0003, ADR 0009.
 
 ## Stack
 
@@ -25,6 +25,11 @@ What SvelteKit 3 changes against older guides:
   component folder by its index file:
   `import { Button } from '#lib/components/ui/button/index.js'`.
 - The global CSS file is `src/routes/layout.css`.
+- Internal links go through `resolve` from `$app/paths`, with a path that
+  has no leading slash: `resolve('library')`, `resolve('')` for the root. A
+  string that starts with `/` is read as a route id. ESLint
+  (`svelte/no-navigation-without-resolve`) fails on a plain `href`. This also
+  prepares sub-path hosting (M11).
 
 ## Forbidden because of adapter-static
 
@@ -42,7 +47,7 @@ above.
 
 ```
 src/routes/
-  +layout.svelte            ModeWatcher, global CSS
+  +layout.svelte            ModeWatcher, QueryClientProvider, global CSS
   setup/                    first-run Owner creation
   login/
   (app)/                    authenticated shell: sidebar, header
@@ -54,7 +59,9 @@ src/routes/
                             custom formats, TRaSH guides, indexers, clients
     users/  roles/  api-keys/
     import/                 adopt folder, import from Radarr
-    system/                 tasks, logs, audit log
+    system/                 status, tasks, logs, audit log
+    [...rest]/              placeholder for pages that are not built yet;
+                            becomes the "not found" page
 ```
 
 ## API client
@@ -120,6 +127,17 @@ progress, tooltip, form, field, separator, avatar, breadcrumb.
 - `Field` is used for the layout of controls that are not part of a
   validated form (filters, single switches that save at once).
 
+## Checks
+
+| Command | Does |
+|---|---|
+| `pnpm check` | `scripts/check-static.mjs`, then `svelte-check` |
+| `pnpm lint` | ESLint with `typescript-eslint` and `eslint-plugin-svelte` |
+| `pnpm test` | Vitest with coverage; the minimum is in [12-testing.md](12-testing.md) |
+
+Unit tests are `*.test.ts` files next to the module they test. Vendored
+shadcn-svelte code is linted but not counted for coverage.
+
 ## Theming
 
 - shadcn-svelte CSS variables in the global CSS file (`--background`,
@@ -130,6 +148,9 @@ progress, tooltip, form, field, separator, avatar, breadcrumb.
 - Use tokens (`bg-background`, `text-muted-foreground`), never raw colours.
 
 ## Decisions (2026-11-15)
+
+Confirmed in the review of 2026-11-16. `openapi-fetch` and TanStack Query 6
+are in use since the health page.
 
 - `openapi-fetch`. It is a few kilobytes, fully typed from the generated
   schema, and a hand-written wrapper would repeat it.
