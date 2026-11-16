@@ -4,3 +4,4 @@
 .projectmem/structure.json
 /target
 /.deps
+/.claude/worktrees

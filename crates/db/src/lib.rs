@@ -10,14 +10,30 @@ use sea_orm_migration::MigratorTrait;
 #[rustfmt::skip]
 #[allow(clippy::all)]
 pub mod auth_schema;
+pub mod access;
+pub mod entities;
 mod migration;
 pub mod testing;
 
 pub use sea_orm::DatabaseConnection;
 
+/// The current time as stored in our timestamp columns: UTC, ISO 8601, with
+/// milliseconds (`2026-11-16T20:15:13.123Z`).
+pub fn now() -> String {
+    sea_orm::prelude::ChronoUtc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string()
+}
+
 /// Opens `unseen.db` in `data_dir` (WAL mode, foreign keys on), creates it if
 /// it is missing, and applies every pending migration.
 pub async fn connect(data_dir: &Path) -> Result<DatabaseConnection, DbErr> {
+    let db = open(data_dir).await?;
+    migration::Migrator::up(&db, None).await?;
+    Ok(db)
+}
+
+async fn open(data_dir: &Path) -> Result<DatabaseConnection, DbErr> {
     let options = SqliteConnectOptions::new()
         .filename(data_dir.join("unseen.db"))
         .create_if_missing(true)
@@ -27,9 +43,7 @@ pub async fn connect(data_dir: &Path) -> Result<DatabaseConnection, DbErr> {
         .connect_with(options)
         .await
         .map_err(|error| DbErr::Conn(RuntimeErr::SqlxError(error.into())))?;
-    let db = SqlxSqliteConnector::from_sqlx_sqlite_pool(pool);
-    migration::Migrator::up(&db, None).await?;
-    Ok(db)
+    Ok(SqlxSqliteConnector::from_sqlx_sqlite_pool(pool))
 }
 
 #[cfg(test)]
@@ -55,7 +69,17 @@ mod tests {
     async fn migrates_a_temp_database_from_zero() {
         let (db, dir) = testing::temp_db().await;
         let tables = tables(&db).await;
-        for expected in ["account", "session", "settings", "user", "verification"] {
+        for expected in [
+            "account",
+            "role_permissions",
+            "roles",
+            "session",
+            "settings",
+            "user",
+            "user_permissions",
+            "user_roles",
+            "verification",
+        ] {
             assert!(tables.iter().any(|t| t == expected), "missing {expected}");
         }
 
@@ -63,5 +87,38 @@ mod tests {
         db.close().await.unwrap();
         let db = connect(dir.path()).await.unwrap();
         assert_eq!(self::tables(&db).await, tables);
+    }
+
+    #[tokio::test]
+    async fn migrates_on_top_of_m0_and_keeps_its_users() {
+        // A database as M0 left it: only the first migration, with one user.
+        let dir = tempfile::tempdir().unwrap();
+        let db = open(dir.path()).await.unwrap();
+        migration::Migrator::up(&db, Some(1)).await.unwrap();
+        testing::insert_user(&db, "old").await;
+        db.close().await.unwrap();
+
+        let db = connect(dir.path()).await.unwrap();
+        let row = db
+            .query_one_raw(Statement::from_string(
+                db.get_database_backend(),
+                r#"SELECT disabled FROM "user" WHERE id = 'old'"#,
+            ))
+            .await
+            .unwrap()
+            .expect("the user is still there");
+        assert!(!row.try_get::<bool>("", "disabled").unwrap());
+
+        // A user inserted after the migration, without the column, is enabled too.
+        testing::insert_user(&db, "new").await;
+        let enabled = db
+            .query_one_raw(Statement::from_string(
+                db.get_database_backend(),
+                r#"SELECT count(*) AS n FROM "user" WHERE disabled = 0"#,
+            ))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(enabled.try_get::<i64>("", "n").unwrap(), 2);
     }
 }
