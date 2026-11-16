@@ -61,6 +61,8 @@ src/routes/
 
 - `openapi-typescript` generates `src/lib/api/schema.d.ts` from the committed
   `openapi.json`. `openapi-fetch` is the runtime.
+  `just gen` regenerates both files; they are committed.
+- In development Vite proxies `/api` to the API on `localhost:7979`.
 - One client instance in `src/lib/api/client.ts`. Components never call
   `fetch` directly.
 - Errors are problem details ([05-api.md](05-api.md)); a helper turns `code`
@@ -68,8 +70,8 @@ src/routes/
 - A 401 response sends the user to `/login`.
 
 - Server data is read and cached with TanStack Query
-  (`@tanstack/svelte-query`, the version with Svelte 5 runes support; confirm
-  in the scaffold issue). Query functions call the API client. Mutations
+  (`@tanstack/svelte-query` 6, which uses runes: `createQuery(() => ({ ... }))`
+  returns a reactive object). Query functions call the API client. Mutations
   invalidate by query key.
 
 ## Auth

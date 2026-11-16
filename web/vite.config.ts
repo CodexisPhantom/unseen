@@ -4,6 +4,8 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+	// In development the API runs on its own port (`just dev`).
+	server: { proxy: { '/api': 'http://localhost:7979' } },
 	plugins: [
 		tailwindcss(),
 		sveltekit({
