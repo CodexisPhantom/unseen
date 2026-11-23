@@ -7,6 +7,7 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Problem {
     /// URI that identifies the problem kind.
     #[serde(rename = "type")]
@@ -17,6 +18,8 @@ pub struct Problem {
     pub code: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required_permission: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<FieldError>,
 }
@@ -35,12 +38,36 @@ impl Problem {
             status: status.as_u16(),
             code: code.into(),
             detail: None,
+            required_permission: None,
             errors: Vec::new(),
         }
     }
 
     pub fn not_found() -> Self {
         Self::new(StatusCode::NOT_FOUND, "not_found", "Not found")
+    }
+
+    pub fn unauthorized() -> Self {
+        Self::new(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "Authentication required",
+        )
+    }
+
+    pub fn forbidden(permission: unseen_core::permission::Permission) -> Self {
+        let mut problem = Self::new(StatusCode::FORBIDDEN, "forbidden", "Permission denied");
+        problem.detail = Some(format!("missing permission `{permission}`"));
+        problem.required_permission = Some(permission.as_str().to_owned());
+        problem
+    }
+
+    pub fn internal() -> Self {
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal",
+            "Internal server error",
+        )
     }
 }
 

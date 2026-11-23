@@ -41,6 +41,7 @@ export interface components {
             code: string;
             detail?: string | null;
             errors?: components["schemas"]["FieldError"][];
+            requiredPermission?: string | null;
             /** Format: int32 */
             status: number;
             title: string;

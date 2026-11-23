@@ -1,5 +1,6 @@
 //! HTTP API: routes, the OpenAPI document and the Axum router.
 
+pub mod access;
 pub mod auth;
 pub mod error;
 mod health;
@@ -11,9 +12,9 @@ use better_auth::AuthResult;
 use better_auth::integrations::axum::AxumIntegration;
 use db::DatabaseConnection;
 use utoipa::OpenApi;
-use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use crate::access::ApiRouter;
 use crate::error::Problem;
 
 #[derive(Clone)]
@@ -46,10 +47,10 @@ impl FromRef<AppState> for auth::Auth {
 #[openapi(info(title = "Unseen API"), components(schemas(Problem)))]
 struct ApiDoc;
 
-/// Every route is registered here once, so the router and the OpenAPI
-/// document cannot disagree.
-fn routes() -> OpenApiRouter<AppState> {
-    OpenApiRouter::with_openapi(ApiDoc::openapi()).routes(routes!(health::health))
+/// Every API route is registered here once with its access rule, so the
+/// router, runtime enforcement and `x-permission` in OpenAPI cannot disagree.
+pub fn routes() -> ApiRouter {
+    ApiRouter::with_openapi(ApiDoc::openapi()).public(routes!(health::health))
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.
@@ -58,12 +59,11 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 }
 
 pub fn router(state: AppState) -> Router {
-    let (router, _) = routes().split_for_parts();
+    let api = routes().into_router(&state);
     // The auth routes are the library's own; they are not in our OpenAPI
     // document.
     let auth = state.auth.clone().axum_router_with_state();
-    router
-        .nest("/api/auth", auth)
+    api.nest("/api/auth", auth)
         .fallback(web::serve)
         .with_state(state)
 }

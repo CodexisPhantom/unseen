@@ -37,7 +37,8 @@
               }
             }
           }
-        }
+        },
+        "x-permission": "public"
       }
     }
   },
@@ -105,6 +106,12 @@
             "items": {
               "$ref": "#/components/schemas/FieldError"
             }
+          },
+          "requiredPermission": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "integer",

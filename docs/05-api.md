@@ -85,18 +85,24 @@ Maximum `pageSize` is 500. The movie list may return everything when
 
 ## Permissions per route
 
-Each handler declares one permission through the extractor, and the same
-value is written into OpenAPI as `x-permission`:
+Each route declares one access rule through `ApiRouter` (`require`,
+`authenticated`, or `public`) and extracts `Require<P>`, `Caller`, or
+`Public` as needed. That single declaration enforces access at runtime and
+writes `x-permission` into OpenAPI (`"public"`, `"authenticated"`, or
+`"<resource>:<action>"`):
 
 ```rust
-#[utoipa::path(get, path = "/api/v1/movies", extensions(("x-permission" = json!("library:read"))))]
+#[utoipa::path(get, path = "/api/v1/movies")]
 async fn list_movies(_: Require<LibraryRead>, ...) { ... }
+
+ApiRouter::new().require(Permission::LibraryRead, routes!(list_movies))
 ```
 
-The exact Rust shape is decided in M1. Requirements:
-- exactly one permission, or an explicit `Public` marker;
-- a test walks the router and the OpenAPI document and fails when a route
-  has neither, or when the two disagree.
+- Missing or invalid credentials return `401` (`code: "unauthorized"`).
+- Missing permission returns `403` (`code: "forbidden"`, with
+  `requiredPermission` and `detail` naming the required permission).
+- A route coverage test calls `api::routes().verify()` and fails when a route
+  has no access rule or disagrees with OpenAPI `x-permission`.
 
 ## SSE
 
