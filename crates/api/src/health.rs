@@ -5,6 +5,7 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::AppState;
+use crate::access::Public;
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -31,7 +32,7 @@ pub enum DatabaseStatus {
         (status = 503, description = "The database does not answer", body = Health),
     )
 )]
-pub async fn health(State(state): State<AppState>) -> (StatusCode, Json<Health>) {
+pub async fn health(_: Public, State(state): State<AppState>) -> (StatusCode, Json<Health>) {
     let (status, database) = match state.db.ping().await {
         Ok(()) => (StatusCode::OK, DatabaseStatus::Ok),
         Err(error) => {

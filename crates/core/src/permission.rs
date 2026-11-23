@@ -35,33 +35,42 @@ macro_rules! permissions {
     };
 }
 
-permissions! {
-    LibraryRead => "library:read",
-    LibraryAdd => "library:add",
-    LibraryEdit => "library:edit",
-    LibraryDelete => "library:delete",
-    SearchRun => "search:run",
-    ReleaseGrab => "release:grab",
-    QueueRead => "queue:read",
-    QueueManage => "queue:manage",
-    ImportRun => "import:run",
-    SubtitlesManage => "subtitles:manage",
-    IndexersRead => "indexers:read",
-    IndexersManage => "indexers:manage",
-    ClientsRead => "clients:read",
-    ClientsManage => "clients:manage",
-    ProfilesRead => "profiles:read",
-    ProfilesManage => "profiles:manage",
-    SettingsRead => "settings:read",
-    SettingsManage => "settings:manage",
-    UsersManage => "users:manage",
-    RolesManage => "roles:manage",
-    ApikeysManage => "apikeys:manage",
-    SystemLogs => "system:logs",
-    SystemBackup => "system:backup",
-    SystemTasks => "system:tasks",
-    SystemAudit => "system:audit",
+/// Invokes `$callback!` with every `Variant => "resource:action"` entry of
+/// the permission catalog, in the order of `docs/15-permissions.md`.
+#[macro_export]
+macro_rules! for_each_permission {
+    ($callback:ident) => {
+        $callback! {
+            LibraryRead => "library:read",
+            LibraryAdd => "library:add",
+            LibraryEdit => "library:edit",
+            LibraryDelete => "library:delete",
+            SearchRun => "search:run",
+            ReleaseGrab => "release:grab",
+            QueueRead => "queue:read",
+            QueueManage => "queue:manage",
+            ImportRun => "import:run",
+            SubtitlesManage => "subtitles:manage",
+            IndexersRead => "indexers:read",
+            IndexersManage => "indexers:manage",
+            ClientsRead => "clients:read",
+            ClientsManage => "clients:manage",
+            ProfilesRead => "profiles:read",
+            ProfilesManage => "profiles:manage",
+            SettingsRead => "settings:read",
+            SettingsManage => "settings:manage",
+            UsersManage => "users:manage",
+            RolesManage => "roles:manage",
+            ApikeysManage => "apikeys:manage",
+            SystemLogs => "system:logs",
+            SystemBackup => "system:backup",
+            SystemTasks => "system:tasks",
+            SystemAudit => "system:audit",
+        }
+    };
 }
+
+for_each_permission!(permissions);
 
 impl fmt::Display for Permission {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
