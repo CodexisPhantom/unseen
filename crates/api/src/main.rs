@@ -23,10 +23,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = db::connect(&data_dir).await?;
     tracing::info!(data_dir = %data_dir.display(), "database ready");
 
+    let secret = api::auth::load_secret(std::env::var("UNSEEN_SECRET").ok(), &data_dir)?;
+    let base_url = std::env::var("UNSEEN_BASE_URL").ok();
+    let state = api::AppState::new(db, &secret, base_url.as_deref()).await?;
+
     let bind = std::env::var("UNSEEN_BIND").unwrap_or("0.0.0.0:7979".into());
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(%bind, "listening");
-    axum::serve(listener, api::router(api::AppState { db }))
+    axum::serve(listener, api::router(state))
         .with_graceful_shutdown(shutdown())
         .await?;
     tracing::info!("stopped");

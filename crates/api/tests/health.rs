@@ -7,7 +7,8 @@ use tower::ServiceExt;
 async fn get(path: &str) -> (StatusCode, String, Value) {
     let (db, _dir) = db::testing::temp_db().await;
     let request = Request::get(path).body(Body::empty()).unwrap();
-    let response = router(AppState { db }).oneshot(request).await.unwrap();
+    let state = AppState::new(db, "test secret", None).await.unwrap();
+    let response = router(state).oneshot(request).await.unwrap();
     let status = response.status();
     let content_type = response.headers()[header::CONTENT_TYPE]
         .to_str()

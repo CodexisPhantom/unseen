@@ -158,12 +158,19 @@ name = "api"
 version = "0.1.0"
 dependencies = [
  "arr-compat",
+ "async-trait",
  "axum",
+ "better-auth",
+ "chrono",
  "core",
  "db",
+ "hkdf 0.12.4",
+ "rand 0.8.8",
  "rust-embed",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
  "tokio",
  "tower",
  "tracing",
@@ -578,12 +585,14 @@ checksum = "d4b458b88cf9166bdb013f3318120eac5007f0f06b6838bdf7e8304f5f25f44a"
 dependencies = [
  "argon2",
  "async-trait",
+ "axum",
  "base64 0.22.1",
  "better-auth-api",
  "better-auth-core",
  "better-auth-seaorm",
  "chrono",
  "clap",
+ "http-body-util",
  "jsonwebtoken",
  "rand 0.8.8",
  "serde",
@@ -591,7 +600,9 @@ dependencies = [
  "serde_yaml",
  "thiserror 2.0.21",
  "tokio",
+ "tower",
  "tracing",
+ "url",
  "uuid",
 ]
 
@@ -603,6 +614,7 @@ checksum = "43e34cab5b3d01365ec97aeee006702f2fa860dfea16e69fe9bb11e8e6ea55f8"
 dependencies = [
  "aes-gcm",
  "async-trait",
+ "axum",
  "base64 0.22.1",
  "better-auth-core",
  "bon",
@@ -649,6 +661,7 @@ checksum = "15bc63ffde00b54636ae790af6b1e7fd3373bb5c0a772bf820c3edd41200d800"
 dependencies = [
  "argon2",
  "async-trait",
+ "axum",
  "base64 0.22.1",
  "better-auth-macros",
  "better-auth-schema-registry",
