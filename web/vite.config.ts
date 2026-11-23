@@ -33,7 +33,8 @@ export default defineConfig({
 				'src/lib/utils.ts',
 				'src/lib/index.ts',
 				'src/lib/api/schema.d.ts',
-				'src/lib/api/client.ts'
+				'src/lib/api/client.ts',
+				'src/lib/auth-client.ts'
 			],
 			thresholds: { lines: 80 }
 		}
