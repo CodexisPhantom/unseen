@@ -8,6 +8,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
+	import UserMenu from '#lib/components/user-menu.svelte';
 	import { navEntries } from '#lib/nav.js';
 	import { session } from '#lib/session.svelte.js';
 
@@ -77,5 +78,8 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
+	<Sidebar.Footer>
+		<UserMenu />
+	</Sidebar.Footer>
 	<Sidebar.Rail />
 </Sidebar.Root>

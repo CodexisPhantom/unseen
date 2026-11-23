@@ -30,6 +30,7 @@
 		"@tanstack/svelte-query": "^6.4.1",
 		"@types/node": "^26",
 		"@vitest/coverage-v8": "^4.1.12",
+		"better-auth": "1.7.6",
 		"bits-ui": "^2.21.0",
 		"cn": "^0.5.2",
 		"eslint": "^10.4.1",
