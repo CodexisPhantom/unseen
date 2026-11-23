@@ -124,7 +124,7 @@ The generated OpenAPI document is authoritative. This table is the plan.
 
 | Route | Permission |
 |---|---|
-| `GET /health`, `POST /setup`, `/api/auth/*` sign-in and sign-out | public |
+| `GET /health`, `GET /setup` (status), `POST /setup`, `/api/auth/*` sign-in and sign-out | public |
 | `GET /me`, `GET/POST/DELETE /me/api-keys` | authenticated, no permission |
 | `GET /permissions`, `/roles` (all methods) | `roles:manage` |
 | `/users` (all methods), `PUT /users/{id}/permissions` | `users:manage` |

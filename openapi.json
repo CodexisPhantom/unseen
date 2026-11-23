@@ -40,6 +40,78 @@
         },
         "x-permission": "public"
       }
+    },
+    "/api/v1/setup": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Whether the first-run setup is still required. Public.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "Setup status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatus"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "public"
+      },
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Creates the first user with the Owner role and signs it in. Public while\nno user exists, 409 after.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The Owner exists and is signed in; the response sets the session cookie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupUser"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A user already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The library refused the name, email or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "public"
+      }
     }
   },
   "components": {
@@ -124,6 +196,57 @@
           "type": {
             "type": "string",
             "description": "URI that identifies the problem kind."
+          }
+        }
+      },
+      "SetupRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "description": "At least 10 characters."
+          }
+        }
+      },
+      "SetupStatus": {
+        "type": "object",
+        "required": [
+          "required"
+        ],
+        "properties": {
+          "required": {
+            "type": "boolean",
+            "description": "True until the first user exists."
+          }
+        }
+      },
+      "SetupUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       }

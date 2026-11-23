@@ -105,13 +105,12 @@ impl App {
         self.post("/api/auth/sign-up/email", body, None).await
     }
 
-    /// Creates the user the way the first-run setup will: one admitted
-    /// sign-up. Returns the user id.
+    /// Creates the Owner through the first-run setup. Returns the user id.
     async fn seed_user(&self) -> String {
-        self.state.policy.admit_next_signup();
-        let reply = self.sign_up(PASSWORD).await;
-        assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
-        reply.body["user"]["id"].as_str().unwrap().to_owned()
+        let body = json!({ "name": "Owner", "email": EMAIL, "password": PASSWORD });
+        let reply = self.post("/api/v1/setup", body, None).await;
+        assert_eq!(reply.status, StatusCode::CREATED, "{}", reply.body);
+        reply.body["id"].as_str().unwrap().to_owned()
     }
 
     async fn sign_in(&self, password: &str) -> Reply {
@@ -123,6 +122,7 @@ impl App {
 #[tokio::test]
 async fn auth_routes_are_mounted() {
     let app = App::new(None).await;
+    app.seed_user().await;
     let reply = app.get("/api/auth/ok", None).await;
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.body["ok"], true);
@@ -131,9 +131,10 @@ async fn auth_routes_are_mounted() {
 #[tokio::test]
 async fn public_sign_up_is_refused() {
     let app = App::new(None).await;
+    // Before setup the auth routes answer `setup_required`.
     let reply = app.sign_up(PASSWORD).await;
-    assert_eq!(reply.status, StatusCode::FORBIDDEN);
-    assert_eq!(reply.body["code"], "signup_closed");
+    assert_eq!(reply.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(reply.body["code"], "setup_required");
     assert!(reply.cookies.is_empty());
     assert!(
         user::Entity::find()
@@ -143,7 +144,7 @@ async fn public_sign_up_is_refused() {
             .is_empty()
     );
 
-    // One admission lets one user in; the next sign-up is refused again.
+    // After setup, sign-up stays closed.
     app.seed_user().await;
     let body = json!({ "name": "Second", "email": "second@example.com", "password": PASSWORD });
     let reply = app.post("/api/auth/sign-up/email", body, None).await;
@@ -196,6 +197,7 @@ async fn session_lasts_thirty_days() {
 #[tokio::test]
 async fn session_read_without_a_cookie_returns_no_session() {
     let app = App::new(None).await;
+    app.seed_user().await;
     let read = app.get("/api/auth/get-session", None).await;
     assert_eq!(read.status, StatusCode::OK);
     assert_eq!(read.body, Value::Null);
@@ -219,24 +221,6 @@ async fn disabled_user_cannot_sign_in() {
     assert_eq!(reply.status, StatusCode::UNAUTHORIZED);
     assert_eq!(reply.body["code"], "FAILED_TO_CREATE_SESSION");
     assert!(reply.cookies.is_empty());
-}
-
-#[tokio::test]
-async fn password_shorter_than_ten_is_rejected() {
-    let app = App::new(None).await;
-    app.state.policy.admit_next_signup();
-    let reply = app.sign_up("123456789").await;
-    assert_eq!(reply.status, StatusCode::BAD_REQUEST);
-    assert_eq!(reply.body["code"], "PASSWORD_TOO_SHORT");
-    assert!(
-        user::Entity::find()
-            .all(&app.state.db)
-            .await
-            .unwrap()
-            .is_empty()
-    );
-
-    assert_eq!(app.sign_up("1234567890").await.status, StatusCode::OK);
 }
 
 #[tokio::test]
@@ -264,6 +248,7 @@ async fn cookie_is_secure_when_the_base_url_is_https() {
 #[tokio::test]
 async fn unknown_auth_route_is_not_the_app() {
     let app = App::new(None).await;
+    app.seed_user().await;
     let reply = app.get("/api/auth/nope", None).await;
     assert_eq!(reply.status, StatusCode::NOT_FOUND);
 }

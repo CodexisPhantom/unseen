@@ -6,6 +6,8 @@ use tower::ServiceExt;
 
 async fn get(path: &str) -> (StatusCode, String, Value) {
     let (db, _dir) = db::testing::temp_db().await;
+    // Past the first-run setup, which answers 503 on other routes.
+    db::testing::insert_user(&db, "u1").await;
     let request = Request::get(path).body(Body::empty()).unwrap();
     let state = AppState::new(db, "test secret", None).await.unwrap();
     let response = router(state).oneshot(request).await.unwrap();
