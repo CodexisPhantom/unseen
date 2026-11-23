@@ -10,6 +10,7 @@ publish.workspace = true
 name = "unseen_core"
 
 [dependencies]
+regex.workspace = true
 
 [lints]
 workspace = true
