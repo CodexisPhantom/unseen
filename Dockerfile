@@ -11,21 +11,32 @@ RUN pnpm build
 
 # 2. Binary. Ubuntu 26.04 has the OpenSSL 3 and ICU 78 libraries that the
 # auth library links (ADR 0006); the runtime stage must use the same release.
-FROM ubuntu:26.04 AS build
+FROM ubuntu:26.04 AS chef
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl build-essential pkg-config libssl-dev libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 ENV PATH=/root/.cargo/bin:$PATH
+RUN cargo install cargo-chef --version 0.1.78 --locked
 WORKDIR /src
+
+# The recipe lists only the dependencies, so the layer below that builds
+# them stays cached until Cargo.toml or Cargo.lock change. No cache mount
+# on target: layer cache (exported to CI) is what keeps the build.
+FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
+COPY crates crates
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS build
 COPY .cargo .cargo
+COPY --from=planner /src/recipe.json recipe.json
+RUN cargo chef cook --release --locked -p api --recipe-path recipe.json
+COPY Cargo.toml Cargo.lock ./
 COPY crates crates
 # rust-embed reads the frontend from web/build at compile time.
 COPY --from=web /web/build web/build
-RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/src/target \
-    cargo build --release --locked -p api \
+RUN cargo build --release --locked -p api \
     && cp target/release/unseen /unseen
 
 # 3. Runtime.
