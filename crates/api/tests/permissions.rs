@@ -257,6 +257,11 @@ fn app_router_passes_route_coverage() {
                 path: "/api/v1/setup".to_owned(),
                 access: Some(Access::Public),
             },
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/me".to_owned(),
+                access: Some(Access::Authenticated),
+            },
         ]
     );
 

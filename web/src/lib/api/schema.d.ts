@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in user, their roles and effective permissions. Authenticated,
+         *     no permission.
+         */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/setup": {
         parameters: {
             query?: never;
@@ -57,6 +77,34 @@ export interface components {
             /** @description Version of the running binary. */
             version: string;
         };
+        Me: {
+            /** @description The user holds the Owner role. */
+            isOwner: boolean;
+            /**
+             * @description Effective permissions in catalog order: every role plus direct grants.
+             *     An Owner has the whole catalog.
+             */
+            permissions: components["schemas"]["Permission"][];
+            /** @description Ordered by name. */
+            roles: components["schemas"]["MeRole"][];
+            user: components["schemas"]["MeUser"];
+        };
+        MeRole: {
+            /** Format: int32 */
+            id: number;
+            isOwner: boolean;
+            name: string;
+        };
+        MeUser: {
+            email?: string | null;
+            id: string;
+            name: string;
+        };
+        /**
+         * @description One entry of the permission catalog, `resource:action`.
+         * @enum {string}
+         */
+        Permission: "library:read" | "library:add" | "library:edit" | "library:delete" | "search:run" | "release:grab" | "queue:read" | "queue:manage" | "import:run" | "subtitles:manage" | "indexers:read" | "indexers:manage" | "clients:read" | "clients:manage" | "profiles:read" | "profiles:manage" | "settings:read" | "settings:manage" | "users:manage" | "roles:manage" | "apikeys:manage" | "system:logs" | "system:backup" | "system:tasks" | "system:audit";
         Problem: {
             /** @description Stable machine-readable string. Clients switch on this. */
             code: string;
@@ -118,6 +166,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

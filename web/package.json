@@ -29,7 +29,7 @@
 		"@tailwindcss/vite": "^4.3.0",
 		"@tanstack/svelte-query": "^6.4.1",
 		"@types/node": "^26",
-		"@vitest/coverage-v8": "^5.1.0",
+		"@vitest/coverage-v8": "^4.1.12",
 		"bits-ui": "^2.21.0",
 		"cn": "^0.5.2",
 		"eslint": "^10.4.1",
