@@ -86,7 +86,8 @@
 								title={template.description}
 								onclick={() => {
 									name = template.name;
-									selected = template.permissions(catalog);
+									// Permissions you lack cannot be unticked, and saving them is refused.
+									selected = template.permissions(catalog).filter((p) => session.can(p));
 								}}
 							>
 								{template.name}
