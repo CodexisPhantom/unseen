@@ -10,19 +10,19 @@ dev:
 
 # Run the Vite dev server
 web-dev:
-    pnpm --dir web dev
+    bun run --cwd web dev
 
 # Check formatting and lints; warnings are errors
 check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
-    pnpm --dir web check
-    pnpm --dir web lint
+    bun run --cwd web check
+    bun run --cwd web lint
 
 # Run all tests
 test:
     cargo test --workspace
-    pnpm --dir web test
+    bun run --cwd web test
 
 # Run the Rust tests with cargo-llvm-cov; fail below the minimums in docs/12-testing.md
 coverage:
@@ -31,7 +31,7 @@ coverage:
 
 # Build the frontend into web/build
 web-build:
-    pnpm --dir web build
+    bun run --cwd web build
 
 # Build the frontend, then the release binary
 build: web-build
@@ -44,4 +44,4 @@ gen-auth:
 # Regenerate openapi.json and the TypeScript types in web/src/lib/api
 gen:
     cargo run -q -p api -- openapi openapi.json
-    pnpm --dir web gen
+    bun run --cwd web gen

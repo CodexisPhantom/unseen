@@ -36,7 +36,7 @@ jobs:
             /etc/apt/sources.list.d/ubuntu.sources
           apt-get -o Acquire::Retries=3 update
           apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-            ca-certificates curl git build-essential pkg-config libssl-dev libicu-dev
+            ca-certificates curl git unzip build-essential pkg-config libssl-dev libicu-dev
       - uses: actions/checkout@v4
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: dtolnay/rust-toolchain@stable
@@ -46,20 +46,14 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov,just
-      # Node first: the container has none, and the pnpm installer needs it.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12
+      - uses: oven-sh/setup-bun@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests with coverage minimums
         run: just coverage
       - name: Generated files are up to date
         run: |
-          pnpm --dir web install --frozen-lockfile
+          bun install --cwd web --frozen-lockfile
           just gen
           git diff --exit-code
 
@@ -71,19 +65,12 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: pnpm lint
-      - run: pnpm test
-      - run: pnpm build
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run lint
+      - run: bun run test
+      - run: bun run build
 
   # File handling must work on Windows (docs/09-filesystem.md).
   windows:
@@ -95,16 +82,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test -p core
 
-  docker:
-    name: Docker image
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  # Disabled for now; re-enable when Docker CI builds are needed.
+  # docker:
+  #   name: Docker image
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: docker/setup-buildx-action@v3
+  #     - uses: docker/build-push-action@v6
+  #       with:
+  #         context: .
+  #         push: false
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max

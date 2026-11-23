@@ -44,7 +44,7 @@ push to `main`:
 | Job | Steps |
 |---|---|
 | Rust | `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `just coverage` (all Rust tests under `cargo llvm-cov`, with the minimums below); `just gen`, then `git diff --exit-code` |
-| Web | `pnpm check` (static-SPA check and `svelte-check`), `pnpm lint` (ESLint), `pnpm test` (Vitest with coverage), `pnpm build` |
+| Web | `bun run check` (static-SPA check and `svelte-check`), `bun run lint` (ESLint), `bun run test` (Vitest with coverage), `bun run build` |
 | Core tests on Windows | `cargo test -p core` |
 | Docker image | Builds the image, no push |
 
@@ -77,7 +77,7 @@ Not counted, because no test of ours can or should cover it:
   the generated `api/schema.d.ts`, and modules that only create an instance
   (`api/client.ts`). The list is in `web/vite.config.ts`.
 
-`just coverage` runs the Rust part locally; `pnpm test` runs the web part.
+`just coverage` runs the Rust part locally; `bun run test` runs the web part.
 
 A pull request fails below a minimum. The minimums go up when the real
 numbers allow it; they never go down.

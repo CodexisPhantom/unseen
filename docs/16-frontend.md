@@ -40,7 +40,7 @@ What SvelteKit 3 changes against older guides:
 - Any import from `$env/*/private`
 
 All data goes through the generated API client. `web/scripts/check-static.mjs`
-runs in `pnpm check` (and so in `just check`) and fails on the file names
+runs in `bun run check` (and so in `just check`) and fails on the file names
 above.
 
 ## Routes
@@ -131,9 +131,9 @@ progress, tooltip, form, field, separator, avatar, breadcrumb.
 
 | Command | Does |
 |---|---|
-| `pnpm check` | `scripts/check-static.mjs`, then `svelte-check` |
-| `pnpm lint` | ESLint with `typescript-eslint` and `eslint-plugin-svelte` |
-| `pnpm test` | Vitest with coverage; the minimum is in [12-testing.md](12-testing.md) |
+| `bun run check` | `scripts/check-static.mjs`, then `svelte-check` |
+| `bun run lint` | ESLint with `typescript-eslint` and `eslint-plugin-svelte` |
+| `bun run test` | Vitest with coverage; the minimum is in [12-testing.md](12-testing.md) |
 
 Unit tests are `*.test.ts` files next to the module they test. Vendored
 shadcn-svelte code is linted but not counted for coverage.

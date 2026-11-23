@@ -6,7 +6,7 @@ done.
 ## Requirements
 
 - Rust stable (edition 2024), `just`
-- Node 22+, pnpm
+- Bun
 - OpenSSL 3 and ICU 78 development files. `rustls` does not remove the
   OpenSSL requirement (ADR 0006). Set `RUST_ICU_MAJOR_VERSION_NUMBER=78`. On
   Windows also set `OPENSSL_DIR` and `RUST_ICU_LINK_SEARCH_DIR`, and put both
@@ -17,7 +17,7 @@ done.
 | Command | Does |
 |---|---|
 | `just dev` | Runs the API with reload and the Vite dev server |
-| `just check` | `cargo fmt --check`, `cargo clippy -- -D warnings`, `pnpm check`, `pnpm lint` |
+| `just check` | `cargo fmt --check`, `cargo clippy -- -D warnings`, `bun run check`, `bun run lint` |
 | `just coverage` | Rust tests with `cargo llvm-cov`; fails below the minimums in docs/12 |
 | `just test` | Rust tests and frontend tests |
 | `just gen` | Regenerates `openapi.json` and the TypeScript client |
@@ -30,7 +30,7 @@ CI fails when `just gen` changes a committed file.
 
 ```
 cd web
-pnpm dlx shadcn-svelte@latest add <name>
+bun x shadcn-svelte@latest add <name>
 ```
 
 The component is copied into `web/src/lib/components/ui/`. Commit it. Do not
