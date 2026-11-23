@@ -241,11 +241,23 @@ fn app_router_passes_route_coverage() {
     assert_eq!(routes.verify(), Ok(()));
     assert_eq!(
         routes.entries(),
-        &[RouteEntry {
-            method: Method::GET,
-            path: "/api/v1/health".to_owned(),
-            access: Some(Access::Public),
-        }]
+        &[
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/health".to_owned(),
+                access: Some(Access::Public),
+            },
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/setup".to_owned(),
+                access: Some(Access::Public),
+            },
+            RouteEntry {
+                method: Method::POST,
+                path: "/api/v1/setup".to_owned(),
+                access: Some(Access::Public),
+            },
+        ]
     );
 
     let doc = serde_json::to_value(api::openapi()).unwrap();

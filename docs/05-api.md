@@ -9,7 +9,7 @@ This document explains the conventions. The compat APIs are in
 | Resource | Path | Milestone |
 |---|---|---|
 | Health | `/health` (public) | M0 |
-| Setup | `/setup` (public while no user exists) | M1 |
+| Setup | `GET /setup` (status, public), `POST /setup` (public while no user exists) | M1 |
 | Current user | `/me` | M1 |
 | Users, roles, API keys | `/users`, `/roles`, `/api-keys` | M1 |
 | Audit log | `/audit-log` | M1 |

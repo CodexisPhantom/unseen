@@ -13,9 +13,10 @@ use better_auth::plugins::user_admission::{
     UserValidationAction, UserValidationData, UserValidationRejection, ValidateUserInfo,
 };
 use better_auth::plugins::{EmailPasswordPlugin, SessionManagementPlugin};
+use better_auth::seaorm::sea_orm::{ConnectionTrait, DbErr, Statement};
 use better_auth::seaorm::{DatabaseHookUpdate, SeaOrmHookContext, SeaOrmHooks, SeaOrmStore};
 use better_auth::{
-    Argon2PasswordHasher, AuthConfig, AuthResult, BetterAuth, FieldMap, database_hooks,
+    Argon2PasswordHasher, AuthConfig, AuthError, AuthResult, BetterAuth, FieldMap, database_hooks,
 };
 use db::DatabaseConnection;
 use db::auth_schema::AppAuthSchema;
@@ -39,6 +40,7 @@ const PASSWORD_MIN_LENGTH: usize = 10;
 #[derive(Clone, Default)]
 pub struct Policy {
     admit_next_signup: Arc<AtomicBool>,
+    owner_setup: Arc<AtomicBool>,
     disabled: Arc<RwLock<HashSet<String>>>,
 }
 
@@ -47,6 +49,21 @@ impl Policy {
     /// pass. Public sign-up is closed otherwise.
     pub fn admit_next_signup(&self) {
         self.admit_next_signup.store(true, Ordering::SeqCst);
+    }
+
+    /// First-run setup: the next user creation passes and its first session
+    /// assigns the Owner role, in the sign-up transaction. The caller holds
+    /// the setup lock and calls [`Policy::end_owner_setup`] afterwards.
+    pub fn begin_owner_setup(&self) {
+        self.owner_setup.store(true, Ordering::SeqCst);
+        self.admit_next_signup();
+    }
+
+    /// Closes what [`Policy::begin_owner_setup`] opened, also when the
+    /// sign-up failed before using it.
+    pub fn end_owner_setup(&self) {
+        self.owner_setup.store(false, Ordering::SeqCst);
+        self.admit_next_signup.store(false, Ordering::SeqCst);
     }
 
     /// Stops new sessions for this user. The users API (#36) also deletes the
@@ -78,21 +95,63 @@ impl ValidateUserInfo<AppAuthSchema> for Policy {
 #[database_hooks]
 impl SeaOrmHooks<AppAuthSchema> for Policy {
     /// Covers every sign-in method: without a session there is no sign-in.
+    ///
+    /// During the first-run setup, the session of the new user is created in
+    /// the sign-up transaction, after the user row. The Owner role is
+    /// assigned there, so the user and the role commit together or not at
+    /// all (docs/15-permissions.md, "First run").
     async fn before_create_session(
         &self,
         session: &mut FieldMap,
-        _ctx: &SeaOrmHookContext<'_, AppAuthSchema>,
+        ctx: &SeaOrmHookContext<'_, AppAuthSchema>,
     ) -> AuthResult<DatabaseHookUpdate<FieldMap>> {
         let user_id = session
             .get("userId")
             .and_then(|value| value.as_str())
             .unwrap_or_default();
-        Ok(if self.disabled.read().unwrap().contains(user_id) {
-            DatabaseHookUpdate::Cancel
-        } else {
-            DatabaseHookUpdate::Continue
-        })
+        if self.disabled.read().unwrap().contains(user_id) {
+            return Ok(DatabaseHookUpdate::Cancel);
+        }
+        if self.owner_setup.swap(false, Ordering::SeqCst) {
+            let tx = ctx.tx.ok_or_else(|| {
+                AuthError::internal("owner setup outside the sign-up transaction")
+            })?;
+            assign_first_owner(tx, user_id).await?;
+        }
+        Ok(DatabaseHookUpdate::Continue)
     }
+}
+
+/// Gives `user_id` the Owner role, and fails unless it is the only user.
+/// A failure rolls back the sign-up transaction.
+async fn assign_first_owner(tx: &impl ConnectionTrait, user_id: &str) -> AuthResult<()> {
+    let fail = |error: DbErr| AuthError::internal(format!("owner setup: {error}"));
+    let backend = tx.get_database_backend();
+    let users = tx
+        .query_one_raw(Statement::from_string(
+            backend,
+            r#"SELECT count(*) AS n FROM "user""#,
+        ))
+        .await
+        .map_err(fail)?
+        .map(|row| row.try_get::<i64>("", "n"))
+        .transpose()
+        .map_err(fail)?;
+    if users != Some(1) {
+        return Err(AuthError::internal("owner setup: a user already exists"));
+    }
+    let inserted = tx
+        .execute_raw(Statement::from_sql_and_values(
+            backend,
+            "INSERT INTO user_roles (user_id, role_id) SELECT ?, id FROM roles WHERE is_owner = 1",
+            [user_id.into()],
+        ))
+        .await
+        .map_err(fail)?;
+    if inserted.rows_affected() != 1 {
+        return Err(AuthError::internal("owner setup: no Owner role"));
+    }
+    Ok(())
 }
 
 /// Builds the auth instance on the migrated database. `secret` is the root

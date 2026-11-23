@@ -4,6 +4,7 @@ pub mod access;
 pub mod auth;
 pub mod error;
 mod health;
+pub mod setup;
 mod web;
 
 use axum::Router;
@@ -22,6 +23,7 @@ pub struct AppState {
     pub db: DatabaseConnection,
     pub auth: auth::Auth,
     pub policy: auth::Policy,
+    pub setup: setup::Setup,
 }
 
 impl AppState {
@@ -32,7 +34,12 @@ impl AppState {
         base_url: Option<&str>,
     ) -> AuthResult<Self> {
         let (auth, policy) = auth::build(db.clone(), secret, base_url).await?;
-        Ok(Self { db, auth, policy })
+        Ok(Self {
+            db,
+            auth,
+            policy,
+            setup: setup::Setup::default(),
+        })
     }
 }
 
@@ -50,7 +57,9 @@ struct ApiDoc;
 /// Every API route is registered here once with its access rule, so the
 /// router, runtime enforcement and `x-permission` in OpenAPI cannot disagree.
 pub fn routes() -> ApiRouter {
-    ApiRouter::with_openapi(ApiDoc::openapi()).public(routes!(health::health))
+    ApiRouter::with_openapi(ApiDoc::openapi())
+        .public(routes!(health::health))
+        .public(routes!(setup::status, setup::create))
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.
@@ -65,5 +74,9 @@ pub fn router(state: AppState) -> Router {
     let auth = state.auth.clone().axum_router_with_state();
     api.nest("/api/auth", auth)
         .fallback(web::serve)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            setup::gate,
+        ))
         .with_state(state)
 }
