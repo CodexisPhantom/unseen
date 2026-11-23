@@ -5,6 +5,7 @@ pub mod auth;
 pub mod error;
 mod health;
 mod me;
+mod roles;
 pub mod setup;
 mod web;
 
@@ -13,6 +14,7 @@ use axum::extract::FromRef;
 use better_auth::AuthResult;
 use better_auth::integrations::axum::AxumIntegration;
 use db::DatabaseConnection;
+use unseen_core::permission::Permission;
 use utoipa::OpenApi;
 use utoipa_axum::routes;
 
@@ -62,6 +64,15 @@ pub fn routes() -> ApiRouter {
         .public(routes!(health::health))
         .public(routes!(setup::status, setup::create))
         .authenticated(routes!(me::me))
+        .require(Permission::RolesManage, routes!(roles::list_permissions))
+        .require(
+            Permission::RolesManage,
+            routes!(roles::list_roles, roles::create_role),
+        )
+        .require(
+            Permission::RolesManage,
+            routes!(roles::update_role, roles::delete_role),
+        )
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.

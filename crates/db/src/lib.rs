@@ -13,6 +13,7 @@ pub mod auth_schema;
 pub mod access;
 pub mod entities;
 mod migration;
+pub mod roles;
 pub mod testing;
 
 pub use sea_orm::DatabaseConnection;
