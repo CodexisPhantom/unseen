@@ -1,13 +1,12 @@
 # syntax=docker/dockerfile:1
 
 # 1. Frontend: static files in /web/build.
-FROM node:24-slim AS web
-RUN npm install --global pnpm@12
+FROM oven/bun:1-slim AS web
 WORKDIR /web
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
 COPY web/ ./
-RUN pnpm build
+RUN bun run build
 
 # 2. Binary. Ubuntu 26.04 has the OpenSSL 3 and ICU 78 libraries that the
 # auth library links (ADR 0006); the runtime stage must use the same release.

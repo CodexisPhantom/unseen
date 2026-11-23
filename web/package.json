@@ -13,7 +13,7 @@
 		"preview": "vite preview",
 		"gen": "openapi-typescript ../openapi.json -o src/lib/api/schema.d.ts",
 		"prepare": "svelte-kit sync || echo ''",
-		"check": "node scripts/check-static.mjs && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "bun scripts/check-static.mjs && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "eslint .",
 		"test": "vitest run --coverage"
