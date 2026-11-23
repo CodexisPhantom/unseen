@@ -41,6 +41,38 @@
         "x-permission": "public"
       }
     },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "The signed-in user, their roles and effective permissions. Authenticated,\nno permission.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "The current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "authenticated"
+      }
+    },
     "/api/v1/setup": {
       "get": {
         "tags": [
@@ -153,6 +185,110 @@
             "description": "Version of the running binary."
           }
         }
+      },
+      "Me": {
+        "type": "object",
+        "required": [
+          "user",
+          "roles",
+          "isOwner",
+          "permissions"
+        ],
+        "properties": {
+          "isOwner": {
+            "type": "boolean",
+            "description": "The user holds the Owner role."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "description": "Effective permissions in catalog order: every role plus direct grants.\nAn Owner has the whole catalog."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeRole"
+            },
+            "description": "Ordered by name."
+          },
+          "user": {
+            "$ref": "#/components/schemas/MeUser"
+          }
+        }
+      },
+      "MeRole": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "isOwner"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isOwner": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "MeUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Permission": {
+        "type": "string",
+        "description": "One entry of the permission catalog, `resource:action`.",
+        "enum": [
+          "library:read",
+          "library:add",
+          "library:edit",
+          "library:delete",
+          "search:run",
+          "release:grab",
+          "queue:read",
+          "queue:manage",
+          "import:run",
+          "subtitles:manage",
+          "indexers:read",
+          "indexers:manage",
+          "clients:read",
+          "clients:manage",
+          "profiles:read",
+          "profiles:manage",
+          "settings:read",
+          "settings:manage",
+          "users:manage",
+          "roles:manage",
+          "apikeys:manage",
+          "system:logs",
+          "system:backup",
+          "system:tasks",
+          "system:audit"
+        ]
       },
       "Problem": {
         "type": "object",

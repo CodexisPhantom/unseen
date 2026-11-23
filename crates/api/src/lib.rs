@@ -4,6 +4,7 @@ pub mod access;
 pub mod auth;
 pub mod error;
 mod health;
+mod me;
 pub mod setup;
 mod web;
 
@@ -60,6 +61,7 @@ pub fn routes() -> ApiRouter {
     ApiRouter::with_openapi(ApiDoc::openapi())
         .public(routes!(health::health))
         .public(routes!(setup::status, setup::create))
+        .authenticated(routes!(me::me))
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.

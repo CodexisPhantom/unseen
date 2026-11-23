@@ -22,8 +22,6 @@ export default defineConfig({
 	test: {
 		environment: 'node',
 		include: ['src/**/*.{test,spec}.{js,ts}'],
-		// No store or helper exists yet (M1 adds the first).
-		passWithNoTests: true,
 		expect: { requireAssertions: true },
 		coverage: {
 			// Minimum from docs/12-testing.md. Not counted: vendored shadcn-svelte

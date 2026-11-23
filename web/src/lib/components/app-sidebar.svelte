@@ -8,15 +8,27 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
+	import { navEntries } from '#lib/nav.js';
+	import { session } from '#lib/session.svelte.js';
 
-	// Placeholder entries; permission-based hiding comes with M1.
-	const entries = [
-		{ title: 'Library', href: resolve('library'), icon: LibraryIcon },
-		{ title: 'Add', href: resolve('add'), icon: PlusIcon },
-		{ title: 'Activity', href: resolve('activity'), icon: ActivityIcon },
-		{ title: 'Settings', href: resolve('settings'), icon: SettingsIcon },
-		{ title: 'System', href: resolve('system'), icon: ServerIcon }
-	];
+	const icons = {
+		library: LibraryIcon,
+		add: PlusIcon,
+		activity: ActivityIcon,
+		settings: SettingsIcon,
+		system: ServerIcon
+	} as const;
+
+	// Presentation only: hidden entries still answer 403 from the API.
+	const entries = $derived(
+		navEntries
+			.filter((entry) => session.canAny(entry.anyOf))
+			.map((entry) => ({
+				title: entry.title,
+				href: resolve(entry.path as keyof typeof icons),
+				icon: icons[entry.path as keyof typeof icons]
+			}))
+	);
 
 	const sidebar = Sidebar.useSidebar();
 	// On a phone the sidebar is a sheet; close it after a navigation.
