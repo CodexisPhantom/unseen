@@ -1,7 +1,3 @@
+pub mod permission;
+pub mod quality;
 pub mod release;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder() {}
-}

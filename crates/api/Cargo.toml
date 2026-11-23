@@ -13,10 +13,16 @@ path = "src/main.rs"
 core.workspace = true
 db.workspace = true
 arr-compat.workspace = true
+async-trait.workspace = true
 axum.workspace = true
+better-auth = { workspace = true, features = ["axum"] }
+chrono.workspace = true
+hkdf.workspace = true
+rand.workspace = true
 rust-embed.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -24,6 +30,7 @@ utoipa.workspace = true
 utoipa-axum.workspace = true
 
 [dev-dependencies]
+tempfile.workspace = true
 tower.workspace = true
 
 [lints]

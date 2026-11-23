@@ -1,6 +1,6 @@
 //! Helpers for tests in this crate and in the crates that depend on it.
 
-use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use tempfile::TempDir;
 
 /// Creates a migrated database in a new temporary directory. The directory
@@ -11,4 +11,21 @@ pub async fn temp_db() -> (DatabaseConnection, TempDir) {
         .await
         .expect("migrate temp database");
     (db, dir)
+}
+
+/// Inserts a user the way the auth library does: without our app columns.
+pub async fn insert_user(db: &DatabaseConnection, id: &str) {
+    let now = sea_orm::prelude::ChronoUtc::now();
+    crate::auth_schema::user::ActiveModel {
+        id: Set(id.into()),
+        name: Set(id.into()),
+        email: Set(Some(format!("{id}@example.com"))),
+        email_verified: Set(false),
+        image: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+    }
+    .insert(db)
+    .await
+    .expect("insert user");
 }
