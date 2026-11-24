@@ -21,6 +21,7 @@ use utoipa::ToSchema;
 
 use crate::AppState;
 use crate::access::Public;
+use crate::audit::{Actor, ClientIp, Event, record};
 use crate::error::Problem;
 
 /// Whether the first user still has to be created. Once a user exists the
@@ -139,6 +140,7 @@ pub struct SetupUser {
 pub async fn create(
     _: Public,
     State(state): State<AppState>,
+    ip: ClientIp,
     headers: HeaderMap,
     Json(body): Json<SetupRequest>,
 ) -> Result<Response, Problem> {
@@ -208,6 +210,8 @@ pub async fn create(
         name: field("name"),
         email: field("email"),
     };
+    let event = Event::new("setup.completed").target("user", &user.id);
+    record(&state, &Actor::user(&user.id, &user.name), &ip, event).await;
     let mut response = (StatusCode::CREATED, Json(user)).into_response();
     for cookie in parts.headers.get_all(header::SET_COOKIE) {
         response

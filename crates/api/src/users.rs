@@ -21,9 +21,10 @@ use utoipa::ToSchema;
 
 use crate::AppState;
 use crate::access::{Caller, Require, UsersManage};
+use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::me::{MeRole, PermissionName};
-use crate::roles::{escalation, known, parse_permissions};
+use crate::roles::{escalation, known, names, parse_permissions};
 
 const PASSWORD_MIN: usize = 10;
 const PASSWORD_MAX: usize = 128;
@@ -216,6 +217,11 @@ fn valid_password(password: &str) -> Result<(), Problem> {
     Ok(())
 }
 
+/// The names of a user's roles, ordered by name.
+fn role_names(detail: &UserDetail) -> Vec<&str> {
+    detail.roles.iter().map(|role| role.name.as_str()).collect()
+}
+
 fn role_ids(detail: &UserDetail) -> BTreeSet<i32> {
     detail.roles.iter().map(|role| role.id).collect()
 }
@@ -255,6 +261,7 @@ pub async fn list_users(
 pub async fn create_user(
     caller: Require<UsersManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     headers: HeaderMap,
     Json(body): Json<NewUser>,
 ) -> Result<(StatusCode, Json<User>), Problem> {
@@ -324,7 +331,14 @@ pub async fn create_user(
         .await
         .map_err(failed)?;
     tracing::info!(user = id, "user created");
-    Ok((StatusCode::CREATED, Json(load(&state, id).await?.into())))
+    let created = load(&state, id).await?;
+    let event = Event::new("user.created").target("user", id).data(json!({
+        "name": created.user.name,
+        "email": created.user.email,
+        "roles": role_names(&created),
+    }));
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    Ok((StatusCode::CREATED, Json(created.into())))
 }
 
 /// Changes a user. Refused for an Owner unless the caller is an Owner. The
@@ -346,6 +360,7 @@ pub async fn create_user(
 pub async fn update_user(
     caller: Require<UsersManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     Path(id): Path<String>,
     Json(body): Json<UserPatch>,
 ) -> Result<Json<User>, Problem> {
@@ -409,7 +424,20 @@ pub async fn update_user(
             .await
             .map_err(failed)?;
     }
-    Ok(Json(load(&state, &id).await?.into()))
+    let updated = load(&state, &id).await?;
+    let mut changed = Changes::new()
+        .field("name", &target.user.name, &updated.user.name)
+        .field("email", &target.user.email, &updated.user.email)
+        .field("disabled", target.disabled, updated.disabled)
+        .field("roles", role_names(&target), role_names(&updated));
+    if body.password.is_some() {
+        changed = changed.secret("password");
+    }
+    let event = Event::new("user.updated")
+        .target("user", &id)
+        .data(changed.into_data());
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    Ok(Json(updated.into()))
 }
 
 /// Deletes a user and their sessions. Refused for an Owner unless the caller
@@ -429,13 +457,22 @@ pub async fn update_user(
 pub async fn delete_user(
     caller: Require<UsersManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     Path(id): Path<String>,
 ) -> Result<StatusCode, Problem> {
     let target = load(&state, &id).await?;
     may_modify(&caller, &target)?;
     keep_last_owner(&state, &target, false).await?;
+    // The actor's name is read first: the caller may be the deleted user.
+    let actor = Actor::of(&state, &caller).await;
     db::users::delete(&state.db, &id).await.map_err(failed)?;
     state.policy.enable(&id);
+    let event = Event::new("user.deleted").target("user", &id).data(json!({
+        "name": target.user.name,
+        "email": target.user.email,
+        "roles": role_names(&target),
+    }));
+    record(&state, &actor, &ip, event).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -457,6 +494,7 @@ pub async fn delete_user(
 pub async fn set_user_permissions(
     caller: Require<UsersManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     Path(id): Path<String>,
     Json(body): Json<DirectGrants>,
 ) -> Result<Json<User>, Problem> {
@@ -469,5 +507,18 @@ pub async fn set_user_permissions(
     db::users::set_permissions(&state.db, &id, &stored)
         .await
         .map_err(failed)?;
-    Ok(Json(load(&state, &id).await?.into()))
+    let updated = load(&state, &id).await?;
+    let event = Event::new("user.permissions_changed")
+        .target("user", &id)
+        .data(
+            Changes::new()
+                .field(
+                    "permissions",
+                    names(&target.permissions),
+                    names(&updated.permissions),
+                )
+                .into_data(),
+        );
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    Ok(Json(updated.into()))
 }

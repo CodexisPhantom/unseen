@@ -11,6 +11,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0001Init),
             Box::new(M0002AccessControl),
             Box::new(M0003ApiKeys),
+            Box::new(M0005AuditLog),
         ]
     }
 }
@@ -143,6 +144,47 @@ impl MigrationTrait for M0003ApiKeys {
         manager
             .get_connection()
             .execute_unprepared(M0003_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0005AuditLog;
+
+impl MigrationName for M0005AuditLog {
+    fn name(&self) -> &str {
+        "m0005_audit_log"
+    }
+}
+
+/// The audit log (docs/04-database.md). Append-only: nothing in the app
+/// updates or deletes a row. The actor columns are set to null when the user
+/// or key is deleted; `actor_name` was copied at write time, so the row still
+/// says who acted.
+const M0005_UP: &str = r#"
+CREATE TABLE audit_log (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    created_at text NOT NULL,
+    actor_user_id text REFERENCES "user" (id) ON DELETE SET NULL,
+    actor_name text NOT NULL,
+    api_key_id integer REFERENCES api_keys (id) ON DELETE SET NULL,
+    action text NOT NULL,
+    target_kind text,
+    target_id text,
+    data json,
+    ip_address text
+);
+CREATE INDEX audit_log_created_at_idx ON audit_log (created_at);
+CREATE INDEX audit_log_actor_user_id_idx ON audit_log (actor_user_id);
+CREATE INDEX audit_log_target_idx ON audit_log (target_kind, target_id);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0005AuditLog {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0005_UP)
             .await?;
         Ok(())
     }

@@ -318,6 +318,11 @@ fn app_router_passes_route_coverage() {
             users_manage(Method::DELETE, "/api/v1/users/{id}"),
             users_manage(Method::PATCH, "/api/v1/users/{id}"),
             users_manage(Method::PUT, "/api/v1/users/{id}/permissions"),
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/audit-log".to_owned(),
+                access: Some(Access::Permission(Permission::SystemAudit)),
+            },
         ]
     );
 

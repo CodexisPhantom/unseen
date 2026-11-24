@@ -2,6 +2,7 @@
 
 pub mod access;
 mod api_keys;
+pub mod audit;
 pub mod auth;
 pub mod error;
 mod health;
@@ -101,6 +102,7 @@ pub fn routes() -> ApiRouter {
             Permission::UsersManage,
             routes!(users::set_user_permissions),
         )
+        .require(Permission::SystemAudit, routes!(audit::list))
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.
@@ -112,7 +114,15 @@ pub fn router(state: AppState) -> Router {
     let api = routes().into_router(&state);
     // The auth routes are the library's own; they are not in our OpenAPI
     // document.
-    let auth = state.auth.clone().axum_router_with_state();
+    let auth =
+        state
+            .auth
+            .clone()
+            .axum_router_with_state()
+            .layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                audit::auth_events,
+            ));
     api.nest("/api/auth", auth)
         .fallback(web::serve)
         .layer(axum::middleware::from_fn_with_state(

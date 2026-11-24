@@ -8,11 +8,13 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use db::roles::{RoleChanges, RoleDetail, RoleError};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use unseen_core::permission::Permission;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
 use crate::access::{Caller, Require, RolesManage, UsersManage};
+use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::me::PermissionName;
 
@@ -133,6 +135,11 @@ pub(crate) fn escalation(
     }
 }
 
+/// Stored permission strings that are in the catalog, in catalog order.
+pub(crate) fn names(stored: &BTreeSet<String>) -> Vec<&'static str> {
+    known(stored).map(Permission::as_str).collect()
+}
+
 fn strings(permissions: &BTreeSet<Permission>) -> BTreeSet<String> {
     permissions.iter().map(|p| p.as_str().to_owned()).collect()
 }
@@ -212,6 +219,7 @@ pub async fn list_assignable_roles(
 pub async fn create_role(
     caller: Require<RolesManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     Json(body): Json<NewRole>,
 ) -> Result<(StatusCode, Json<Role>), Problem> {
     let name = valid_name(&body.name)?;
@@ -226,6 +234,10 @@ pub async fn create_role(
     )
     .await
     .map_err(role_error)?;
+    let event = Event::new("role.created")
+        .target("role", created.role.id)
+        .data(json!({ "name": created.role.name, "permissions": names(&created.permissions) }));
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
     Ok((StatusCode::CREATED, Json(created.into())))
 }
 
@@ -248,6 +260,7 @@ pub async fn create_role(
 pub async fn update_role(
     caller: Require<RolesManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     Path(id): Path<i32>,
     Json(body): Json<RolePatch>,
 ) -> Result<Json<Role>, Problem> {
@@ -273,6 +286,22 @@ pub async fn update_role(
     let updated = db::roles::update(&state.db, id, changes)
         .await
         .map_err(role_error)?;
+    let changed = Changes::new()
+        .field("name", &current.role.name, &updated.role.name)
+        .field(
+            "description",
+            &current.role.description,
+            &updated.role.description,
+        )
+        .field(
+            "permissions",
+            names(&current.permissions),
+            names(&updated.permissions),
+        );
+    let event = Event::new("role.updated")
+        .target("role", id)
+        .data(changed.into_data());
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
     Ok(Json(updated.into()))
 }
 
@@ -294,6 +323,7 @@ pub async fn update_role(
 pub async fn delete_role(
     caller: Require<RolesManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     Path(id): Path<i32>,
     Query(params): Query<DeleteParams>,
 ) -> Result<StatusCode, Problem> {
@@ -309,5 +339,11 @@ pub async fn delete_role(
         ));
     }
     db::roles::delete(&state.db, id).await.map_err(role_error)?;
+    let event = Event::new("role.deleted").target("role", id).data(json!({
+        "name": current.role.name,
+        "permissions": names(&current.permissions),
+        "users": current.users,
+    }));
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -12,6 +12,7 @@ use sea_orm_migration::MigratorTrait;
 pub mod auth_schema;
 pub mod access;
 pub mod api_keys;
+pub mod audit;
 pub mod entities;
 mod migration;
 pub mod roles;
@@ -75,6 +76,7 @@ mod tests {
         for expected in [
             "account",
             "api_key_permissions",
+            "audit_log",
             "api_keys",
             "role_permissions",
             "roles",

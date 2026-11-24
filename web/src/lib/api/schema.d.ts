@@ -58,6 +58,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The audit log, newest first. */
+        get: operations["list_audit_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -302,6 +319,32 @@ export interface components {
             userId: string;
             userName: string;
         };
+        AuditEntry: {
+            /** @description For example `role.updated`. */
+            action: string;
+            actorName: string;
+            /** @description Empty after the actor is deleted; `actorName` still names them. */
+            actorUserId?: string | null;
+            /** Format: int32 */
+            apiKeyId?: number | null;
+            createdAt: string;
+            /** @description Changed fields with old and new values. Never a secret value. */
+            data?: Record<string, never> | null;
+            /** Format: int32 */
+            id: number;
+            ipAddress?: string | null;
+            targetId?: string | null;
+            targetKind?: string | null;
+        };
+        AuditPage: {
+            items: components["schemas"]["AuditEntry"][];
+            /** Format: int64 */
+            page: number;
+            /** Format: int64 */
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
         CreatedApiKey: {
             apiKey: components["schemas"]["ApiKey"];
             /** @description The key. This is the only response that carries it. */
@@ -533,6 +576,59 @@ export interface operations {
             };
             /** @description Permission denied */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_audit_log: {
+        parameters: {
+            query?: {
+                /** @description User id of the actor. */
+                actor?: string;
+                /** @description For example `role.updated`. */
+                action?: string;
+                targetKind?: string;
+                targetId?: string;
+                /** @description RFC 3339. Rows at or after this time. */
+                from?: string;
+                /** @description RFC 3339. Rows before this time. */
+                to?: string;
+                /** @description Starts at 1. */
+                page?: number;
+                /** @description 1 to 500. Default 50. */
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
