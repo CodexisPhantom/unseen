@@ -42,6 +42,8 @@ pub struct Policy {
     admit_next_signup: Arc<AtomicBool>,
     owner_setup: Arc<AtomicBool>,
     disabled: Arc<RwLock<HashSet<String>>>,
+    /// Serializes user creation: `admit_next_signup` is one flag for all.
+    signup: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Policy {
@@ -59,6 +61,12 @@ impl Policy {
         self.admit_next_signup();
     }
 
+    /// Closes the admission that [`Policy::admit_next_signup`] opened, also
+    /// when the sign-up failed before using it.
+    pub fn deny_signup(&self) {
+        self.admit_next_signup.store(false, Ordering::SeqCst);
+    }
+
     /// Closes what [`Policy::begin_owner_setup`] opened, also when the
     /// sign-up failed before using it.
     pub fn end_owner_setup(&self) {
@@ -71,6 +79,16 @@ impl Policy {
     /// and loads this set from the `disabled` column (#28) at startup.
     pub fn disable(&self, user_id: &str) {
         self.disabled.write().unwrap().insert(user_id.to_owned());
+    }
+
+    /// Held while the users API creates a user through the library's sign-up.
+    pub fn signup_lock(&self) -> &tokio::sync::Mutex<()> {
+        &self.signup
+    }
+
+    /// Lets the user sign in again.
+    pub fn enable(&self, user_id: &str) {
+        self.disabled.write().unwrap().remove(user_id);
     }
 }
 

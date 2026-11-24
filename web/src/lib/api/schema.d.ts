@@ -122,12 +122,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every user, ordered by name. */
+        get: operations["list_users"];
+        put?: never;
+        /**
+         * Creates a user who can sign in with the given password. Only roles the
+         *     caller holds in full can be assigned.
+         */
+        post: operations["create_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Deletes a user and their sessions. Refused for an Owner unless the caller
+         *     is an Owner, and for the last enabled Owner.
+         */
+        delete: operations["delete_user"];
+        options?: never;
+        head?: never;
+        /**
+         * Changes a user. Refused for an Owner unless the caller is an Owner. The
+         *     last enabled Owner cannot be disabled or lose the Owner role.
+         */
+        patch: operations["update_user"];
+        trace?: never;
+    };
+    "/api/v1/users/{id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replaces the direct grants of a user. Only permissions the caller holds
+         *     can be added or taken away.
+         */
+        put: operations["set_user_permissions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /** @enum {string} */
         DatabaseStatus: "ok" | "error";
+        DirectGrants: {
+            /** @description Replaces the direct grants. */
+            permissions: components["schemas"]["Permission"][];
+        };
         FieldError: {
             field: string;
             message: string;
@@ -164,6 +233,12 @@ export interface components {
             description?: string | null;
             name: string;
             permissions: components["schemas"]["Permission"][];
+        };
+        NewUser: {
+            email: string;
+            name: string;
+            password: string;
+            roleIds?: number[];
         };
         /**
          * @description One entry of the permission catalog, `resource:action`.
@@ -217,6 +292,29 @@ export interface components {
             email: string;
             id: string;
             name: string;
+        };
+        User: {
+            createdAt: string;
+            disabled: boolean;
+            email?: string | null;
+            id: string;
+            /** @description The user holds the Owner role. */
+            isOwner: boolean;
+            name: string;
+            /** @description Direct grants only; the effective set also has the roles' permissions. */
+            permissions: components["schemas"]["Permission"][];
+            /** @description Ordered by name. */
+            roles: components["schemas"]["MeRole"][];
+        };
+        UserPatch: {
+            /** @description Disabling signs the user out everywhere. */
+            disabled?: boolean | null;
+            email?: string | null;
+            name?: string | null;
+            /** @description Signs the user out everywhere. */
+            password?: string | null;
+            /** @description Replaces the roles. */
+            roleIds?: number[] | null;
         };
     };
     responses: never;
@@ -560,6 +658,251 @@ export interface operations {
                 };
             };
             /** @description The library refused the name, email or password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_users: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The users */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewUser"];
+            };
+        };
+        responses: {
+            /** @description The new user */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description A role the caller does not hold in full */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The email is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An Owner and the caller is not one */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The last Owner */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description An Owner, or a role the caller does not hold in full */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The email is taken, or this is the last Owner */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_user_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectGrants"];
+            };
+        };
+        responses: {
+            /** @description The user with the new grants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description An Owner, or a permission the caller lacks */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
             422: {
                 headers: {
                     [name: string]: unknown;

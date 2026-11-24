@@ -64,9 +64,9 @@ pub struct MeUser {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MeRole {
-    id: i32,
-    name: String,
-    is_owner: bool,
+    pub(crate) id: i32,
+    pub(crate) name: String,
+    pub(crate) is_owner: bool,
 }
 
 /// The signed-in user, their roles and effective permissions. Authenticated,

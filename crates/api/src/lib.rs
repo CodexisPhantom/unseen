@@ -7,12 +7,13 @@ mod health;
 mod me;
 mod roles;
 pub mod setup;
+mod users;
 mod web;
 
 use axum::Router;
 use axum::extract::FromRef;
-use better_auth::AuthResult;
 use better_auth::integrations::axum::AxumIntegration;
+use better_auth::{AuthError, AuthResult};
 use db::DatabaseConnection;
 use unseen_core::permission::Permission;
 use utoipa::OpenApi;
@@ -37,6 +38,12 @@ impl AppState {
         base_url: Option<&str>,
     ) -> AuthResult<Self> {
         let (auth, policy) = auth::build(db.clone(), secret, base_url).await?;
+        let disabled = db::users::disabled_ids(&db)
+            .await
+            .map_err(|error| AuthError::internal(format!("load disabled users: {error}")))?;
+        for id in &disabled {
+            policy.disable(id);
+        }
         Ok(Self {
             db,
             auth,
@@ -72,6 +79,18 @@ pub fn routes() -> ApiRouter {
         .require(
             Permission::RolesManage,
             routes!(roles::update_role, roles::delete_role),
+        )
+        .require(
+            Permission::UsersManage,
+            routes!(users::list_users, users::create_user),
+        )
+        .require(
+            Permission::UsersManage,
+            routes!(users::update_user, users::delete_user),
+        )
+        .require(
+            Permission::UsersManage,
+            routes!(users::set_user_permissions),
         )
 }
 

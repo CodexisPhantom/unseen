@@ -243,6 +243,14 @@ fn roles_manage(method: Method, path: &str) -> RouteEntry {
     }
 }
 
+fn users_manage(method: Method, path: &str) -> RouteEntry {
+    RouteEntry {
+        method,
+        path: path.to_owned(),
+        access: Some(Access::Permission(Permission::UsersManage)),
+    }
+}
+
 #[test]
 fn app_router_passes_route_coverage() {
     let routes = api::routes();
@@ -275,6 +283,11 @@ fn app_router_passes_route_coverage() {
             roles_manage(Method::POST, "/api/v1/roles"),
             roles_manage(Method::DELETE, "/api/v1/roles/{id}"),
             roles_manage(Method::PATCH, "/api/v1/roles/{id}"),
+            users_manage(Method::GET, "/api/v1/users"),
+            users_manage(Method::POST, "/api/v1/users"),
+            users_manage(Method::DELETE, "/api/v1/users/{id}"),
+            users_manage(Method::PATCH, "/api/v1/users/{id}"),
+            users_manage(Method::PUT, "/api/v1/users/{id}/permissions"),
         ]
     );
 

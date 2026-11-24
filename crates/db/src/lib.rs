@@ -15,6 +15,7 @@ pub mod entities;
 mod migration;
 pub mod roles;
 pub mod testing;
+pub mod users;
 
 pub use sea_orm::DatabaseConnection;
 
