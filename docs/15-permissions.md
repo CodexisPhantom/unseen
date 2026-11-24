@@ -126,7 +126,9 @@ The generated OpenAPI document is authoritative. This table is the plan.
 |---|---|
 | `GET /health`, `GET /setup` (status), `POST /setup`, `/api/auth/*` sign-in and sign-out | public |
 | `GET /me`, `GET/POST/DELETE /me/api-keys` | authenticated, no permission |
-| `GET /permissions`, `/roles` (all methods) | `roles:manage` |
+| `GET /permissions` | authenticated, no permission (the catalog is not secret; the users page needs it) |
+| `/roles` (all methods) | `roles:manage` |
+| `GET /assignable-roles` | `users:manage` |
 | `/users` (all methods), `PUT /users/{id}/permissions` | `users:manage` |
 | `POST /owner/transfer` | authenticated; the handler requires the Owner role and the password |
 | `GET /audit-log` | `system:audit` |
@@ -156,8 +158,8 @@ The generated OpenAPI document is authoritative. This table is the plan.
 | `/radarr/api/v3/*` | see [14-compatibility.md](14-compatibility.md) |
 
 `GET /roles` for the user form: a user with `users:manage` but not
-`roles:manage` must still list roles. Open question: a second read route, or
-include assignable roles in the users API.
+`roles:manage` must still list roles. Decided (2026-11-24): a second read
+route, `GET /assignable-roles`, with the same body as `GET /roles`.
 
 ## Scoping per library (after V1)
 

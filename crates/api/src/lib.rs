@@ -71,7 +71,11 @@ pub fn routes() -> ApiRouter {
         .public(routes!(health::health))
         .public(routes!(setup::status, setup::create))
         .authenticated(routes!(me::me))
-        .require(Permission::RolesManage, routes!(roles::list_permissions))
+        .authenticated(routes!(roles::list_permissions))
+        .require(
+            Permission::UsersManage,
+            routes!(roles::list_assignable_roles),
+        )
         .require(
             Permission::RolesManage,
             routes!(roles::list_roles, roles::create_role),

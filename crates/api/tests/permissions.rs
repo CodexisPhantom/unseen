@@ -278,7 +278,12 @@ fn app_router_passes_route_coverage() {
                 path: "/api/v1/me".to_owned(),
                 access: Some(Access::Authenticated),
             },
-            roles_manage(Method::GET, "/api/v1/permissions"),
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/permissions".to_owned(),
+                access: Some(Access::Authenticated),
+            },
+            users_manage(Method::GET, "/api/v1/assignable-roles"),
             roles_manage(Method::GET, "/api/v1/roles"),
             roles_manage(Method::POST, "/api/v1/roles"),
             roles_manage(Method::DELETE, "/api/v1/roles/{id}"),
