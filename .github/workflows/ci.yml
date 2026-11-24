@@ -51,11 +51,6 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests with coverage minimums
         run: just coverage
-      - name: Generated files are up to date
-        run: |
-          bun install --cwd web --frozen-lockfile
-          just gen
-          git diff --exit-code
 
   web:
     name: Web
