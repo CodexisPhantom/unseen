@@ -1,6 +1,7 @@
 //! HTTP API: routes, the OpenAPI document and the Axum router.
 
 pub mod access;
+mod api_keys;
 pub mod auth;
 pub mod error;
 mod health;
@@ -72,6 +73,10 @@ pub fn routes() -> ApiRouter {
         .public(routes!(setup::status, setup::create))
         .authenticated(routes!(me::me))
         .authenticated(routes!(roles::list_permissions))
+        .authenticated(routes!(api_keys::list_own, api_keys::create_own))
+        .authenticated(routes!(api_keys::revoke_own))
+        .require(Permission::ApikeysManage, routes!(api_keys::list_all))
+        .require(Permission::ApikeysManage, routes!(api_keys::revoke_any))
         .require(
             Permission::UsersManage,
             routes!(roles::list_assignable_roles),

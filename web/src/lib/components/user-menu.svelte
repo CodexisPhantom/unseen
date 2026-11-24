@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KeyIcon from '@lucide/svelte/icons/key-round';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import { goto } from '$app/navigation';
@@ -40,6 +41,10 @@
 					{/snippet}
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content side={sidebar.isMobile ? 'bottom' : 'right'} align="end">
+					<DropdownMenu.Item onclick={() => goto(resolve('api-keys'))}>
+						<KeyIcon />
+						API keys
+					</DropdownMenu.Item>
 					<DropdownMenu.Item onclick={signOut}>
 						<LogOutIcon />
 						Sign out

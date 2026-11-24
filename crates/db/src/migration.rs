@@ -7,7 +7,11 @@ pub struct Migrator;
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(M0001Init), Box::new(M0002AccessControl)]
+        vec![
+            Box::new(M0001Init),
+            Box::new(M0002AccessControl),
+            Box::new(M0003ApiKeys),
+        ]
     }
 }
 
@@ -98,6 +102,47 @@ impl MigrationTrait for M0002AccessControl {
         manager
             .get_connection()
             .execute_unprepared(M0002_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0003ApiKeys;
+
+impl MigrationName for M0003ApiKeys {
+    fn name(&self) -> &str {
+        "m0003_api_keys"
+    }
+}
+
+/// API keys (docs/04-database.md). Only the SHA-256 of a key is stored. A
+/// revoked key keeps its row, so the audit log can still name it.
+const M0003_UP: &str = r#"
+CREATE TABLE api_keys (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    user_id text NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    name text NOT NULL,
+    key_hash text NOT NULL UNIQUE,
+    key_prefix text NOT NULL,
+    last_used_at text,
+    created_at text NOT NULL,
+    revoked_at text
+);
+CREATE INDEX api_keys_user_id_idx ON api_keys (user_id);
+
+CREATE TABLE api_key_permissions (
+    api_key_id integer NOT NULL REFERENCES api_keys (id) ON DELETE CASCADE,
+    permission text NOT NULL,
+    PRIMARY KEY (api_key_id, permission)
+);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0003ApiKeys {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0003_UP)
             .await?;
         Ok(())
     }
