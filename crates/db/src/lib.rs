@@ -14,6 +14,7 @@ pub mod access;
 pub mod api_keys;
 pub mod entities;
 mod migration;
+pub mod movies;
 pub mod roles;
 pub mod testing;
 pub mod users;
@@ -76,9 +77,16 @@ mod tests {
             "account",
             "api_key_permissions",
             "api_keys",
+            "movie_files",
+            "movie_profiles",
+            "movie_tags",
+            "movies",
+            "quality_profiles",
             "role_permissions",
             "roles",
+            "root_folders",
             "session",
+            "tags",
             "settings",
             "user",
             "user_permissions",
@@ -125,5 +133,28 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(enabled.try_get::<i64>("", "n").unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn migrates_on_top_of_m1_and_keeps_its_roles() {
+        // A database as M1 left it: the first three migrations.
+        let dir = tempfile::tempdir().unwrap();
+        let db = open(dir.path()).await.unwrap();
+        migration::Migrator::up(&db, Some(3)).await.unwrap();
+        testing::insert_user(&db, "u1").await;
+        db.close().await.unwrap();
+
+        let db = connect(dir.path()).await.unwrap();
+        let tables = tables(&db).await;
+        assert!(tables.iter().any(|t| t == "movies"));
+        let owner = db
+            .query_one_raw(Statement::from_string(
+                db.get_database_backend(),
+                "SELECT count(*) AS n FROM roles WHERE is_owner = 1",
+            ))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(owner.try_get::<i64>("", "n").unwrap(), 1);
     }
 }
