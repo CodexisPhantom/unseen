@@ -51,7 +51,7 @@ impl From<RoleDetail> for Role {
 }
 
 /// The catalog entries among stored strings, in catalog order.
-fn known(stored: &BTreeSet<String>) -> impl Iterator<Item = Permission> + '_ {
+pub(crate) fn known(stored: &BTreeSet<String>) -> impl Iterator<Item = Permission> + '_ {
     Permission::ALL
         .iter()
         .copied()
@@ -100,7 +100,7 @@ fn owner_role() -> Problem {
     Problem::refused("owner_role_readonly", "The Owner role cannot be changed")
 }
 
-fn valid_name(name: &str) -> Result<String, Problem> {
+pub(crate) fn valid_name(name: &str) -> Result<String, Problem> {
     let name = name.trim();
     if name.is_empty() {
         return Err(Problem::validation("name", "must not be empty"));
@@ -111,7 +111,7 @@ fn valid_name(name: &str) -> Result<String, Problem> {
     Ok(name.to_owned())
 }
 
-fn parse_permissions(names: &[String]) -> Result<BTreeSet<Permission>, Problem> {
+pub(crate) fn parse_permissions(names: &[String]) -> Result<BTreeSet<Permission>, Problem> {
     names
         .iter()
         .map(|name| {
@@ -123,7 +123,7 @@ fn parse_permissions(names: &[String]) -> Result<BTreeSet<Permission>, Problem> 
 }
 
 /// A role may only hold permissions its editor holds.
-fn escalation(
+pub(crate) fn escalation(
     caller: &Caller,
     permissions: impl IntoIterator<Item = Permission>,
 ) -> Result<(), Problem> {
