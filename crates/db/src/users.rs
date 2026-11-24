@@ -171,6 +171,63 @@ pub async fn set_roles(
     txn.commit().await
 }
 
+/// The hash of the password of the credential account, `None` when the user
+/// has no password.
+pub async fn password_hash(db: &DatabaseConnection, id: &str) -> Result<Option<String>, DbErr> {
+    Ok(account::Entity::find()
+        .filter(account::Column::UserId.eq(id))
+        .filter(account::Column::ProviderId.eq("credential"))
+        .one(db)
+        .await?
+        .and_then(|account| account.password))
+}
+
+/// Gives the Owner role to `to` and takes it from `from`, which keeps
+/// `keep_role` instead if one is given. One transaction: there is never a
+/// moment without an Owner or with an unintended second one.
+pub async fn transfer_owner(
+    db: &DatabaseConnection,
+    from: &str,
+    to: &str,
+    keep_role: Option<i32>,
+) -> Result<(), DbErr> {
+    let txn = db.begin().await?;
+    let owner_role = roles::Entity::find()
+        .filter(roles::Column::IsOwner.eq(true))
+        .one(&txn)
+        .await?
+        .ok_or_else(|| DbErr::Custom("the Owner role is missing".into()))?;
+    user_roles::Entity::delete_by_id((from.to_owned(), owner_role.id))
+        .exec(&txn)
+        .await?;
+    if user_roles::Entity::find_by_id((to.to_owned(), owner_role.id))
+        .one(&txn)
+        .await?
+        .is_none()
+    {
+        user_roles::ActiveModel {
+            user_id: Set(to.to_owned()),
+            role_id: Set(owner_role.id),
+        }
+        .insert(&txn)
+        .await?;
+    }
+    if let Some(role_id) = keep_role
+        && user_roles::Entity::find_by_id((from.to_owned(), role_id))
+            .one(&txn)
+            .await?
+            .is_none()
+    {
+        user_roles::ActiveModel {
+            user_id: Set(from.to_owned()),
+            role_id: Set(role_id),
+        }
+        .insert(&txn)
+        .await?;
+    }
+    txn.commit().await
+}
+
 /// Replaces the direct grants of a user.
 pub async fn set_permissions(
     db: &DatabaseConnection,

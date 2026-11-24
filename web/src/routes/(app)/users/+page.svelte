@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { api } from '#lib/api/client.js';
+	import TransferOwnershipDialog from '#lib/components/transfer-ownership-dialog.svelte';
 	import UserFormDialog from '#lib/components/user-form-dialog.svelte';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -40,6 +41,7 @@
 	let formOpen = $state(false);
 	let editing = $state<User | null>(null);
 	let deleting = $state<User | null>(null);
+	let transferOpen = $state(false);
 	let failure = $state('');
 
 	const ready = $derived(!!roles.data && !!catalog.data);
@@ -69,15 +71,22 @@
 
 <div class="flex items-center justify-between">
 	<h1 class="text-2xl font-semibold">Users</h1>
-	<Button
-		disabled={!ready}
-		onclick={() => {
-			editing = null;
-			formOpen = true;
-		}}
-	>
-		New user
-	</Button>
+	<div class="flex gap-2">
+		{#if session.me?.isOwner}
+			<Button variant="outline" disabled={!users.data} onclick={() => (transferOpen = true)}>
+				Transfer ownership
+			</Button>
+		{/if}
+		<Button
+			disabled={!ready}
+			onclick={() => {
+				editing = null;
+				formOpen = true;
+			}}
+		>
+			New user
+		</Button>
+	</div>
 </div>
 
 {#if failure}
@@ -155,6 +164,12 @@
 	user={editing}
 	roles={roles.data ?? []}
 	catalog={catalog.data ?? []}
+/>
+
+<TransferOwnershipDialog
+	bind:open={transferOpen}
+	users={users.data ?? []}
+	roles={roles.data ?? []}
 />
 
 <AlertDialog.Root open={deleting !== null} onOpenChange={(open) => !open && (deleting = null)}>
