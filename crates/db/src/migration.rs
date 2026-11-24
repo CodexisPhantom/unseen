@@ -11,6 +11,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0001Init),
             Box::new(M0002AccessControl),
             Box::new(M0003ApiKeys),
+            Box::new(M0004Movies),
             Box::new(M0005AuditLog),
         ]
     }
@@ -144,6 +145,119 @@ impl MigrationTrait for M0003ApiKeys {
         manager
             .get_connection()
             .execute_unprepared(M0003_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0004Movies;
+
+impl MigrationName for M0004Movies {
+    fn name(&self) -> &str {
+        "m0004_movies"
+    }
+}
+
+/// Library tables (docs/04-database.md, "Library tables"), without
+/// `collections`: the issue that adds that table also adds
+/// `movies.collection_id`.
+///
+/// A movie has one `movie_profiles` row per attached quality profile and at
+/// most one primary (ADR 0010). A file with `movie_profile_id` set is the
+/// managed file of that profile; a file without is unmanaged.
+const M0004_UP: &str = r#"
+CREATE TABLE root_folders (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    path text NOT NULL UNIQUE,
+    created_at text NOT NULL
+);
+
+CREATE TABLE quality_profiles (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    name text NOT NULL UNIQUE,
+    upgrade_allowed boolean NOT NULL,
+    cutoff_quality_id integer NOT NULL,
+    items json NOT NULL,
+    language text NOT NULL DEFAULT 'any',
+    min_format_score integer NOT NULL DEFAULT 0,
+    cutoff_format_score integer NOT NULL DEFAULT 0,
+    min_upgrade_format_score integer NOT NULL DEFAULT 1,
+    trash_id text,
+    created_at text NOT NULL,
+    updated_at text NOT NULL
+);
+
+CREATE TABLE tags (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    label text NOT NULL UNIQUE
+);
+
+CREATE TABLE movies (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    tmdb_id integer NOT NULL UNIQUE,
+    imdb_id text,
+    title text NOT NULL,
+    original_title text,
+    sort_title text NOT NULL,
+    year integer NOT NULL,
+    overview text,
+    runtime integer,
+    status text NOT NULL,
+    in_cinemas text,
+    digital_release text,
+    physical_release text,
+    poster_path text,
+    root_folder_id integer NOT NULL REFERENCES root_folders (id),
+    folder_name text NOT NULL,
+    monitored boolean NOT NULL,
+    minimum_availability text NOT NULL,
+    added_at text NOT NULL,
+    updated_at text NOT NULL
+);
+CREATE INDEX movies_root_folder_id_idx ON movies (root_folder_id);
+
+CREATE TABLE movie_profiles (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_id integer NOT NULL REFERENCES movies (id) ON DELETE CASCADE,
+    quality_profile_id integer NOT NULL REFERENCES quality_profiles (id),
+    is_primary boolean NOT NULL,
+    created_at text NOT NULL,
+    UNIQUE (movie_id, quality_profile_id)
+);
+-- At most one primary profile per movie.
+CREATE UNIQUE INDEX movie_profiles_single_primary ON movie_profiles (movie_id) WHERE is_primary = 1;
+CREATE INDEX movie_profiles_quality_profile_id_idx ON movie_profiles (quality_profile_id);
+
+CREATE TABLE movie_tags (
+    movie_id integer NOT NULL REFERENCES movies (id) ON DELETE CASCADE,
+    tag_id integer NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+    PRIMARY KEY (movie_id, tag_id)
+);
+CREATE INDEX movie_tags_tag_id_idx ON movie_tags (tag_id);
+
+CREATE TABLE movie_files (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_id integer NOT NULL REFERENCES movies (id) ON DELETE CASCADE,
+    relative_path text NOT NULL,
+    size integer NOT NULL,
+    quality_id integer NOT NULL,
+    release_group text,
+    edition text,
+    scene_name text,
+    media_info json,
+    languages json,
+    movie_profile_id integer UNIQUE REFERENCES movie_profiles (id) ON DELETE SET NULL,
+    added_at text NOT NULL,
+    UNIQUE (movie_id, relative_path)
+);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0004Movies {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0004_UP)
             .await?;
         Ok(())
     }

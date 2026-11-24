@@ -2,7 +2,14 @@
 //! the generated `auth_schema`.
 
 pub mod audit_log;
+pub mod movie_files;
+pub mod movie_profiles;
+pub mod movie_tags;
+pub mod movies;
+pub mod quality_profiles;
 pub mod role_permissions;
 pub mod roles;
+pub mod root_folders;
+pub mod tags;
 pub mod user_permissions;
 pub mod user_roles;

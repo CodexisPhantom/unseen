@@ -11,6 +11,9 @@ name = "unseen_core"
 
 [dependencies]
 regex.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+url.workspace = true
 
 [lints]
 workspace = true
