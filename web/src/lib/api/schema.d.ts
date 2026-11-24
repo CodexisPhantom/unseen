@@ -170,6 +170,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/quality-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every quality profile, ordered by name. */
+        get: operations["list_profiles"];
+        put?: never;
+        /**
+         * Creates a quality profile. The cutoff must be an allowed quality or group
+         *     of the profile.
+         */
+        post: operations["create_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quality-profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One quality profile. */
+        get: operations["get_profile"];
+        put?: never;
+        post?: never;
+        /** Deletes a quality profile that no movie uses. */
+        delete: operations["delete_profile"];
+        options?: never;
+        head?: never;
+        /**
+         * Changes a quality profile. The result must satisfy the same rules as a
+         *     new profile.
+         */
+        patch: operations["update_profile"];
+        trace?: never;
+    };
     "/api/v1/roles": {
         parameters: {
             query?: never;
@@ -392,6 +435,20 @@ export interface components {
             name: string;
             permissions: components["schemas"]["Permission"][];
         };
+        NewQualityProfile: {
+            /** Format: int32 */
+            cutoff: number;
+            /** Format: int32 */
+            cutoffFormatScore?: number;
+            items: components["schemas"]["ProfileItem"][];
+            language?: string;
+            /** Format: int32 */
+            minFormatScore?: number;
+            /** Format: int32 */
+            minUpgradeFormatScore?: number;
+            name: string;
+            upgradeAllowed?: boolean;
+        };
         NewRole: {
             description?: string | null;
             name: string;
@@ -419,6 +476,59 @@ export interface components {
             title: string;
             /** @description URI that identifies the problem kind. */
             type: string;
+        };
+        /** @description One entry of the ordered list, lowest quality first. */
+        ProfileItem: {
+            allowed: boolean;
+            /** Format: int32 */
+            qualityId: number;
+            /** @enum {string} */
+            type: "quality";
+        } | {
+            allowed: boolean;
+            /** Format: int32 */
+            id: number;
+            name: string;
+            qualityIds: number[];
+            /** @enum {string} */
+            type: "group";
+        };
+        QualityProfile: {
+            createdAt: string;
+            /**
+             * Format: int32
+             * @description The id of an allowed quality or group at which upgrades stop.
+             */
+            cutoff: number;
+            /** Format: int32 */
+            cutoffFormatScore: number;
+            /** Format: int32 */
+            id: number;
+            items: components["schemas"]["ProfileItem"][];
+            /** @description `any`, `original` or a language code. */
+            language: string;
+            /** Format: int32 */
+            minFormatScore: number;
+            /** Format: int32 */
+            minUpgradeFormatScore: number;
+            name: string;
+            updatedAt: string;
+            /** @description A better release replaces an existing file until the cutoff. */
+            upgradeAllowed: boolean;
+        };
+        QualityProfilePatch: {
+            /** Format: int32 */
+            cutoff?: number | null;
+            /** Format: int32 */
+            cutoffFormatScore?: number | null;
+            items?: components["schemas"]["ProfileItem"][] | null;
+            language?: string | null;
+            /** Format: int32 */
+            minFormatScore?: number | null;
+            /** Format: int32 */
+            minUpgradeFormatScore?: number | null;
+            name?: string | null;
+            upgradeAllowed?: boolean | null;
         };
         Role: {
             description?: string | null;
@@ -835,6 +945,238 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_profiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfile"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewQualityProfile"];
+            };
+        };
+        responses: {
+            /** @description The new profile */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfile"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfile"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such profile */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such profile */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A movie uses the profile */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityProfilePatch"];
+            };
+        };
+        responses: {
+            /** @description The changed profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfile"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such profile */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

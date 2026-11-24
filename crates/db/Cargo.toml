@@ -11,10 +11,10 @@ sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true
 tempfile.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
-serde_json.workspace = true
 
 [lints]
 workspace = true

@@ -7,6 +7,7 @@ pub mod auth;
 pub mod error;
 mod health;
 mod me;
+mod profiles;
 mod roles;
 pub mod setup;
 mod users;
@@ -103,6 +104,16 @@ pub fn routes() -> ApiRouter {
             routes!(users::set_user_permissions),
         )
         .require(Permission::SystemAudit, routes!(audit::list))
+        .require(Permission::ProfilesRead, routes!(profiles::list_profiles))
+        .require(
+            Permission::ProfilesManage,
+            routes!(profiles::create_profile),
+        )
+        .require(Permission::ProfilesRead, routes!(profiles::get_profile))
+        .require(
+            Permission::ProfilesManage,
+            routes!(profiles::update_profile, profiles::delete_profile),
+        )
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.

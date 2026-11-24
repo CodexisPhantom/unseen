@@ -485,6 +485,292 @@
         "x-permission": "authenticated"
       }
     },
+    "/api/v1/quality-profiles": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Every quality profile, ordered by name.",
+        "operationId": "list_profiles",
+        "responses": {
+          "200": {
+            "description": "The profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QualityProfile"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
+      },
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Creates a quality profile. The cutoff must be an allowed quality or group\nof the profile.",
+        "operationId": "create_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewQualityProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityProfile"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      }
+    },
+    "/api/v1/quality-profiles/{id}": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "One quality profile.",
+        "operationId": "get_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityProfile"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
+      },
+      "delete": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Deletes a quality profile that no movie uses.",
+        "operationId": "delete_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A movie uses the profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      },
+      "patch": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Changes a quality profile. The result must satisfy the same rules as a\nnew profile.",
+        "operationId": "update_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualityProfilePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The changed profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityProfile"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      }
+    },
     "/api/v1/roles": {
       "get": {
         "tags": [
@@ -1411,6 +1697,47 @@
           }
         }
       },
+      "NewQualityProfile": {
+        "type": "object",
+        "required": [
+          "name",
+          "cutoff",
+          "items"
+        ],
+        "properties": {
+          "cutoff": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cutoffFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileItem"
+            }
+          },
+          "language": {
+            "type": "string"
+          },
+          "minFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minUpgradeFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "upgradeAllowed": {
+            "type": "boolean"
+          }
+        }
+      },
       "NewRole": {
         "type": "object",
         "required": [
@@ -1534,6 +1861,192 @@
           "type": {
             "type": "string",
             "description": "URI that identifies the problem kind."
+          }
+        }
+      },
+      "ProfileItem": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "qualityId",
+              "allowed",
+              "type"
+            ],
+            "properties": {
+              "allowed": {
+                "type": "boolean"
+              },
+              "qualityId": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "quality"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Qualities that count as equal. The id is 1000 or more.",
+            "required": [
+              "id",
+              "name",
+              "qualityIds",
+              "allowed",
+              "type"
+            ],
+            "properties": {
+              "allowed": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "name": {
+                "type": "string"
+              },
+              "qualityIds": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "group"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One entry of the ordered list, lowest quality first."
+      },
+      "QualityProfile": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "upgradeAllowed",
+          "cutoff",
+          "items",
+          "language",
+          "minFormatScore",
+          "cutoffFormatScore",
+          "minUpgradeFormatScore",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "cutoff": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The id of an allowed quality or group at which upgrades stop."
+          },
+          "cutoffFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileItem"
+            }
+          },
+          "language": {
+            "type": "string",
+            "description": "`any`, `original` or a language code."
+          },
+          "minFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minUpgradeFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "upgradeAllowed": {
+            "type": "boolean",
+            "description": "A better release replaces an existing file until the cutoff."
+          }
+        }
+      },
+      "QualityProfilePatch": {
+        "type": "object",
+        "properties": {
+          "cutoff": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "cutoffFormatScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ProfileItem"
+            }
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minFormatScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "minUpgradeFormatScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "upgradeAllowed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         }
       },

@@ -11,9 +11,13 @@ name = "unseen_core"
 
 [dependencies]
 regex.workspace = true
+serde.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 url.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true

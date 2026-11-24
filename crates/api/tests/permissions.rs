@@ -259,6 +259,14 @@ fn users_manage(method: Method, path: &str) -> RouteEntry {
     }
 }
 
+fn profiles(method: Method, path: &str, permission: Permission) -> RouteEntry {
+    RouteEntry {
+        method,
+        path: path.to_owned(),
+        access: Some(Access::Permission(permission)),
+    }
+}
+
 #[test]
 fn app_router_passes_route_coverage() {
     let routes = api::routes();
@@ -323,6 +331,31 @@ fn app_router_passes_route_coverage() {
                 path: "/api/v1/audit-log".to_owned(),
                 access: Some(Access::Permission(Permission::SystemAudit)),
             },
+            profiles(
+                Method::GET,
+                "/api/v1/quality-profiles",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/quality-profiles",
+                Permission::ProfilesManage
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/quality-profiles/{id}",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/quality-profiles/{id}",
+                Permission::ProfilesManage
+            ),
+            profiles(
+                Method::PATCH,
+                "/api/v1/quality-profiles/{id}",
+                Permission::ProfilesManage
+            ),
         ]
     );
 
