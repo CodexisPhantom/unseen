@@ -2,6 +2,7 @@
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import LibraryIcon from '@lucide/svelte/icons/library';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import ServerIcon from '@lucide/svelte/icons/server';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { afterNavigate } from '$app/navigation';
@@ -17,6 +18,7 @@
 		add: PlusIcon,
 		activity: ActivityIcon,
 		settings: SettingsIcon,
+		roles: ShieldIcon,
 		system: ServerIcon
 	} as const;
 

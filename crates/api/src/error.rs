@@ -62,6 +62,30 @@ impl Problem {
         problem
     }
 
+    pub fn validation(field: &str, message: &str) -> Self {
+        let mut problem = Self::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validation",
+            "Validation failed",
+        );
+        problem.detail = Some(format!("{field} {message}"));
+        problem.errors.push(FieldError {
+            field: field.into(),
+            message: message.into(),
+        });
+        problem
+    }
+
+    pub fn conflict(code: &str, title: &str) -> Self {
+        Self::new(StatusCode::CONFLICT, code, title)
+    }
+
+    /// Authenticated, but this particular action is refused whatever the
+    /// permissions are.
+    pub fn refused(code: &str, title: &str) -> Self {
+        Self::new(StatusCode::FORBIDDEN, code, title)
+    }
+
     pub fn internal() -> Self {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,

@@ -235,6 +235,14 @@ fn sample_api_router() -> ApiRouter {
         .require(Permission::LibraryAdd, routes!(test_create_item))
 }
 
+fn roles_manage(method: Method, path: &str) -> RouteEntry {
+    RouteEntry {
+        method,
+        path: path.to_owned(),
+        access: Some(Access::Permission(Permission::RolesManage)),
+    }
+}
+
 #[test]
 fn app_router_passes_route_coverage() {
     let routes = api::routes();
@@ -262,6 +270,11 @@ fn app_router_passes_route_coverage() {
                 path: "/api/v1/me".to_owned(),
                 access: Some(Access::Authenticated),
             },
+            roles_manage(Method::GET, "/api/v1/permissions"),
+            roles_manage(Method::GET, "/api/v1/roles"),
+            roles_manage(Method::POST, "/api/v1/roles"),
+            roles_manage(Method::DELETE, "/api/v1/roles/{id}"),
+            roles_manage(Method::PATCH, "/api/v1/roles/{id}"),
         ]
     );
 
