@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { createQuery } from '@tanstack/svelte-query';
 	import { api } from '#lib/api/client.js';
+	import { resolve } from '$app/paths';
+	import { session } from '#lib/session.svelte.js';
 
 	const health = createQuery(() => ({
 		queryKey: ['health'],
@@ -13,6 +15,10 @@
 </script>
 
 <h1 class="text-2xl font-semibold">System</h1>
+
+{#if session.can('system:audit')}
+	<p class="mt-2 text-sm"><a class="underline" href={resolve('system/audit')}>Audit log</a></p>
+{/if}
 
 {#if health.isPending}
 	<p class="mt-4 text-muted-foreground">Loading…</p>

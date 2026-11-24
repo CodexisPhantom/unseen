@@ -30,9 +30,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind = std::env::var("UNSEEN_BIND").unwrap_or("0.0.0.0:7979".into());
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(%bind, "listening");
-    axum::serve(listener, api::router(state))
-        .with_graceful_shutdown(shutdown())
-        .await?;
+    axum::serve(
+        listener,
+        api::router(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown())
+    .await?;
     tracing::info!("stopped");
     Ok(())
 }

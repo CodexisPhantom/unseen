@@ -5,12 +5,14 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use unseen_core::permission::Permission;
 use utoipa::ToSchema;
 
 use crate::AppState;
 use crate::access::{Caller, Require};
+use crate::audit::{Actor, ClientIp, Event, record};
 use crate::auth::hex;
 use crate::error::Problem;
 use crate::me::PermissionName;
@@ -113,6 +115,7 @@ pub async fn list_own(
 pub async fn create_own(
     caller: Caller,
     State(state): State<AppState>,
+    ip: ClientIp,
     Json(body): Json<NewApiKey>,
 ) -> Result<(StatusCode, Json<CreatedApiKey>), Problem> {
     if caller.api_key().is_some() {
@@ -138,6 +141,11 @@ pub async fn create_own(
     .await
     .map_err(failed)?;
     tracing::info!(user = caller.user_id(), key = created.id, "API key created");
+    // The key itself is not recorded, nor its prefix.
+    let event = Event::new("api_key.created")
+        .target("api_key", created.id)
+        .data(json!({ "name": created.name, "permissions": known(&created.permissions).map(Permission::as_str).collect::<Vec<_>>() }));
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
     Ok((
         StatusCode::CREATED,
         Json(CreatedApiKey {
@@ -147,7 +155,13 @@ pub async fn create_own(
     ))
 }
 
-async fn revoke(state: &AppState, id: i32, owner: Option<&str>) -> Result<StatusCode, Problem> {
+async fn revoke(
+    state: &AppState,
+    caller: &Caller,
+    ip: &ClientIp,
+    id: i32,
+    owner: Option<&str>,
+) -> Result<StatusCode, Problem> {
     let key = db::api_keys::find(&state.db, id)
         .await
         .map_err(failed)?
@@ -157,6 +171,10 @@ async fn revoke(state: &AppState, id: i32, owner: Option<&str>) -> Result<Status
         .await
         .map_err(failed)?;
     tracing::info!(key = key.id, "API key revoked");
+    let event = Event::new("api_key.revoked")
+        .target("api_key", key.id)
+        .data(json!({ "name": key.name, "userId": key.user_id }));
+    record(state, &Actor::of(state, caller).await, ip, event).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -175,9 +193,10 @@ async fn revoke(state: &AppState, id: i32, owner: Option<&str>) -> Result<Status
 pub async fn revoke_own(
     caller: Caller,
     State(state): State<AppState>,
+    ip: ClientIp,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, Problem> {
-    revoke(&state, id, Some(caller.user_id())).await
+    revoke(&state, &caller, &ip, id, Some(caller.user_id())).await
 }
 
 /// The keys of every user.
@@ -211,9 +230,10 @@ pub async fn list_all(
     )
 )]
 pub async fn revoke_any(
-    _: Require<crate::access::ApikeysManage>,
+    caller: Require<crate::access::ApikeysManage>,
     State(state): State<AppState>,
+    ip: ClientIp,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, Problem> {
-    revoke(&state, id, None).await
+    revoke(&state, &caller, &ip, id, None).await
 }

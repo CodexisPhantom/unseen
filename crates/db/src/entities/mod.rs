@@ -1,6 +1,7 @@
 //! Entities of the app tables (docs/04-database.md). The auth tables are in
 //! the generated `auth_schema`.
 
+pub mod audit_log;
 pub mod movie_files;
 pub mod movie_profiles;
 pub mod movie_tags;

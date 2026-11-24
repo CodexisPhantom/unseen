@@ -132,6 +132,14 @@ Each row has the time, the actor (user and, if used, API key), the action,
 the target, changed field names with old and new values, and the IP address.
 Secret values are never written, only the fact that a secret changed.
 
+Action names are `area.verb`: `auth.sign_in`, `auth.sign_in_failed`,
+`auth.sign_out`, `setup.completed`, `user.created`, `user.updated`,
+`user.deleted`, `user.permissions_changed`, `role.created`, `role.updated`,
+`role.deleted`, `api_key.created`, `api_key.revoked`. A failed sign-in names
+the email that was tried and no user. The address is the peer of the
+connection; `UNSEEN_TRUSTED_PROXIES` is not read yet. Nothing in the app
+updates or deletes a row; retention is still open (docs/04).
+
 Note: the compat API accepts `?apikey=` because Seerr sends it that way. Keys
 in URLs can end up in proxy logs. Document this for users.
 
