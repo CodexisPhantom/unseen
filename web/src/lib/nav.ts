@@ -17,6 +17,7 @@ export const navEntries: readonly NavEntry[] = [
 		path: 'settings',
 		anyOf: ['settings:read', 'profiles:read', 'indexers:read', 'clients:read']
 	},
+	{ title: 'Users', path: 'users', anyOf: ['users:manage'] },
 	{ title: 'Roles', path: 'roles', anyOf: ['roles:manage'] },
 	{
 		title: 'System',

@@ -150,7 +150,6 @@ async fn needs_roles_manage() {
     let app = App::new().await;
     let (_, cookie, _) = app.member("m@example.com", &["library:read"]).await;
     for (method, path) in [
-        (Method::GET, "/api/v1/permissions"),
         (Method::GET, "/api/v1/roles"),
         (Method::DELETE, "/api/v1/roles/1"),
     ] {
@@ -160,6 +159,33 @@ async fn needs_roles_manage() {
     }
     let (status, _, _) = app.send(Method::GET, "/api/v1/roles", None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn the_catalog_is_open_to_any_user_and_roles_to_users_manage() {
+    let app = App::new().await;
+    let (_, reader, _) = app.member("r@example.com", &["library:read"]).await;
+    let (status, _, catalog) = app
+        .send(Method::GET, "/api/v1/permissions", Some(&reader), None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(catalog.as_array().unwrap().len() > 20);
+    let (status, _, _) = app
+        .send(Method::GET, "/api/v1/permissions", None, None)
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let (status, _, body) = app
+        .send(Method::GET, "/api/v1/assignable-roles", Some(&reader), None)
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["requiredPermission"], "users:manage");
+    let (_, admin, _) = app.member("a@example.com", &["users:manage"]).await;
+    let (status, _, roles) = app
+        .send(Method::GET, "/api/v1/assignable-roles", Some(&admin), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{roles}");
+    assert_eq!(roles[0]["name"], "Owner");
 }
 
 #[tokio::test]

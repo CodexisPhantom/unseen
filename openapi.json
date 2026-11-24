@@ -9,6 +9,41 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/assignable-roles": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "The roles, for the user form. Same list as `/roles`, for a caller who\nmanages users but not roles.",
+        "operationId": "list_assignable_roles",
+        "responses": {
+          "200": {
+            "description": "The roles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Role"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "users:manage"
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -78,7 +113,7 @@
         "tags": [
           "users"
         ],
-        "summary": "The permission catalog, in catalog order.",
+        "summary": "The permission catalog, in catalog order. The list is public knowledge\ninside the app: the users page needs it for direct grants.",
         "operationId": "list_permissions",
         "responses": {
           "200": {
@@ -94,8 +129,8 @@
               }
             }
           },
-          "403": {
-            "description": "Permission denied",
+          "401": {
+            "description": "Not signed in",
             "content": {
               "application/json": {
                 "schema": {
@@ -105,7 +140,7 @@
             }
           }
         },
-        "x-permission": "roles:manage"
+        "x-permission": "authenticated"
       }
     },
     "/api/v1/roles": {

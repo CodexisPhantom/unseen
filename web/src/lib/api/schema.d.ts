@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/assignable-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The roles, for the user form. Same list as `/roles`, for a caller who
+         *     manages users but not roles.
+         */
+        get: operations["list_assignable_roles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -48,7 +68,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The permission catalog, in catalog order. */
+        /**
+         * The permission catalog, in catalog order. The list is public knowledge
+         *     inside the app: the users page needs it for direct grants.
+         */
         get: operations["list_permissions"];
         put?: never;
         post?: never;
@@ -325,6 +348,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_assignable_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The roles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Role"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;
@@ -401,8 +453,8 @@ export interface operations {
                     "application/json": components["schemas"]["Permission"][];
                 };
             };
-            /** @description Permission denied */
-            403: {
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

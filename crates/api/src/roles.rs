@@ -12,7 +12,7 @@ use unseen_core::permission::Permission;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
-use crate::access::{Caller, Require, RolesManage};
+use crate::access::{Caller, Require, RolesManage, UsersManage};
 use crate::error::Problem;
 use crate::me::PermissionName;
 
@@ -144,17 +144,18 @@ async fn load(state: &AppState, id: i32) -> Result<RoleDetail, Problem> {
         .ok_or_else(Problem::not_found)
 }
 
-/// The permission catalog, in catalog order.
+/// The permission catalog, in catalog order. The list is public knowledge
+/// inside the app: the users page needs it for direct grants.
 #[utoipa::path(
     get,
     path = "/api/v1/permissions",
     tag = "users",
     responses(
         (status = 200, description = "Every permission", body = Vec<PermissionName>),
-        (status = 403, description = "Permission denied", body = Problem),
+        (status = 401, description = "Not signed in", body = Problem),
     )
 )]
-pub async fn list_permissions(_: Require<RolesManage>) -> Json<Vec<&'static str>> {
+pub async fn list_permissions(_: Caller) -> Json<Vec<&'static str>> {
     Json(Permission::ALL.iter().map(|p| p.as_str()).collect())
 }
 
@@ -170,6 +171,25 @@ pub async fn list_permissions(_: Require<RolesManage>) -> Json<Vec<&'static str>
 )]
 pub async fn list_roles(
     _: Require<RolesManage>,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Role>>, Problem> {
+    let roles = db::roles::list(&state.db).await.map_err(failed)?;
+    Ok(Json(roles.into_iter().map(Role::from).collect()))
+}
+
+/// The roles, for the user form. Same list as `/roles`, for a caller who
+/// manages users but not roles.
+#[utoipa::path(
+    get,
+    path = "/api/v1/assignable-roles",
+    tag = "users",
+    responses(
+        (status = 200, description = "The roles", body = Vec<Role>),
+        (status = 403, description = "Permission denied", body = Problem),
+    )
+)]
+pub async fn list_assignable_roles(
+    _: Require<UsersManage>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Role>>, Problem> {
     let roles = db::roles::list(&state.db).await.map_err(failed)?;

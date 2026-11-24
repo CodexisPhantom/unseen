@@ -2,12 +2,12 @@
 	import { createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { api } from '#lib/api/client.js';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
-	import { groupPermissions, roleTemplates } from '#lib/roles.js';
+	import PermissionPicker from '#lib/components/permission-picker.svelte';
+	import { roleTemplates } from '#lib/roles.js';
 	import { session, type Permission } from '#lib/session.svelte.js';
 	import type { components } from '#lib/api/schema.js';
 
@@ -24,7 +24,6 @@
 	let selected = $state<Permission[]>([]);
 	let failure = $state('');
 
-	const groups = $derived(groupPermissions(catalog));
 	const queryClient = useQueryClient();
 
 	// Start from the role being edited, or from an empty form.
@@ -35,12 +34,6 @@
 		selected = role?.permissions ?? [];
 		failure = '';
 	});
-
-	function toggle(permission: Permission, on: boolean) {
-		selected = on
-			? [...selected, permission]
-			: selected.filter((entry) => entry !== permission);
-	}
 
 	const save = createMutation(() => ({
 		mutationFn: async () => {
@@ -106,29 +99,7 @@
 			</div>
 			<fieldset class="grid gap-3">
 				<legend class="mb-1 text-sm font-medium">Permissions</legend>
-				{#each groups as group (group.resource)}
-					<div class="grid gap-2">
-						<span class="text-xs font-medium text-muted-foreground uppercase">
-							{group.resource}
-						</span>
-						<div class="grid gap-2 sm:grid-cols-2">
-							{#each group.permissions as permission (permission)}
-								{@const held = session.can(permission)}
-								<Label class="gap-2 font-normal {held ? '' : 'opacity-50'}">
-									<Checkbox
-										disabled={!held}
-										checked={selected.includes(permission)}
-										onCheckedChange={(on) => toggle(permission, on === true)}
-									/>
-									<span class="font-mono text-xs">{permission}</span>
-								</Label>
-							{/each}
-						</div>
-					</div>
-				{/each}
-				<p class="text-xs text-muted-foreground">
-					Greyed permissions are ones you do not hold, so you cannot give them away.
-				</p>
+				<PermissionPicker {catalog} bind:selected />
 			</fieldset>
 			{#if failure}
 				<p role="alert" class="text-sm text-destructive">{failure}</p>
