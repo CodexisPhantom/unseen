@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v1/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The keys of every user. */
+        get: operations["list_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-keys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revokes a key of any user. */
+        delete: operations["revoke_any"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assignable-roles": {
         parameters: {
             query?: never;
@@ -56,6 +90,44 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The keys of the signed-in user. */
+        get: operations["list_own"];
+        put?: never;
+        /**
+         * Creates a key with some of the permissions the caller holds. The key is
+         *     in this response only. A request made with an API key cannot create one.
+         */
+        post: operations["create_own"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/api-keys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revokes a key of the signed-in user. A key of another user is not found. */
+        delete: operations["revoke_own"];
         options?: never;
         head?: never;
         patch?: never;
@@ -214,6 +286,27 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ApiKey: {
+            createdAt: string;
+            /** Format: int32 */
+            id: number;
+            lastUsedAt?: string | null;
+            name: string;
+            /**
+             * @description The permissions chosen at creation. The key never exceeds what its
+             *     owner holds now.
+             */
+            permissions: components["schemas"]["Permission"][];
+            /** @description The first characters of the key. The key itself is shown once. */
+            prefix: string;
+            userId: string;
+            userName: string;
+        };
+        CreatedApiKey: {
+            apiKey: components["schemas"]["ApiKey"];
+            /** @description The key. This is the only response that carries it. */
+            key: string;
+        };
         /** @enum {string} */
         DatabaseStatus: "ok" | "error";
         DirectGrants: {
@@ -251,6 +344,10 @@ export interface components {
             email?: string | null;
             id: string;
             name: string;
+        };
+        NewApiKey: {
+            name: string;
+            permissions: components["schemas"]["Permission"][];
         };
         NewRole: {
             description?: string | null;
@@ -348,6 +445,74 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every key */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_any: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Key id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_assignable_roles: {
         parameters: {
             query?: never;
@@ -426,6 +591,125 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_own: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The keys of the caller */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_own: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewApiKey"];
+            };
+        };
+        responses: {
+            /** @description The new key, shown once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedApiKey"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A permission the caller lacks, or the request used an API key */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_own: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Key id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such key */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -11,6 +11,7 @@ use sea_orm_migration::MigratorTrait;
 #[allow(clippy::all)]
 pub mod auth_schema;
 pub mod access;
+pub mod api_keys;
 pub mod entities;
 mod migration;
 pub mod roles;
@@ -73,6 +74,8 @@ mod tests {
         let tables = tables(&db).await;
         for expected in [
             "account",
+            "api_key_permissions",
+            "api_keys",
             "role_permissions",
             "roles",
             "session",

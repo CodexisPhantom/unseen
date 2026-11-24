@@ -1,12 +1,12 @@
 //! Request authentication, permission enforcement and OpenAPI `x-permission`.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::Infallible;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
 use axum::Router;
-use axum::extract::{FromRequestParts, Request, State};
+use axum::extract::{FromRequestParts, Query, Request, State};
 use axum::http::Method;
 use axum::http::request::Parts;
 use axum::middleware::{self, Next};
@@ -21,7 +21,11 @@ use utoipa::openapi::{Components, OpenApi};
 use utoipa_axum::router::UtoipaMethodRouter;
 
 use crate::AppState;
+use crate::api_keys;
 use crate::error::Problem;
+
+const API_KEY_HEADER: &str = "x-api-key";
+const API_KEY_QUERY: &str = "apikey";
 
 /// OpenAPI operation extension carrying the required permission, `"authenticated"`,
 /// or `"public"`.
@@ -64,12 +68,20 @@ impl<S: Send + Sync> FromRequestParts<S> for Public {
 pub struct Caller {
     user_id: String,
     permissions: EffectivePermissions,
+    /// The API key that authenticated the request, if it was not a session.
+    api_key: Option<i32>,
 }
 
 impl Caller {
     #[must_use]
     pub fn user_id(&self) -> &str {
         &self.user_id
+    }
+
+    /// The id of the API key behind this request, `None` for a session.
+    #[must_use]
+    pub fn api_key(&self) -> Option<i32> {
+        self.api_key
     }
 
     #[must_use]
@@ -101,36 +113,84 @@ impl FromRequestParts<AppState> for Caller {
             return Ok(caller.clone());
         }
 
-        let OptionalSession(Some(current)) =
-            OptionalSession::<AppAuthSchema>::from_request_parts(parts, state)
-                .await
-                .map_err(|_| {
-                    tracing::error!("session resolution failed");
-                    Problem::internal()
-                })?
-        else {
-            return Err(Problem::unauthorized());
-        };
-
-        let Some(user_id) = current.user.id.as_str() else {
-            tracing::error!("authenticated user has no string id");
-            return Err(Problem::internal());
-        };
-
-        let grants = db::access::grants_of_user(&state.db, user_id)
-            .await
-            .map_err(|error| {
-                tracing::error!(%error, "failed to load user permissions");
-                Problem::internal()
-            })?;
-
-        let caller = Self {
-            user_id: user_id.to_owned(),
-            permissions: EffectivePermissions::new(grants.is_owner, &grants.permissions),
+        let caller = match presented_key(parts) {
+            Some(key) => from_api_key(state, &key).await?,
+            None => from_session(parts, state).await?,
         };
         parts.extensions.insert(caller.clone());
         Ok(caller)
     }
+}
+
+/// The API key sent as `X-Api-Key` or `?apikey=`.
+fn presented_key(parts: &Parts) -> Option<String> {
+    if let Some(value) = parts.headers.get(API_KEY_HEADER) {
+        return Some(value.to_str().unwrap_or_default().to_owned());
+    }
+    Query::<HashMap<String, String>>::try_from_uri(&parts.uri)
+        .ok()?
+        .0
+        .remove(API_KEY_QUERY)
+}
+
+/// A key that is present but not valid is refused: it never falls back to a
+/// session cookie. The key stands for its owner's permissions it was given
+/// and the owner still holds, and never for the Owner role.
+async fn from_api_key(state: &AppState, key: &str) -> Result<Caller, Problem> {
+    let failed = |error: better_auth::seaorm::sea_orm::DbErr| {
+        tracing::error!(%error, "failed to resolve API key");
+        Problem::internal()
+    };
+    let owner = db::api_keys::authenticate(&state.db, &api_keys::hash(key))
+        .await
+        .map_err(failed)?
+        .ok_or_else(Problem::unauthorized)?;
+    let grants = db::access::grants_of_user(&state.db, &owner.user_id)
+        .await
+        .map_err(failed)?;
+    let user = EffectivePermissions::new(grants.is_owner, &grants.permissions);
+    let narrowed = owner
+        .permissions
+        .iter()
+        .filter_map(|name| name.parse::<Permission>().ok())
+        .filter(|permission| user.has(*permission))
+        .map(Permission::as_str);
+    Ok(Caller {
+        user_id: owner.user_id.clone(),
+        permissions: EffectivePermissions::new(false, narrowed),
+        api_key: Some(owner.key_id),
+    })
+}
+
+async fn from_session(parts: &mut Parts, state: &AppState) -> Result<Caller, Problem> {
+    let OptionalSession(Some(current)) =
+        OptionalSession::<AppAuthSchema>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| {
+                tracing::error!("session resolution failed");
+                Problem::internal()
+            })?
+    else {
+        return Err(Problem::unauthorized());
+    };
+
+    let Some(user_id) = current.user.id.as_str() else {
+        tracing::error!("authenticated user has no string id");
+        return Err(Problem::internal());
+    };
+
+    let grants = db::access::grants_of_user(&state.db, user_id)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "failed to load user permissions");
+            Problem::internal()
+        })?;
+
+    Ok(Caller {
+        user_id: user_id.to_owned(),
+        permissions: EffectivePermissions::new(grants.is_owner, &grants.permissions),
+        api_key: None,
+    })
 }
 
 /// Maps a zero-sized marker type to a [`Permission`] variant for [`Require`].

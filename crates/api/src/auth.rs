@@ -238,7 +238,7 @@ fn signing_key(secret: &str) -> String {
     hex(&key)
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 

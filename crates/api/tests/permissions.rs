@@ -243,6 +243,14 @@ fn roles_manage(method: Method, path: &str) -> RouteEntry {
     }
 }
 
+fn apikeys_manage(method: Method, path: &str) -> RouteEntry {
+    RouteEntry {
+        method,
+        path: path.to_owned(),
+        access: Some(Access::Permission(Permission::ApikeysManage)),
+    }
+}
+
 fn users_manage(method: Method, path: &str) -> RouteEntry {
     RouteEntry {
         method,
@@ -283,6 +291,23 @@ fn app_router_passes_route_coverage() {
                 path: "/api/v1/permissions".to_owned(),
                 access: Some(Access::Authenticated),
             },
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/me/api-keys".to_owned(),
+                access: Some(Access::Authenticated),
+            },
+            RouteEntry {
+                method: Method::POST,
+                path: "/api/v1/me/api-keys".to_owned(),
+                access: Some(Access::Authenticated),
+            },
+            RouteEntry {
+                method: Method::DELETE,
+                path: "/api/v1/me/api-keys/{id}".to_owned(),
+                access: Some(Access::Authenticated),
+            },
+            apikeys_manage(Method::GET, "/api/v1/api-keys"),
+            apikeys_manage(Method::DELETE, "/api/v1/api-keys/{id}"),
             users_manage(Method::GET, "/api/v1/assignable-roles"),
             roles_manage(Method::GET, "/api/v1/roles"),
             roles_manage(Method::POST, "/api/v1/roles"),
