@@ -38,7 +38,7 @@ pub fn is_valid_language(language: &str) -> bool {
 
 /// How long to wait before retry number `retries` (from 0): the seconds in
 /// `Retry-After`, else 1 s, 2 s, 4 s. Never more than [`MAX_WAIT`].
-fn retry_wait(retry_after: Option<&str>, retries: u32) -> Duration {
+pub(crate) fn retry_wait(retry_after: Option<&str>, retries: u32) -> Duration {
     let wait = retry_after
         .and_then(|value| value.trim().parse::<u64>().ok())
         .map_or(Duration::from_secs(1 << retries), Duration::from_secs);
