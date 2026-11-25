@@ -1,6 +1,7 @@
 # 07 Release parsing and scoring
 
-Status: reviewed (2026-11-16). Movies only. Episode parsing is added in M7.
+Status: reviewed (2026-11-16). Movies, with the TV rules in their own section
+below (M7).
 
 ## Parsed fields
 
@@ -172,6 +173,209 @@ implementing, run each name through a real Radarr
 | `2001.A.Space.Odyssey.1968.1080p.BluRay.x264-GROUP` | 2001 A Space Odyssey | 1968 | Bluray-1080p | GROUP | year-like title |
 | `Some Movie (2019) [1080p] [BluRay] [YTS.MX]` | Some Movie | 2019 | Bluray-1080p | YTS.MX | bracket style |
 | `Some.Movie.2019.1080p.x264-GROUP` | Some Movie | 2019 | Unknown | GROUP | resolution without source; check what Radarr reports |
+
+## TV (M7)
+
+Release names for shows. Everything above applies unless this section
+changes it. Expected values are drafts: before implementing (#90), run each
+name through a real Sonarr (`GET /api/v3/parse?title=...`) and replace the
+row with what Sonarr reports.
+
+### Parsed fields for TV
+
+These are added to the fields of the first table. `edition` does not apply.
+A year in the name is the show's year; it tells shows with the same title
+apart.
+
+| Field | Example values |
+|---|---|
+| `title` | `The Expanse`, `Doctor Who` (a year in the name goes to `year`) |
+| `season` | `3`; `0` for the specials; a list for a multi-season pack |
+| `episodes` | `[4]`, `[4, 5]`, `[4, 5, 6]` |
+| `absolute_episodes` | `[112]`, `[5, 6, 7, 8]` (anime) |
+| `air_date` | `2024-05-17` (daily) |
+| `release_type` | `episode`, `multi_episode`, `season_pack`, `multi_season_pack` |
+| `version` | `2` for `v2` in an anime name; same role as `proper` and `repack` |
+| `hash` | `ABCD1234`, the CRC32 that anime groups put in brackets |
+
+Forms the parser reads:
+
+| Form | Example | Result |
+|---|---|---|
+| Season and episode | `S03E04`, `3x04` | season 3, episode 4 |
+| Several episodes in one release | `S03E04E05`, `S03E04-E06`, `S03E04-06` | season 3, episodes 4 to 5 or 4 to 6, `multi_episode` |
+| Season pack | `S03`, `Season.3`, `S03.COMPLETE` | season 3, no episodes, `season_pack` |
+| Several seasons | `S01-S03` | `multi_season_pack` |
+| Special | `S00E01` | season 0, episode 1 |
+| Air date | `2024.05.17`, `2024-05-17` | `air_date` |
+| Anime, absolute | `[Group] Show - 112 [1080p]` | `absolute_episodes` 112 |
+| Anime, revision | `[Group] Show - 112v2 [1080p]` | absolute 112, `version` 2 |
+| Anime, range or batch | `[Group] Show - 05-08`, `[Group] Show (01-28) [BD 1080p]` | absolute range; a batch is a `season_pack` over the episodes in the range |
+
+Matching a parsed name to the show's episodes:
+
+1. Find the show by its normalised title (lower case, no punctuation, no
+   leading "the", no year) among its title and its aliases. A year in the name
+   must equal the show's year. This is the movie rule, with aliases.
+2. Find the episodes by the series type: season and episode number for
+   `standard` (and for any show when the name has them), air date for `daily`,
+   absolute number for `anime`. A name that matches no episode is rejected
+   with the reason.
+3. A name with a season and no episode is a season pack of that season.
+
+### Qualities for TV
+
+One `Quality` enum in `core` serves movies and shows, with the ids of
+Radarr, which is what the V1 tables store. A show profile may allow only
+these qualities: `Unknown`, `SDTV`, `DVD`, `WEBDL-480p`, `WEBRip-480p`,
+`Bluray-480p`, `Bluray-576p`, `HDTV-720p`, `WEBDL-720p`, `WEBRip-720p`,
+`Bluray-720p`, `HDTV-1080p`, `WEBDL-1080p`, `WEBRip-1080p`, `Bluray-1080p`,
+`Remux-1080p`, `HDTV-2160p`, `WEBDL-2160p`, `WEBRip-2160p`, `Bluray-2160p`,
+`Remux-2160p`, `Raw-HD`. The movie-only qualities (`WORKPRINT`, `CAM`,
+`TELESYNC`, `TELECINE`, `REGIONAL`, `DVDSCR`, `DVD-R`, `BR-DISK`) are never
+parsed from a TV name and never offered in a show profile.
+
+Default order of a new show profile, lowest to highest, as Sonarr's default
+quality definitions weigh them (a slash joins qualities of equal weight, which
+Sonarr groups): `Unknown`, `SDTV`, `WEBRip-480p` / `WEBDL-480p`, `DVD`,
+`Bluray-480p`, `Bluray-576p`, `HDTV-720p`, `HDTV-1080p`, `Raw-HD`,
+`WEBRip-720p` / `WEBDL-720p`, `Bluray-720p`, `WEBRip-1080p` / `WEBDL-1080p`,
+`Bluray-1080p`, `Remux-1080p`, `HDTV-2160p`, `WEBRip-2160p` / `WEBDL-2160p`,
+`Bluray-2160p`, `Remux-2160p`. The order differs from the movie order above
+(for example `HDTV-1080p` is above `Bluray-720p` there and below it here).
+Source: `Quality.cs` in Sonarr, read on 2026-11-25. Check it against
+`GET /api/v3/qualitydefinition` of a new Sonarr, as for movies.
+
+Quality ids: Sonarr and Radarr give the same id to every quality they share,
+except four. Unseen stores Radarr's ids. The Sonarr compat layer translates
+these four in both directions:
+
+| Quality (Sonarr's name) | Unseen and Radarr id | Sonarr id |
+|---|---|---|
+| `Bluray-480p` | 20 | 13 |
+| `Bluray-576p` | 21 | 22 |
+| `Remux-1080p` (`Bluray-1080p Remux`) | 30 | 20 |
+| `Remux-2160p` (`Bluray-2160p Remux`) | 31 | 21 |
+
+Both tables come from the two `Quality.cs` files read on 2026-11-25. The
+translation table lives in `arr-compat`, and a test compares it with
+`fixtures/sonarr/qualitydefinition.json`.
+
+### Quality definitions for TV
+
+The `show` rows of `quality_definitions` are seeded with the answer of
+`GET /api/v3/qualitydefinition` from a new Sonarr, recorded in
+`fixtures/sonarr/qualitydefinition.json`; a test compares every row with it.
+Units and validation are as for movies (megabytes per minute, editable with
+`profiles:manage`).
+
+The size of a release is divided by the runtime of the episodes it covers:
+`size / (sum of runtimes)`. For a pack that is the average per episode, which
+is Sonarr's rule. The runtime of an episode is its own, else the show's; a
+covered episode without any runtime skips the check.
+
+### Custom formats for TV
+
+Custom formats of kind `show` use the same model and JSON. The conditions of
+Sonarr are: release title, release group, language, source, resolution, size,
+indexer flag and release type (`episode`, `multi_episode`, `season_pack`).
+Edition, year and quality modifier are movie conditions and do not exist for
+shows. A profile scores only formats of its own kind.
+
+### Rejection rules for TV (in order)
+
+Replaces the list for movies when the target is an episode.
+
+1. The title does not match the show or an alias, or the year differs.
+2. The name matches no episode of the show (numbering, air date or absolute
+   number). The reason names which.
+3. The release is a multi-season pack (grabbed by hand only), or a split
+   episode such as `S01E01A`.
+4. A covered episode is not a wanted episode of the profile: unmonitored,
+   not aired, or already has a file the release would not upgrade. This is
+   why a pack for a season with unwanted episodes is rejected. Sonarr
+   accepts such a pack when it upgrades enough episodes; Unseen takes the
+   simpler rule and downloads those episodes one by one.
+5. A covered episode is in an active download of the same show profile.
+6. Quality is not allowed in the profile.
+7. The release is on the blocklist of the show.
+8. Size is outside the quality definition limits (rule above).
+9. Language does not satisfy the profile language.
+10. The custom format score is below `minFormatScore`.
+11. The profile has a file for a covered episode and upgrades are off, or
+    both cutoffs are met.
+12. The release is not better than the files it replaces, or a file on disk
+    covers more episodes than the release (a single episode never replaces a
+    multi-episode file).
+13. The indexer has tags and shares none with the show.
+
+A rejected release is still listed in manual search, with its reasons. A
+hand grab may override rules 3 and 4 (a multi-season pack, a pack that covers
+unwanted episodes); it never overrides rule 5, because two active downloads
+of one profile cannot cover the same episode.
+
+### Season search
+
+For each show profile and season, the missing search does this:
+
+1. When every episode of the season is a wanted episode of the profile, search
+   for the season and take the best accepted release. A pack wins over
+   several single-episode releases of equal rank.
+2. Otherwise, or when step 1 finds nothing acceptable, search for each wanted
+   episode on its own.
+
+Scoring uses the order for movies, with one step added after the revision:
+in a season search the release that covers more of the wanted episodes wins;
+in an episode search the release that covers fewer wins. Verify against
+Sonarr's decision comparer. A revision (`proper`, `repack`, anime `v2`) counts
+as for movies.
+
+### Upgrade rules for TV
+
+The upgrade rules for movies apply per episode and per show profile. A release
+that covers several episodes is an upgrade only when it upgrades every one of
+them (or fills a missing one). After an import, a file that no longer covers
+any episode of its profile is deleted; a multi-episode file that still covers
+another episode stays.
+
+### TV test table
+
+Draft, like the movie table. #90 grows it to at least 80 rows, each verified
+against a real Sonarr.
+
+| Release name | Title | Numbering | Quality | Group | Notes |
+|---|---|---|---|---|---|
+| `The.Expanse.S03E04.1080p.WEB-DL.DD5.1.H.264-GROUP` | The Expanse | S03E04 | WEBDL-1080p | GROUP | |
+| `The.Expanse.S03E04E05.1080p.WEB-DL.DD5.1.H.264-GROUP` | The Expanse | S03E04, E05 | WEBDL-1080p | GROUP | multi-episode |
+| `The.Expanse.S03E04-E06.720p.HDTV.x264-GROUP` | The Expanse | S03E04 to E06 | HDTV-720p | GROUP | multi-episode, range |
+| `The.Expanse.S03E04-06.720p.HDTV.x264-GROUP` | The Expanse | S03E04 to E06 | HDTV-720p | GROUP | multi-episode, short range |
+| `The.Expanse.3x04.720p.HDTV.x264-GROUP` | The Expanse | S03E04 | HDTV-720p | GROUP | `3x04` form |
+| `The.Expanse.S03E04.PROPER.1080p.WEB.H264-GROUP` | The Expanse | S03E04 | WEBDL-1080p | GROUP | proper, bare `WEB` |
+| `The.Expanse.S03E04.REPACK.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-GROUP` | The Expanse | S03E04 | WEBDL-2160p | GROUP | repack, DV, HDR10 |
+| `The.Expanse.S03E04.1080p.BluRay.x264-GROUP` | The Expanse | S03E04 | Bluray-1080p | GROUP | |
+| `The.Expanse.S03E04.2160p.UHD.BluRay.REMUX.HDR.HEVC-GROUP` | The Expanse | S03E04 | Remux-2160p | GROUP | Sonarr calls it `Bluray-2160p Remux` |
+| `The.Expanse.S03E04.HDTV.x264-GROUP` | The Expanse | S03E04 | SDTV | GROUP | |
+| `The.Expanse.S03E04.DVDRip.XviD-GROUP` | The Expanse | S03E04 | DVD | GROUP | |
+| `The.Expanse.S03E04.WEBRip.x264-GROUP` | The Expanse | S03E04 | WEBRip-480p | GROUP | no resolution; check what Sonarr reports |
+| `Doctor.Who.2005.S01E01.1080p.WEB-DL.x264-GROUP` | Doctor Who | S01E01 | WEBDL-1080p | GROUP | year 2005 is the show's year |
+| `24.S01E01.720p.HDTV.x264-GROUP` | 24 | S01E01 | HDTV-720p | GROUP | numeric title |
+| `Shameless.US.S02E03.1080p.WEB-DL.x264-GROUP` | Shameless US | S02E03 | WEBDL-1080p | GROUP | country suffix |
+| `The.Expanse.S00E01.1080p.WEB-DL.x264-GROUP` | The Expanse | S00E01 | WEBDL-1080p | GROUP | special |
+| `The.Expanse.S03.1080p.BluRay.x264-GROUP` | The Expanse | S03 | Bluray-1080p | GROUP | season pack |
+| `The.Expanse.Season.3.1080p.BluRay.x264-GROUP` | The Expanse | S03 | Bluray-1080p | GROUP | season pack, `Season.3` form |
+| `The.Expanse.S03.COMPLETE.720p.WEB-DL.x264-GROUP` | The Expanse | S03 | WEBDL-720p | GROUP | season pack |
+| `The.Expanse.S01-S03.1080p.BluRay.x264-GROUP` | The Expanse | S01 to S03 | Bluray-1080p | GROUP | multi-season, hand grab only |
+| `The.Daily.Show.2024.05.17.1080p.WEB.h264-GROUP` | The Daily Show | 2024-05-17 | WEBDL-1080p | GROUP | daily |
+| `Late.Night.2024-05-17.720p.HDTV.x264-GROUP` | Late Night | 2024-05-17 | HDTV-720p | GROUP | daily, dashes |
+| `The.Daily.Show.2024.05.17.Guest.Name.720p.HDTV.x264-GROUP` | The Daily Show | 2024-05-17 | HDTV-720p | GROUP | daily with a guest |
+| `[SubsPlease] Frieren - 12 (1080p) [ABCD1234].mkv` | Frieren | absolute 12 | check | SubsPlease | resolution without source; check what Sonarr reports |
+| `[SubsPlease] Frieren - 12v2 (1080p) [ABCD1234].mkv` | Frieren | absolute 12 | check | SubsPlease | version 2 |
+| `[Group] One Piece - 1085 [1080p][HEVC]` | One Piece | absolute 1085 | check | Group | large absolute number |
+| `[Group] Frieren - 05-08 [720p]` | Frieren | absolute 5 to 8 | check | Group | absolute range |
+| `[Group] Frieren (01-28) [BD 1080p] [Batch]` | Frieren | absolute 1 to 28 | Bluray-1080p | Group | batch |
+| `Frieren.S01E12.1080p.WEB-DL.AAC2.0.H.264-GROUP` | Frieren | S01E12 | WEBDL-1080p | GROUP | anime with season numbering |
+| `Dix.pour.cent.S05E03.FRENCH.1080p.WEB.H264-GROUP` | Dix pour cent | S05E03 | WEBDL-1080p | GROUP | language French |
+| `Some.Show.S01E01.MULTi.1080p.WEB.H264-GROUP` | Some Show | S01E01 | WEBDL-1080p | GROUP | language multi |
 
 ## Decisions (2026-11-15)
 

@@ -1,6 +1,7 @@
 # 09 File handling
 
-Status: reviewed (2026-11-16). Movies only.
+Status: reviewed (2026-11-16). Movies, with the TV rules in their own section
+below (M7).
 
 ## Folder layout
 
@@ -165,6 +166,156 @@ A packaged Windows install is a different question and not offered yet
 - The container runs as `PUID`:`PGID` (default 1000:1000).
 - New folders use mode 755 and files 644, adjustable with `UMASK`.
 - Unseen never changes ownership of existing files.
+
+## TV (M7)
+
+Files of shows. Everything above applies unless this section changes it:
+hardlink and copy, the case-insensitive rules, ownership and sidecar
+subtitles are the same for episode files.
+
+### Folder layout
+
+```
+/data
+  /torrents/<category>/...     written by qBittorrent
+  /media/tv/<Show Folder>/Season 1/<Episode File>.<ext>
+  /media/tv/<Show Folder>/Specials/<Episode File>.<ext>
+```
+
+- A root folder holds movies or shows, never both: the kind is chosen when
+  the folder is added (`root_folders.media_kind`, default `movie` for the
+  folders of V1) and cannot change while the folder is in use. The rules for
+  a new root folder (absolute, exists, writable, no nesting) are the same, and
+  the nesting check covers folders of both kinds.
+- The season folder is named by the season folder template, and season 0 by
+  the specials folder template. A show can turn season folders off
+  (`shows.season_folder`): its files then sit in the show folder.
+- Several show profiles share the show folder and the season folder. The
+  target name must be unique in the folder, as for movies; the default
+  templates contain `{Quality Full}`.
+
+### Naming templates for TV
+
+Defaults equal the defaults of Sonarr's `NamingConfig` (read in its source on
+2026-11-25). Recheck them against `GET /api/v3/config/naming` of a new Sonarr
+when #91 is implemented.
+
+| Setting | Default |
+|---|---|
+| Show folder | `{Series Title}` |
+| Season folder | `Season {season}` |
+| Specials folder | `Specials` |
+| Standard episode file | `{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}` |
+| Daily episode file | `{Series Title} - {Air-Date} - {Episode Title} {Quality Full}` |
+| Anime episode file | `{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}` |
+| Multi-episode style | Prefixed range |
+| Rename episodes | off (keep the original file name), as in Sonarr |
+| Replace illegal characters, colon replacement | The settings for movies, one setting each for both kinds. Sonarr's own default for the colon is Smart |
+
+The syntax is the one of movies: Radarr's and Sonarr's, with the separator
+variants (`{Series.Title}`), case variants, prefix and suffix inside braces,
+and the number format after a colon (`{season:00}`). Tokens for TV, on top of
+the groups for media info, release, quality and custom formats:
+
+| Group | Tokens |
+|---|---|
+| Show | `{Series Title}`, `{Series CleanTitle}`, `{Series TitleYear}`, `{Series CleanTitleYear}`, `{Series TitleWithoutYear}`, `{Series TitleThe}`, `{Series TitleTheYear}`, `{Series TitleFirstCharacter}`, `{Series Year}` |
+| Numbers | `{season}`, `{season:00}`, `{episode}`, `{episode:00}`, `{absolute}`, `{absolute:000}`, `{Air Date}` (`{Air-Date}` gives `2024-05-17`) |
+| Episode | `{Episode Title}`, `{Episode CleanTitle}` |
+| Ids | `{ImdbId}`, `{TvdbId}`, `{TmdbId}` |
+
+- `{absolute}` renders only for a show of type `anime` whose covered episodes
+  all have an absolute number; otherwise it and the text around it in the
+  pattern are dropped, as in Sonarr. The default anime template does not use
+  it.
+- The multi-episode style applies to a file that covers several episodes. For
+  episodes 1 to 3 of season 1 with the standard template:
+
+  | Style | Result |
+  |---|---|
+  | Extend | `S01E01-02-03` |
+  | Duplicate | the whole `S01E01` pattern, once per episode |
+  | Repeat | `S01E01E02E03` |
+  | Scene | `S01E01-E02-E03` |
+  | Range | `S01E01-03` |
+  | Prefixed range (default) | `S01E01-E03` |
+
+- `{Episode Title}` of a multi-episode file joins the titles with ` + `
+  (`{Episode CleanTitle}` with ` and `). When the file name would be longer
+  than the limit, the title is shortened and ends in `...`; no other part of
+  the name is cut. The limit is 255 bytes per name, and the full-path check of
+  the Windows section applies.
+- An unknown token is a validation error on save, and the tests compare every
+  token with what Sonarr produces. The settings are in
+  [10-configuration.md](10-configuration.md).
+
+### Import of an episode or a season pack
+
+Extends the steps of "Import" above.
+
+1. Find the video files of the completed download (skip samples and extras).
+   A pack has many files, often in sub-folders.
+2. Match each file to episodes: parse the file name, and when the name has
+   no season, the folder name. Use the show's series type and numbering (see
+   [07-release-scoring.md](07-release-scoring.md)).
+3. A file imports only for episodes that are in `download_episodes` of the
+   download. A file for other episodes, or that matches none, is skipped and
+   listed in the history with the reason. A hand-grabbed pack lists every
+   episode it holds there.
+4. Build the target path: show folder, season folder (or specials folder),
+   file name from the template for the series type. Create the season folder
+   when it does not exist.
+5. Hardlink each file, or copy on a cross-device error. A file with the target
+   name already in the library for the same episodes and profile is the
+   upgrade case of step 7; any other existing target fails that file with a
+   clear error.
+6. Import the sidecar subtitles of each file (rules above; names use the
+   episode file's base name, one set per file).
+7. Upgrade: after the new file is in place, remove its episodes from the old
+   managed file of the same show profile. An old file that covers no episode
+   any more is deleted; a multi-episode file that still covers another
+   episode stays. Files of other profiles and unmanaged files are not touched.
+8. Record the `episode_files` row and its links, and write a history event for
+   each file.
+
+The download is `Imported` when every file was imported or skipped, and
+`ImportFailed` when a file failed (see
+[06-state-machines.md](06-state-machines.md)). The manual retry imports the
+files that are not in the library yet. For Usenet (M9) every file is moved,
+not linked.
+
+### Adopting a Sonarr library
+
+As the steps for movies, with these differences. Adoption never moves, renames
+or deletes anything.
+
+1. The user picks a root folder of kind `show` and starts a scan.
+2. Per sub-folder: parse the title and year, and the tags `{tvdb-123}`,
+   `{tmdb-123}`, `{imdb-tt123}` when present; look the show up with the
+   provider order. The user reviews the match.
+3. Per video file under the folder: parse its name, and its season folder name
+   when the name has no season, and link it to the episodes of the show. A
+   file that matches no episode is listed as unmatched in the review and is
+   not stored.
+4. For an episode with several files, the largest becomes the file of the
+   primary show profile and the others are unmanaged. A multi-episode file
+   counts for every episode it covers.
+5. Store the show with its folder name and `season_folder` (on when any file
+   sits in a `Season N` or `Specials` folder), and each file with its path
+   relative to the show folder.
+6. The monitoring option of the add form applies as for a new show; `missing`
+   skips the episodes that have a file.
+
+A library that follows Sonarr's default naming is matched completely and stays
+byte-identical, which is the test of #92.
+
+### TV decisions (2026-11-25)
+
+- A root folder has a kind. Mixed folders are not supported.
+- Defaults equal Sonarr's, including `Season {season}` for the season folder
+  and the anime template without an absolute number.
+- A pack imports into the episodes its download lists. Everything else in the
+  pack is skipped with a reason, not failed.
 
 ## Decisions (2026-11-15)
 

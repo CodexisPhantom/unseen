@@ -46,6 +46,14 @@ Settings. A missing row means the default below.
 | `naming.movie_file` | `{Movie Title} ({Release Year}) {Quality Full}` | `settings:manage` |
 | `naming.rename_movies` | `false` | `settings:manage` |
 | `naming.replace_illegal_characters` | `true` | `settings:manage` |
+| `naming.show_folder` | `{Series Title}` | `settings:manage` |
+| `naming.season_folder` | `Season {season}` | `settings:manage` |
+| `naming.specials_folder` | `Specials` | `settings:manage` |
+| `naming.episode_standard` | `{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}` | `settings:manage` |
+| `naming.episode_daily` | `{Series Title} - {Air-Date} - {Episode Title} {Quality Full}` | `settings:manage` |
+| `naming.episode_anime` | `{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}` | `settings:manage` |
+| `naming.multi_episode_style` | `prefixed_range` (`extend`, `duplicate`, `repeat`, `scene`, `range`) | `settings:manage` |
+| `naming.rename_episodes` | `false` | `settings:manage` |
 | `import.use_hardlinks` | `true` | `settings:manage` |
 | `import.skip_free_space_check` | `false` | `settings:manage` |
 | `import.extra_file_extensions` | `srt,ass,ssa,sub,idx` | `settings:manage` |

@@ -91,6 +91,82 @@ off, as in Radarr.
 - A failed download is removed from the client when it is blocklisted,
   whatever the option says.
 
+## TV (M7)
+
+The wanted item of a show is one episode with one show profile (a wanted
+episode, see [03-domain-model.md](03-domain-model.md#tv-m7)). It has the
+states and transitions of the wanted item above. Its state is derived from the
+episode's managed file for that profile and from the active download that
+lists the episode in `download_episodes`. The download state machine below is
+unchanged. The differences are these.
+
+Rules:
+- An episode is not searched before it has aired. This replaces minimum
+  availability. An episode without an air date is not wanted.
+- A wanted episode has at most one active download per show profile. A release
+  is not grabbed when one of the episodes it covers is already in an active
+  download of the same profile. A season pack is therefore refused while one of
+  its episodes is downloading on its own, and a single episode is refused while
+  a pack that covers it is downloading. A manual grab is refused the same way
+  (409, naming the download); the user removes the download first.
+- Unmonitoring an episode or a show does not cancel an active download. Its
+  files are imported.
+- A season pack or multi-episode release is one download. Its episodes move
+  together to `Grabbed`, `Downloading` and `Importing`, and one by one to
+  `Available`.
+
+### Season pack
+
+```mermaid
+stateDiagram-v2
+  [*] --> Grabbed: pack grabbed, every covered episode
+  Grabbed --> Downloading: client reports progress
+  Downloading --> Importing: client reports complete
+  Importing --> Available: file of this episode imported
+  Importing --> Missing: no file for this episode in the pack
+  Downloading --> Failed: client error or stalled
+  Importing --> Failed: import error
+  Failed --> Missing: pack blocklisted, retry allowed
+```
+
+- The pack is one row in `downloads` with one row per covered episode in
+  `download_episodes`. Its state is the download state above.
+- A file of the pack imports only for an episode in `download_episodes`.
+  Other video files in the pack are skipped and listed in the history.
+- The download is `Imported` when no file failed to import and at least one
+  episode got its file. A file that cannot be imported (target folder missing,
+  disk full, name collision) makes the download `ImportFailed`. The manual
+  retry imports only the files that are not in the library yet. A pack from
+  which no file matches an episode is `ImportFailed`, with the reason
+  "no match".
+- An episode of an `Imported` pack that got no file (the pack lacked it, or
+  only a sample was there) is `Missing` again. The next search may grab it on
+  its own. The pack is not blocklisted for that.
+- A `Failed` pack is blocklisted for the show. The next search for its season
+  skips that release, tries other packs, then goes episode by episode.
+
+### Restart
+
+The restart steps above apply to every download. For a pack, an `Importing`
+download is imported again file by file. A file that is already in the library
+at the target path, with the same inode, counts as imported, so the rerun
+creates no duplicate row in `episode_files`. The targets come from
+`download_episodes`, not from a new decision.
+
+### Removal from the download client
+
+For a pack, "after import" means after every file has been imported or
+skipped. The client removes nothing earlier.
+
+### TV decisions (2026-11-25)
+
+- A pack download is one row, with its episodes in a join table. Each episode
+  reaches `Available` on its own.
+- A release that overlaps an active download of the same profile is not
+  grabbed, by the scheduler or by hand.
+- Partial import is not a failure: skipped files and episodes the pack
+  lacked go back to the normal flow.
+
 ## Decisions (2026-11-15)
 
 - Removal after import is a per-client option, default off.
