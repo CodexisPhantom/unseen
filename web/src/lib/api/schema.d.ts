@@ -1046,6 +1046,23 @@ export interface components {
             url?: string | null;
             useProxy?: boolean | null;
         };
+        IndexerTestCategory: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        /** @description What the test learned about the indexer. */
+        IndexerTestResult: {
+            categories: components["schemas"]["IndexerTestCategory"][];
+            /** @description Movie search accepts an IMDb id. */
+            imdbId: boolean;
+            /** @description The indexer advertises movie search. */
+            movieSearch: boolean;
+            /** @description The indexer advertises plain text search. */
+            textSearch: boolean;
+            /** @description Movie search accepts a TMDB id. */
+            tmdbId: boolean;
+        };
         Me: {
             /** @description The user holds the Owner role. */
             isOwner: boolean;
@@ -1492,11 +1509,6 @@ export interface components {
         TagBody: {
             /** @description Lower case letters, digits and `-`. Upper case is lowered. */
             label: string;
-        };
-        TestCategory: {
-            /** Format: int32 */
-            id: number;
-            name: string;
         };
         TestResult: {
             /** @description The qBittorrent version, for example `v4.6.2`. */
@@ -2266,7 +2278,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TestResult"];
+                    "application/json": components["schemas"]["IndexerTestResult"];
                 };
             };
             /** @description Permission denied */

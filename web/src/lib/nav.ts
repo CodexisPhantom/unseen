@@ -19,6 +19,7 @@ export const navEntries: readonly NavEntry[] = [
 	},
 	{ title: 'Profiles', path: 'settings/profiles', anyOf: ['profiles:read'] },
 	{ title: 'Quality sizes', path: 'settings/quality-sizes', anyOf: ['profiles:read'] },
+	{ title: 'Indexers', path: 'settings/indexers', anyOf: ['indexers:read'] },
 	{ title: 'Users', path: 'users', anyOf: ['users:manage'] },
 	{ title: 'Roles', path: 'roles', anyOf: ['roles:manage'] },
 	{

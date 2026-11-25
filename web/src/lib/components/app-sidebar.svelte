@@ -3,6 +3,7 @@
 	import LibraryIcon from '@lucide/svelte/icons/library';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RulerIcon from '@lucide/svelte/icons/ruler';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import SlidersIcon from '@lucide/svelte/icons/sliders-horizontal';
@@ -24,6 +25,7 @@
 		settings: SettingsIcon,
 		'settings/profiles': SlidersIcon,
 		'settings/quality-sizes': RulerIcon,
+		'settings/indexers': SearchIcon,
 		users: UsersIcon,
 		roles: ShieldIcon,
 		system: ServerIcon

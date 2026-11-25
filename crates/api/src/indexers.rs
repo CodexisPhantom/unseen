@@ -341,7 +341,7 @@ pub async fn delete_indexer(
 /// What the test learned about the indexer.
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct TestResult {
+pub struct IndexerTestResult {
     /// The indexer advertises movie search.
     movie_search: bool,
     /// The indexer advertises plain text search.
@@ -350,11 +350,11 @@ pub struct TestResult {
     imdb_id: bool,
     /// Movie search accepts a TMDB id.
     tmdb_id: bool,
-    categories: Vec<TestCategory>,
+    categories: Vec<IndexerTestCategory>,
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct TestCategory {
+pub struct IndexerTestCategory {
     id: u32,
     name: String,
 }
@@ -387,7 +387,7 @@ fn test_error(error: TorznabError) -> Problem {
     tag = "indexers",
     params(("id" = i32, Path, description = "Indexer id")),
     responses(
-        (status = 200, description = "The indexer answers", body = TestResult),
+        (status = 200, description = "The indexer answers", body = IndexerTestResult),
         (status = 403, description = "Permission denied", body = Problem),
         (status = 404, description = "No such indexer", body = Problem),
         (status = 409, description = "The stored API key cannot be read", body = Problem),
@@ -398,7 +398,7 @@ pub async fn test_indexer(
     _: Require<IndexersManage>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<Json<TestResult>, Problem> {
+) -> Result<Json<IndexerTestResult>, Problem> {
     let model = load(&state, id).await?.model;
     let key = decrypt(&state.secrets, &model.api_key).map_err(|_| {
         Problem::conflict(
@@ -410,7 +410,7 @@ pub async fn test_indexer(
     let client = TorznabClient::new(http, &model.url, key.expose());
     let caps = client.test().await.map_err(test_error)?;
     let movie = caps.movie_search.as_ref();
-    Ok(Json(TestResult {
+    Ok(Json(IndexerTestResult {
         movie_search: movie.is_some(),
         text_search: caps.search.is_some(),
         imdb_id: movie.is_some_and(|mode| mode.supports("imdbid")),
@@ -418,7 +418,7 @@ pub async fn test_indexer(
         categories: caps
             .categories
             .into_iter()
-            .map(|c| TestCategory {
+            .map(|c| IndexerTestCategory {
                 id: c.id,
                 name: c.name,
             })
