@@ -75,6 +75,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/filesystem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists the sub-folders of a folder on the server, for choosing a root
+         *     folder. Without a path it lists the top level.
+         */
+        get: operations["browse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -277,6 +297,41 @@ export interface paths {
         patch: operations["update_role"];
         trace?: never;
     };
+    "/api/v1/root-folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every root folder with its free space and unmapped folders. */
+        get: operations["list_root_folders"];
+        put?: never;
+        /** Adds a root folder after checking the path on disk. */
+        post: operations["create_root_folder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/root-folders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a root folder that no movie uses. The folder on disk stays. */
+        delete: operations["delete_root_folder"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/setup": {
         parameters: {
             query?: never;
@@ -409,6 +464,10 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        BrowserFolder: {
+            name: string;
+            path: string;
+        };
         CreatedApiKey: {
             apiKey: components["schemas"]["ApiKey"];
             /** @description The key. This is the only response that carries it. */
@@ -423,6 +482,14 @@ export interface components {
         FieldError: {
             field: string;
             message: string;
+        };
+        FolderListing: {
+            /** @description The sub-folders, by name. */
+            folders: components["schemas"]["BrowserFolder"][];
+            /** @description The folder above, `None` at the top level. */
+            parent?: string | null;
+            /** @description The listed folder. Empty for the top level (the drives on Windows). */
+            path: string;
         };
         Health: {
             database: components["schemas"]["DatabaseStatus"];
@@ -474,6 +541,13 @@ export interface components {
             description?: string | null;
             name: string;
             permissions: components["schemas"]["Permission"][];
+        };
+        NewRootFolder: {
+            /**
+             * @description An absolute path on the server. It must exist, be a directory that
+             *     Unseen can write to, and not lie inside or contain another root folder.
+             */
+            path: string;
         };
         NewUser: {
             email: string;
@@ -571,6 +645,22 @@ export interface components {
             name?: string | null;
             /** @description Replaces the whole set. */
             permissions?: components["schemas"]["Permission"][] | null;
+        };
+        RootFolder: {
+            /** @description False when the folder is missing or cannot be read right now. */
+            accessible: boolean;
+            createdAt: string;
+            /**
+             * Format: int64
+             * @description Bytes available to Unseen on the filesystem of the folder. Absent when
+             *     the folder is not accessible.
+             */
+            freeSpace?: number | null;
+            /** Format: int32 */
+            id: number;
+            path: string;
+            /** @description Sub-folders on disk that no movie uses, sorted. */
+            unmappedFolders: string[];
         };
         SetupRequest: {
             email: string;
@@ -770,6 +860,47 @@ export interface operations {
                 };
             };
             /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    browse: {
+        parameters: {
+            query?: {
+                /** @description Absolute path of the folder to list. Empty or absent lists the top level. */
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sub-folders */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderListing"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The path cannot be listed */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1461,6 +1592,134 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_root_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The root folders */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootFolder"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_root_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewRootFolder"];
+            };
+        };
+        responses: {
+            /** @description The new root folder */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootFolder"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The folder is already a root folder */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The path is not usable */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_root_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Root folder id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such root folder */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A movie lives in the root folder */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -18,6 +18,7 @@ mod migration;
 pub mod movies;
 pub mod profiles;
 pub mod roles;
+pub mod root_folders;
 pub mod secret;
 pub mod settings;
 pub mod testing;

@@ -20,6 +20,7 @@ base64 = "0.22"
 better-auth = { version = "=1.0.0-alpha.5", features = ["seaorm2"] }
 chacha20poly1305 = "0.11"
 chrono = { version = "0.4", default-features = false }
+fs4 = "1"
 hkdf = "0.12"
 rand = "0.8"
 regex = "1"
