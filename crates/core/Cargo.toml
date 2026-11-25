@@ -18,6 +18,7 @@ serde_json.workspace = true
 reqwest.workspace = true
 roxmltree.workspace = true
 tokio.workspace = true
+unicode-normalization = "0.1"
 url.workspace = true
 
 [dev-dependencies]

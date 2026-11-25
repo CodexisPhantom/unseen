@@ -36,7 +36,9 @@ the disk.
 
 ## Naming templates
 
-Defaults equal the Radarr defaults:
+Defaults equal the Radarr defaults. The engine is `core::naming`, written
+after Radarr's `FileNameBuilder`; the settings are read and saved at
+`GET/PUT /api/v1/settings/naming` (`settings:read` / `settings:manage`).
 
 | Setting | Default |
 |---|---|
@@ -44,7 +46,7 @@ Defaults equal the Radarr defaults:
 | Movie file | `{Movie Title} ({Release Year}) {Quality Full}` |
 | Rename movies | off (keep the original file name), as in Radarr |
 | Replace illegal characters | on |
-| Colon replacement | Delete (Radarr's default; `core::naming` implements it for the folder name, still to verify against a real Radarr) |
+| Colon replacement | Smart (Radarr 6; Radarr 5 and older default to Delete, which is also available) |
 
 Supported tokens in V1. The syntax is Radarr's, including the separator
 variants (`{Movie.Title}`, `{Movie_Title}`), case variants and the optional
@@ -59,8 +61,38 @@ prefix/suffix inside braces (`{[Quality Full]}`, `{-Release Group}`).
 | Release | `{Release Group}`, `{Edition Tags}`, `{Original Title}`, `{Original Filename}` |
 | Other | `{Custom Formats}` lists the matching custom formats that have `includeWhenRenaming` |
 
-An unknown token is a validation error when the template is saved. The
-expected output for each token is tested against what Radarr produces.
+Rules, as in Radarr:
+
+- Token names ignore case and the separators `. - _` and space. The
+  separator written in a token replaces the spaces of the value
+  (`{Movie.Title}` gives `The.Matrix`). A token written in all lower or all
+  upper case gives a lower or upper case value.
+- Prefix and suffix inside the braces (`{[Quality Full]}`, `{-Release Group}`)
+  show only when the value is not empty. `{imdb-{ImdbId}}` and
+  `{{Edition Tags}}` keep their outer braces the same way.
+- `{Release Group}` renders `Unseen` when the file has no group and the
+  token has no prefix or suffix (Radarr renders `Radarr`).
+- `/` and `\` in a template make sub-folders; in a value they become `+`.
+  Radarr's `{Original Title}` and `{Original Filename}` are empty when a
+  template holds more than one token, so a new name cannot contain itself.
+- Radarr's `:` options (`{Movie Title:30}`, `{Custom Formats:-AMZN}`) are not
+  supported yet and are refused when saved.
+- Colon replacement is `delete`, `dash`, `spaceDash`, `spaceDashSpace` or
+  `smart`, as in Radarr. With "replace illegal characters" off, illegal
+  characters (including `:`) are removed.
+
+An unknown token is a 422 when the template is saved. The preview endpoint
+(`POST /api/v1/settings/naming/preview`) renders Radarr's example movie with
+saved or unsaved settings, so the UI can show the result while the user types.
+The expected output for each token is tested against what Radarr produces
+(the table test in `crates/core/src/naming/tests.rs` holds values from
+Radarr's own unit tests and example movie).
+
+Whatever the template says, a rendered name is a relative path that cannot
+leave the root folder: no `.` or `..` part, none of `<>:"|?*` or control
+characters, no trailing dot or space, and no Windows device name. Radarr
+writes `Con_Game` for `Con.Game`; Unseen does the same and writes `CON_` for a
+part that is the device name alone.
 
 Open question: `MediaInfo` tokens need a media probe (ffprobe or a Rust
 library). Decide in M4; until then those tokens render from the release name.

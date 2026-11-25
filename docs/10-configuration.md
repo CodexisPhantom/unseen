@@ -54,6 +54,7 @@ Settings. A missing row means the default below.
 | `naming.episode_anime` | `{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}` | `settings:manage` |
 | `naming.multi_episode_style` | `prefixed_range` (`extend`, `duplicate`, `repeat`, `scene`, `range`) | `settings:manage` |
 | `naming.rename_episodes` | `false` | `settings:manage` |
+| `naming.colon_replacement` | `smart`; also `delete`, `dash`, `spaceDash`, `spaceDashSpace` | `settings:manage` |
 | `import.use_hardlinks` | `true` | `settings:manage` |
 | `import.skip_free_space_check` | `false` | `settings:manage` |
 | `import.extra_file_extensions` | `srt,ass,ssa,sub,idx` | `settings:manage` |

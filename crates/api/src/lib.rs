@@ -12,6 +12,7 @@ mod library;
 mod lookup;
 mod me;
 mod movies;
+mod naming_settings;
 mod owner;
 mod profiles;
 mod proxy;
@@ -167,6 +168,14 @@ pub fn routes() -> ApiRouter {
         )
         .require(Permission::SettingsRead, routes!(tmdb::get_settings))
         .require(Permission::SettingsManage, routes!(tmdb::update_settings))
+        .require(
+            Permission::SettingsRead,
+            routes!(naming_settings::get_naming, naming_settings::preview_naming),
+        )
+        .require(
+            Permission::SettingsManage,
+            routes!(naming_settings::update_naming),
+        )
         .require(Permission::SettingsRead, routes!(proxy::get_settings))
         .require(
             Permission::SettingsManage,
