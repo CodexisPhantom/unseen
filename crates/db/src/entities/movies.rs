@@ -22,6 +22,7 @@ pub struct Model {
     pub folder_name: String,
     pub monitored: bool,
     pub minimum_availability: String,
+    pub language_profile_id: Option<i32>,
     pub added_at: String,
     pub updated_at: String,
 }

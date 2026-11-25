@@ -59,7 +59,7 @@ Settings. A missing row means the default below.
 | `tasks.missing_search_interval_hours` | `24` | `settings:manage` |
 | `tasks.metadata_refresh_interval_hours` | `24` | `settings:manage` |
 | `auth.session_days` | `30` | `settings:manage` |
-| `subtitles.default_profile_id` | none | `settings:manage` |
+| `subtitles.default_profile_id` | none | `subtitles:manage` |
 | `subtitles.minimum_score` | `60` | `settings:manage` |
 | `subtitles.exclude_machine_translated` | `true` | `settings:manage` |
 | `subtitles.opensubtitles.api_key`, `.username`, `.password` | none (secrets) | `settings:manage` |

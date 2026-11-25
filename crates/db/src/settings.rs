@@ -164,6 +164,18 @@ pub async fn set_bool(db: &DatabaseConnection, name: &str, value: bool) -> Resul
     upsert(db, name, serde_json::Value::Bool(value)).await
 }
 
+/// Reads a whole-number setting. `None` when the key has no row.
+pub async fn get_i64(db: &DatabaseConnection, name: &str) -> Result<Option<i64>, DbErr> {
+    refuse_secret(name)?;
+    Ok(fetch(db, name).await?.and_then(|value| value.as_i64()))
+}
+
+/// Stores a whole-number setting, replacing the previous value.
+pub async fn set_i64(db: &DatabaseConnection, name: &str, value: i64) -> Result<(), DbErr> {
+    refuse_secret(name)?;
+    upsert(db, name, serde_json::Value::from(value)).await
+}
+
 /// Deletes the row, so the setting falls back to its default. Any key.
 pub async fn remove(db: &DatabaseConnection, name: &str) -> Result<(), DbErr> {
     db.execute_raw(Statement::from_sql_and_values(

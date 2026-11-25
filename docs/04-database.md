@@ -1,8 +1,8 @@
 # 04 Database schema
 
 Status: reviewed (2026-11-16). V1 tables only. TV and Usenet tables come with their
-milestones. The subtitle tables are designed below (M10) and are created by the
-subtitles issues.
+milestones. The subtitle tables are designed below (M10); migration `m0010`
+creates them.
 
 ## Rules
 
@@ -142,7 +142,7 @@ set or both are null.
 
 ## Subtitle tables (M10)
 
-Designed in the subtitles design. Created by #105, not before.
+Designed in the subtitles design. Created by migration `m0010_subtitles`.
 
 | Table | Columns | Keys and constraints |
 |---|---|---|

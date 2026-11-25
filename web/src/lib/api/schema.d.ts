@@ -228,6 +228,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/language-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every language profile, ordered by name. */
+        get: operations["list_language_profiles"];
+        put?: never;
+        /**
+         * Creates a language profile. The items are the wanted subtitles in order;
+         *     the cutoff is the index of one of them.
+         */
+        post: operations["create_language_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/language-profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replaces a language profile. The result must satisfy the same rules as a
+         *     new profile.
+         */
+        put: operations["update_language_profile"];
+        post?: never;
+        /**
+         * Deletes a language profile that no movie uses. When it is the default
+         *     profile, the default is cleared.
+         */
+        delete: operations["delete_language_profile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/adopt": {
         parameters: {
             query?: never;
@@ -430,6 +475,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/movies/{id}/language-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets or clears the language profile of a movie. */
+        put: operations["set_movie_language_profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/movies/{id}/profiles": {
         parameters: {
             query?: never;
@@ -462,6 +524,47 @@ export interface paths {
          *     primary profile cannot be removed while another exists.
          */
         delete: operations["remove_profile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/movies/{id}/subtitles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The movie's language profile and the subtitle files of all its video
+         *     files.
+         */
+        get: operations["list_movie_subtitles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/movies/{id}/subtitles/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Looks for subtitle files next to the video files of a movie, and records
+         *     them. A subtitle whose file is gone is forgotten; one that came from a
+         *     provider is left alone. Nothing on disk changes.
+         */
+        post: operations["scan_subtitles"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -692,6 +795,24 @@ export interface paths {
         put?: never;
         /** Sends one request through the saved proxy, to check that it works. */
         post: operations["test_proxy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/subtitles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The subtitle settings. */
+        get: operations["get_settings"];
+        /** Changes the subtitle settings. `null` clears the default profile. */
+        put: operations["update_settings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1046,6 +1167,30 @@ export interface components {
             url?: string | null;
             useProxy?: boolean | null;
         };
+        /** @description One wanted subtitle. */
+        LanguageItem: {
+            kind: components["schemas"]["SubtitleKind"];
+            /**
+             * @description A lower case ISO 639-1 code, with an upper case region where it
+             *     matters: `en`, `pt-BR`.
+             */
+            language: string;
+        };
+        LanguageProfile: {
+            createdAt: string;
+            /**
+             * Format: int32
+             * @description Index into `items`: once that item and every item before it exist,
+             *     Unseen stops looking. Absent: look for every item.
+             */
+            cutoff?: number | null;
+            /** Format: int32 */
+            id: number;
+            /** @description In order of preference. */
+            items: components["schemas"]["LanguageItem"][];
+            name: string;
+            updatedAt: string;
+        };
         Me: {
             /** @description The user holds the Owner role. */
             isOwner: boolean;
@@ -1129,6 +1274,13 @@ export interface components {
              */
             size: number;
         };
+        MovieLanguageProfile: {
+            /**
+             * Format: int32
+             * @description `null` clears the profile: no subtitles are wanted.
+             */
+            languageProfileId?: number | null;
+        };
         MovieLookup: {
             /** @description Known for `tmdb:` and `imdb:` lookups, not for a text search. */
             imdbId?: string | null;
@@ -1171,6 +1323,14 @@ export interface components {
             /** Format: int32 */
             qualityProfileId: number;
         };
+        MovieSubtitles: {
+            /**
+             * Format: int32
+             * @description The movie's language profile. Absent: no subtitles are wanted.
+             */
+            languageProfileId?: number | null;
+            subtitles: components["schemas"]["Subtitle"][];
+        };
         NewApiKey: {
             name: string;
             permissions: components["schemas"]["Permission"][];
@@ -1202,6 +1362,12 @@ export interface components {
             tags?: number[];
             url: string;
             useProxy?: boolean;
+        };
+        NewLanguageProfile: {
+            /** Format: int32 */
+            cutoff?: number | null;
+            items: components["schemas"]["LanguageItem"][];
+            name: string;
         };
         NewMovie: {
             minimumAvailability?: string;
@@ -1483,6 +1649,39 @@ export interface components {
             email: string;
             id: string;
             name: string;
+        };
+        /** @description A subtitle file of a movie file. */
+        Subtitle: {
+            addedAt: string;
+            /** Format: int32 */
+            id: number;
+            kind: string;
+            /** @description `en`, `pt-BR`, or `und` when the file name has no language. */
+            language: string;
+            /** Format: int32 */
+            movieFileId: number;
+            /**
+             * @description `opensubtitles` for a downloaded subtitle. Absent for a file that was
+             *     found next to the video.
+             */
+            provider?: string | null;
+            /** @description Relative to the movie's folder. */
+            relativePath: string;
+            /** Format: int32 */
+            score?: number | null;
+        };
+        /**
+         * @description What a subtitle is for.
+         * @enum {string}
+         */
+        SubtitleKind: "normal" | "hi" | "forced";
+        SubtitleSettings: {
+            /**
+             * Format: int32
+             * @description The language profile of a new movie. Absent: new movies want no
+             *     subtitles.
+             */
+            defaultProfileId?: number | null;
         };
         Tag: {
             /** Format: int32 */
@@ -2307,6 +2506,197 @@ export interface operations {
             };
         };
     };
+    list_language_profiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfile"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_language_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewLanguageProfile"];
+            };
+        };
+        responses: {
+            /** @description The new profile */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfile"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_language_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewLanguageProfile"];
+            };
+        };
+        responses: {
+            /** @description The changed profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfile"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such profile */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_language_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such profile */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A movie uses the profile */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     adopt: {
         parameters: {
             query?: never;
@@ -2933,6 +3323,60 @@ export interface operations {
             };
         };
     };
+    set_movie_language_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Movie id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MovieLanguageProfile"];
+            };
+        };
+        responses: {
+            /** @description The movie's subtitles after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovieSubtitles"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such movie */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such language profile */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     add_profile: {
         parameters: {
             query?: never;
@@ -3037,6 +3481,88 @@ export interface operations {
             };
             /** @description The profile is primary (`primary_profile`) or the last one (`last_profile`) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_movie_subtitles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Movie id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subtitles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovieSubtitles"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such movie */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    scan_subtitles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Movie id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subtitles after the scan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovieSubtitles"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such movie */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3901,6 +4427,77 @@ export interface operations {
             };
             /** @description The request through the proxy failed */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtitleSettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubtitleSettings"];
+            };
+        };
+        responses: {
+            /** @description The settings after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtitleSettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

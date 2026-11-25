@@ -267,7 +267,7 @@ pub(crate) async fn check_profile(state: &AppState, id: i32, field: &str) -> Res
 
 /// The folder of a movie on disk, or `None` when the stored name would lead
 /// out of the root folder.
-fn movie_dir(root: &str, folder_name: &str) -> Option<PathBuf> {
+pub(crate) fn movie_dir(root: &str, folder_name: &str) -> Option<PathBuf> {
     let mut parts = FsPath::new(folder_name).components();
     match (parts.next(), parts.next()) {
         (Some(Component::Normal(_)), None) => Some(FsPath::new(root).join(folder_name)),
@@ -277,7 +277,7 @@ fn movie_dir(root: &str, folder_name: &str) -> Option<PathBuf> {
 
 /// A file below the movie's folder, or `None` for a path that is absolute or
 /// climbs out.
-fn movie_file_path(dir: &FsPath, relative: &str) -> Option<PathBuf> {
+pub(crate) fn movie_file_path(dir: &FsPath, relative: &str) -> Option<PathBuf> {
     let parts = FsPath::new(relative).components();
     let inside = parts.clone().next().is_some()
         && parts
@@ -460,7 +460,7 @@ pub async fn update_movie(
     Ok(Json(updated))
 }
 
-async fn root_path(state: &AppState, movie: &movies::Model) -> Result<String, Problem> {
+pub(crate) async fn root_path(state: &AppState, movie: &movies::Model) -> Result<String, Problem> {
     Ok(db::root_folders::find(&state.db, movie.root_folder_id)
         .await
         .map_err(failed)?
