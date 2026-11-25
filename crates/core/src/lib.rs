@@ -1,4 +1,5 @@
 pub mod http;
+pub mod library;
 pub mod metadata;
 pub mod naming;
 pub mod permission;
@@ -8,3 +9,4 @@ pub mod quality;
 pub mod release;
 pub mod root_folder;
 pub mod tmdb;
+pub mod torznab;

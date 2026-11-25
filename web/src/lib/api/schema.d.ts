@@ -208,6 +208,70 @@ export interface paths {
         patch: operations["update_indexer"];
         trace?: never;
     };
+    "/api/v1/indexers/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reads the capabilities of the saved indexer and asks it for one item, so
+         *     a wrong API key is found even when `caps` is open.
+         */
+        post: operations["test_indexer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adopts the confirmed folders: each becomes a movie that keeps its folder
+         *     name and file names. The largest video file belongs to the primary
+         *     profile; other video files are stored as unmanaged files. The quality of
+         *     every file is `Unknown` until the parser backfill. A folder that cannot
+         *     be adopted is reported and the others still are.
+         */
+        post: operations["adopt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lists the folders of a root folder that no movie uses, with a proposed
+         *     TMDB match and the video files of each. Changes nothing, so it can run
+         *     again and again: adopted folders no longer appear.
+         */
+        post: operations["scan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -709,6 +773,44 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdoptFailure: {
+            /**
+             * @description `folder_not_found`, `no_video_file`, `movie_exists`, `folder_taken`,
+             *     `tmdb_not_found`, `no_release_date` or `tmdb_unavailable`.
+             */
+            code: string;
+            folderName: string;
+            message: string;
+        };
+        AdoptItem: {
+            /** @description A sub-folder of the root folder. */
+            folderName: string;
+            /** Format: int32 */
+            tmdbId: number;
+        };
+        AdoptRequest: {
+            /** @description `announced`, `inCinemas` or `released`. */
+            minimumAvailability?: string;
+            monitored?: boolean;
+            movies: components["schemas"]["AdoptItem"][];
+            /** @description The first is the primary profile; it gets the largest file. */
+            qualityProfileIds: number[];
+            /** Format: int32 */
+            rootFolderId: number;
+            tags?: number[];
+        };
+        AdoptResult: {
+            adopted: components["schemas"]["Adopted"][];
+            /** @description Folders that were not adopted. The others are adopted anyway. */
+            failed: components["schemas"]["AdoptFailure"][];
+        };
+        Adopted: {
+            /** @description Video files stored: the main file and the unmanaged ones. */
+            fileCount: number;
+            folderName: string;
+            /** Format: int32 */
+            movieId: number;
+        };
         ApiKey: {
             createdAt: string;
             /** Format: int32 */
@@ -1186,6 +1288,41 @@ export interface components {
             /** @description Sub-folders on disk that no movie uses, sorted. */
             unmappedFolders: string[];
         };
+        /** @description A video file of a folder. */
+        ScanFile: {
+            /** @description Relative to the movie folder. */
+            relativePath: string;
+            /** Format: int64 */
+            size: number;
+        };
+        ScanFolder: {
+            /** @description Video files, the largest first. The largest is the main file. */
+            files: components["schemas"]["ScanFile"][];
+            folderName: string;
+            matchTitle?: string | null;
+            /** Format: int32 */
+            matchYear?: number | null;
+            posterPath?: string | null;
+            status: components["schemas"]["ScanStatus"];
+            /** @description What the folder name says. */
+            title: string;
+            /**
+             * Format: int32
+             * @description The match, for `matched` and `duplicate`.
+             */
+            tmdbId?: number | null;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        ScanRequest: {
+            /** Format: int32 */
+            rootFolderId: number;
+        };
+        ScanResult: {
+            folders: components["schemas"]["ScanFolder"][];
+        };
+        /** @enum {string} */
+        ScanStatus: "matched" | "unmatched" | "duplicate" | "noVideo";
         SetupRequest: {
             email: string;
             name: string;
@@ -1209,6 +1346,11 @@ export interface components {
         TagBody: {
             /** @description Lower case letters, digits and `-`. Upper case is lowered. */
             label: string;
+        };
+        TestCategory: {
+            /** Format: int32 */
+            id: number;
+            name: string;
         };
         TestResult: {
             /** @description The qBittorrent version, for example `v4.6.2`. */
@@ -1946,6 +2088,176 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    test_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The indexer answers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The stored API key cannot be read */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The indexer refused the key or did not answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adopt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdoptRequest"];
+            };
+        };
+        responses: {
+            /** @description What was adopted and what was not */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdoptResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The TMDB key is not set (`tmdb_not_configured`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    scan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanRequest"];
+            };
+        };
+        responses: {
+            /** @description The folders no movie uses */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The TMDB key is not set (`tmdb_not_configured`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such root folder, or it cannot be read */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TMDB failed or refused the key */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

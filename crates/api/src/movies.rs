@@ -238,7 +238,7 @@ fn check_availability(value: &str) -> Result<(), Problem> {
     }
 }
 
-async fn check_tags(state: &AppState, ids: &[i32]) -> Result<(), Problem> {
+pub(crate) async fn check_tags(state: &AppState, ids: &[i32]) -> Result<(), Problem> {
     for id in ids {
         if db::tags::find(&state.db, *id)
             .await
@@ -251,7 +251,7 @@ async fn check_tags(state: &AppState, ids: &[i32]) -> Result<(), Problem> {
     Ok(())
 }
 
-async fn check_profile(state: &AppState, id: i32, field: &str) -> Result<(), Problem> {
+pub(crate) async fn check_profile(state: &AppState, id: i32, field: &str) -> Result<(), Problem> {
     if db::profiles::find(&state.db, id)
         .await
         .map_err(failed)?

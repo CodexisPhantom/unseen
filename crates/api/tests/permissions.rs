@@ -361,6 +361,8 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/quality-profiles/{id}",
                 Permission::ProfilesManage
             ),
+            profiles(Method::POST, "/api/v1/library/scan", Permission::ImportRun),
+            profiles(Method::POST, "/api/v1/library/adopt", Permission::ImportRun),
             profiles(Method::GET, "/api/v1/movies/lookup", Permission::LibraryAdd),
             profiles(Method::GET, "/api/v1/movies", Permission::LibraryRead),
             profiles(Method::POST, "/api/v1/movies", Permission::LibraryAdd),
@@ -444,6 +446,11 @@ fn app_router_passes_route_coverage() {
             profiles(
                 Method::PATCH,
                 "/api/v1/indexers/{id}",
+                Permission::IndexersManage
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/indexers/{id}/test",
                 Permission::IndexersManage
             ),
             profiles(

@@ -8,6 +8,7 @@ mod download_clients;
 pub mod error;
 mod health;
 mod indexers;
+mod library;
 mod lookup;
 mod me;
 mod movies;
@@ -133,6 +134,8 @@ pub fn routes() -> ApiRouter {
             Permission::ProfilesManage,
             routes!(profiles::update_profile, profiles::delete_profile),
         )
+        .require(Permission::ImportRun, routes!(library::scan))
+        .require(Permission::ImportRun, routes!(library::adopt))
         .require(Permission::LibraryAdd, routes!(lookup::lookup))
         .require(Permission::LibraryRead, routes!(movies::list_movies))
         .require(Permission::LibraryAdd, routes!(movies::create_movie))
@@ -171,7 +174,11 @@ pub fn routes() -> ApiRouter {
         .require(Permission::IndexersRead, routes!(indexers::get_indexer))
         .require(
             Permission::IndexersManage,
-            routes!(indexers::update_indexer, indexers::delete_indexer),
+            routes!(
+                indexers::update_indexer,
+                indexers::delete_indexer,
+                indexers::test_indexer
+            ),
         )
         .require(
             Permission::ClientsRead,

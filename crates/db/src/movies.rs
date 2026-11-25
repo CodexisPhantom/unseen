@@ -282,6 +282,16 @@ pub async fn find(db: &DatabaseConnection, id: i32) -> Result<Option<Movie>, DbE
     Ok(load(db, Some(id)).await?.pop())
 }
 
+/// A file of an adopted movie, as found on disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewFile {
+    /// Relative to the movie folder, with `/` between the parts.
+    pub relative_path: String,
+    pub size: i64,
+    /// A quality id of `core::quality`; `0` is `Unknown`.
+    pub quality_id: i32,
+}
+
 /// Adds a movie with its profiles (the first is primary) and tags in one
 /// step: either everything is stored or nothing.
 pub async fn create(
@@ -289,6 +299,18 @@ pub async fn create(
     new: NewMovie,
     quality_profile_ids: &[i32],
     tag_ids: &[i32],
+) -> Result<Movie, MovieError> {
+    create_with_files(db, new, quality_profile_ids, tag_ids, &[]).await
+}
+
+/// [`create`] for an existing folder. The first of `files` becomes the
+/// managed file of the primary profile; the rest are unmanaged files.
+pub async fn create_with_files(
+    db: &DatabaseConnection,
+    new: NewMovie,
+    quality_profile_ids: &[i32],
+    tag_ids: &[i32],
+    files: &[NewFile],
 ) -> Result<Movie, MovieError> {
     let txn = db.begin().await?;
     // Checked first, so a movie added twice is reported as such and not as
@@ -342,12 +364,39 @@ pub async fn create(
         Some(SqlErr::UniqueConstraintViolation(_)) => MovieError::TmdbTaken,
         _ => error.into(),
     })?;
+    let mut primary_profile = None;
     for (index, profile_id) in unique(quality_profile_ids).into_iter().enumerate() {
-        insert_profile(&txn, movie.id, profile_id, index == 0).await?;
+        let profile = insert_profile(&txn, movie.id, profile_id, index == 0).await?;
+        if index == 0 {
+            primary_profile = Some(profile.id);
+        }
+    }
+    for (index, file) in files.iter().enumerate() {
+        movie_files::ActiveModel {
+            movie_id: Set(movie.id),
+            relative_path: Set(file.relative_path.clone()),
+            size: Set(file.size),
+            quality_id: Set(file.quality_id),
+            movie_profile_id: Set(primary_profile.filter(|_| index == 0)),
+            added_at: Set(crate::now()),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
     }
     set_tags(&txn, movie.id, tag_ids).await?;
     txn.commit().await?;
     find(db, movie.id).await?.ok_or(MovieError::NotFound)
+}
+
+/// The TMDB ids of every movie in the library.
+pub async fn tmdb_ids(db: &DatabaseConnection) -> Result<Vec<i32>, DbErr> {
+    movies::Entity::find()
+        .select_only()
+        .column(movies::Column::TmdbId)
+        .into_tuple()
+        .all(db)
+        .await
 }
 
 /// Changes the editable parts of a movie.
