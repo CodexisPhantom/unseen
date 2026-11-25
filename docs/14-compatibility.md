@@ -102,12 +102,57 @@ V1 client: Seerr. Endpoint list taken from Seerr's source,
 | `GET /history`, `/movie/lookup?term=<text>` | Later | Dashboards, other request tools | to define |
 | `GET/POST/PUT/DELETE /customformat`, `PUT /qualityprofile/{id}`, `GET/PUT /qualitydefinition` | M11 | Recyclarr | `profiles:read`, `profiles:manage` |
 | `/notification`, `/config/*`, `/indexer`, `/downloadclient` writes | Never | | |
-| `/sonarr/api/v3/*` | M8 | Seerr | |
+| `/sonarr/api/v3/*` | M8 | Seerr | See the Sonarr table below |
 
 `POST /movie` with `addOptions.searchForMovie = true` also needs
 `search:run`. Open question: one route, one permission is the rule; draft
 answer is that the add succeeds and the search is skipped with a log line
 when the key lacks `search:run`.
+
+### Sonarr endpoints (M8)
+
+Base: `/sonarr/api/v3`, same auth and rules as above. Endpoint list taken from
+Seerr's source, `seerr-team/seerr` branch `develop` at commit `3f3fee5`
+(2026-11-23): `server/api/servarr/base.ts` and `server/api/servarr/sonarr.ts`.
+Every call Seerr makes to Sonarr is in the table. Paths shared with Radarr
+(`base.ts`) come first.
+
+| Method and path | Status | Client | Permission |
+|---|---|---|---|
+| `GET /system/status` | M8 | Seerr connection test | `settings:read` |
+| `GET /qualityProfile` | M8 | Seerr | `profiles:read` |
+| `GET /rootfolder` | M8 | Seerr | `settings:read` |
+| `GET /tag` | M8 | Seerr | `library:read` |
+| `POST /tag` | M8 | Seerr (tag per requester) | `library:edit` |
+| `PUT /tag/{id}` | M8 | Seerr | `library:edit` |
+| `GET /queue?includeEpisode=true` | M8 | Seerr download tracker | `queue:read` |
+| `POST /command` (`RefreshMonitoredDownloads`) | M8 | Seerr download tracker | `queue:read` |
+| `GET /series` | M8 | Seerr library scan | `library:read` |
+| `GET /series?tvdbId=` | M8 | Seerr | `library:read` |
+| `GET /series/{id}` | M8 | Seerr availability sync | `library:read` |
+| `GET /series/lookup?term=tvdb:{id}` | M8 | Seerr, before every add | `library:read` |
+| `GET /series/lookup?term=<title>` | M8 | Seerr | `library:read` |
+| `POST /series` | M8 | Seerr request | `library:add` |
+| `PUT /series` | M8 | Seerr, request for a series already in the library | `library:edit` |
+| `DELETE /series/{id}?deleteFiles=true&addImportExclusion=false` | M8 | Seerr remove | `library:delete` |
+| `GET /episode?seriesId=` | M8 | Seerr, after a series update | `library:read` |
+| `PUT /episode/monitor` | M8 | Seerr, re-monitor requested seasons | `library:edit` |
+| `POST /command` (`MissingEpisodeSearch`, `seriesId`) | M8 | Seerr | `search:run` |
+| `GET /languageprofile` | Stub | Seerr settings page | `profiles:read` |
+
+Notes:
+
+- Seerr asks for `/qualityProfile` with that capitalisation. Paths are
+  case-insensitive here, so one route serves it.
+- `POST /series` with `addOptions.searchForMissingEpisodes = true` also needs
+  `search:run`. Same open question and draft answer as `POST /movie` above.
+- Sonarr v4 has no language profiles and Seerr tolerates the failure of
+  `GET /languageprofile`. Draft answer: return an empty list.
+- Seerr sends `monitorNewItems` and `seriesType` (`standard`, `daily`,
+  `anime`) on `POST /series`. The first needs a column on the show
+  (#88).
+- `/series` with a `PUT` body carries the whole resource. Seerr changes only
+  `monitored`, `tags` and the season list; Unseen applies those three.
 
 ## Field mapping: Radarr MovieResource
 
