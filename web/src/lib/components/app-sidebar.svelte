@@ -4,6 +4,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import UsersIcon from '@lucide/svelte/icons/users';
+	import SlidersIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import ServerIcon from '@lucide/svelte/icons/server';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { afterNavigate } from '$app/navigation';
@@ -19,6 +20,7 @@
 		add: PlusIcon,
 		activity: ActivityIcon,
 		settings: SettingsIcon,
+		'settings/profiles': SlidersIcon,
 		users: UsersIcon,
 		roles: ShieldIcon,
 		system: ServerIcon
