@@ -450,6 +450,72 @@
         "x-permission": "authenticated"
       }
     },
+    "/api/v1/owner/transfer": {
+      "post": {
+        "tags": [
+          "owner"
+        ],
+        "summary": "Hands the Owner role to another enabled user. The caller loses it and may\nkeep another role. Requires the Owner role and the caller's password; this\nis the one documented exception to the one-permission rule.",
+        "operationId": "transfer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Transfer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Transferred"
+          },
+          "403": {
+            "description": "The caller is not an Owner, or the password is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The target user is disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-owner-only": true,
+        "x-permission": "authenticated"
+      }
+    },
     "/api/v1/permissions": {
       "get": {
         "tags": [
@@ -2167,6 +2233,31 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "Transfer": {
+        "type": "object",
+        "required": [
+          "targetUserId",
+          "password"
+        ],
+        "properties": {
+          "keepRoleId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "A role the caller keeps instead of the Owner role. None means no role."
+          },
+          "password": {
+            "type": "string",
+            "description": "The caller's own password."
+          },
+          "targetUserId": {
+            "type": "string",
+            "description": "An enabled user who receives the Owner role."
           }
         }
       },

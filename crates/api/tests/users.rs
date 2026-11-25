@@ -493,3 +493,102 @@ async fn needs_users_manage() {
         assert_eq!(body["requiredPermission"], "users:manage");
     }
 }
+
+#[tokio::test]
+async fn ownership_moves_to_the_target_in_one_step() {
+    let app = App::new().await;
+    let old = users::enabled_owners(&app.state.db)
+        .await
+        .unwrap()
+        .remove(0);
+    let (target, target_cookie, _) = app.member("new@example.com", &[]).await;
+    let (_, _, keep) = app.member("keep@example.com", &[]).await;
+    let body = json!({ "targetUserId": target, "password": PASSWORD, "keepRoleId": keep });
+    let (status, reply) = app
+        .owner(Method::POST, "/api/v1/owner/transfer", Some(body))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{reply}");
+
+    let (status, _, _) = app
+        .send(Method::GET, "/api/v1/users", Some(&target_cookie), None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let owners = users::enabled_owners(&app.state.db).await.unwrap();
+    assert_eq!(owners, std::slice::from_ref(&target));
+    let old = users::find(&app.state.db, &old).await.unwrap().unwrap();
+    assert_eq!(old.roles.iter().map(|r| r.id).collect::<Vec<_>>(), [keep]);
+    // The old Owner's session now has the kept role only.
+    let (status, _) = app.owner(Method::GET, "/api/v1/users", None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _, log) = app
+        .send(
+            Method::GET,
+            "/api/v1/audit-log?action=owner.transferred",
+            Some(&target_cookie),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(log["items"][0]["action"], "owner.transferred", "{log}");
+}
+
+#[tokio::test]
+async fn a_transfer_is_refused_without_the_owner_role_or_the_password() {
+    let app = App::new().await;
+    let (target, _, _) = app.member("new@example.com", &[]).await;
+    let (_, cookie, _) = app.member("other@example.com", &["users:manage"]).await;
+    let body = json!({ "targetUserId": target, "password": PASSWORD });
+
+    let (status, _, reply) = app
+        .send(
+            Method::POST,
+            "/api/v1/owner/transfer",
+            Some(&cookie),
+            Some(body.clone()),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{reply}");
+    assert_eq!(reply["code"], "owner_only");
+
+    let wrong = json!({ "targetUserId": target, "password": "not the password" });
+    let (status, reply) = app
+        .owner(Method::POST, "/api/v1/owner/transfer", Some(wrong))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{reply}");
+    assert_eq!(reply["code"], "wrong_password");
+
+    let owner = users::enabled_owners(&app.state.db)
+        .await
+        .unwrap()
+        .remove(0);
+    let me = json!({ "targetUserId": owner, "password": PASSWORD });
+    let (status, _) = app
+        .owner(Method::POST, "/api/v1/owner/transfer", Some(me))
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Nothing changed.
+    assert_eq!(users::enabled_owners(&app.state.db).await.unwrap(), [owner]);
+}
+
+#[tokio::test]
+async fn a_disabled_target_is_refused() {
+    let app = App::new().await;
+    let (target, _, _) = app.member("new@example.com", &[]).await;
+    let (status, _) = app
+        .owner(
+            Method::PATCH,
+            &format!("/api/v1/users/{target}"),
+            Some(json!({ "disabled": true })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let body = json!({ "targetUserId": target, "password": PASSWORD });
+    let (status, reply) = app
+        .owner(Method::POST, "/api/v1/owner/transfer", Some(body))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{reply}");
+    assert_eq!(reply["code"], "target_disabled");
+    assert_eq!(users::enabled_owners(&app.state.db).await.unwrap().len(), 1);
+}

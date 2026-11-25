@@ -7,6 +7,7 @@ pub mod auth;
 pub mod error;
 mod health;
 mod me;
+mod owner;
 mod profiles;
 mod roles;
 pub mod setup;
@@ -31,6 +32,8 @@ pub struct AppState {
     pub auth: auth::Auth,
     pub policy: auth::Policy,
     pub setup: setup::Setup,
+    /// Encrypts the integration secrets (ADR 0011).
+    pub secrets: db::secret::SecretKey,
 }
 
 impl AppState {
@@ -52,6 +55,7 @@ impl AppState {
             auth,
             policy,
             setup: setup::Setup::default(),
+            secrets: db::secret::SecretKey::derive(secret),
         })
     }
 }
@@ -74,6 +78,7 @@ pub fn routes() -> ApiRouter {
         .public(routes!(health::health))
         .public(routes!(setup::status, setup::create))
         .authenticated(routes!(me::me))
+        .authenticated(routes!(owner::transfer))
         .authenticated(routes!(roles::list_permissions))
         .authenticated(routes!(api_keys::list_own, api_keys::create_own))
         .authenticated(routes!(api_keys::revoke_own))
