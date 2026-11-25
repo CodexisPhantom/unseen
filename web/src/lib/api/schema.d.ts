@@ -75,6 +75,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/download-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every download client, ordered by name. */
+        get: operations["list_clients"];
+        put?: never;
+        /** Adds a download client. The password is stored encrypted. */
+        post: operations["create_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/download-clients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a download client. */
+        delete: operations["delete_client"];
+        options?: never;
+        head?: never;
+        /**
+         * Changes a download client. A request without `password` keeps the stored
+         *     password; an empty one removes it.
+         */
+        patch: operations["update_client"];
+        trace?: never;
+    };
+    "/api/v1/download-clients/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logs in to the saved download client and reports its version. */
+        post: operations["test_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/filesystem": {
         parameters: {
             query?: never;
@@ -517,6 +573,49 @@ export interface components {
             /** @description Replaces the direct grants. */
             permissions: components["schemas"]["Permission"][];
         };
+        DownloadClient: {
+            /** @description The qBittorrent category of the torrents Unseen adds. */
+            category: string;
+            createdAt: string;
+            enabled: boolean;
+            /** @description The password itself is never returned. */
+            hasPassword: boolean;
+            /** Format: int32 */
+            id: number;
+            /** @description `qbittorrent`. */
+            kind: string;
+            /** @description ... and the same folder as Unseen sees it. */
+            localPath?: string | null;
+            name: string;
+            /** @description A password is stored but cannot be decrypted: enter it again. */
+            passwordMustBeReentered: boolean;
+            /** @description Remote path mapping: a path as the client sees it ... */
+            remotePath?: string | null;
+            /**
+             * @description A client without tags serves every movie; one with tags serves the
+             *     movies that share a tag (docs/04-database.md).
+             */
+            tags: number[];
+            /** @description The WebUI address, for example `http://qbittorrent:8080`. */
+            url: string;
+            username?: string | null;
+        };
+        /**
+         * @description An empty string clears `username`, `password`, `remotePath` and
+         *     `localPath`. An absent field keeps the stored value.
+         */
+        DownloadClientPatch: {
+            category?: string | null;
+            enabled?: boolean | null;
+            localPath?: string | null;
+            name?: string | null;
+            password?: string | null;
+            remotePath?: string | null;
+            /** @description Replaces the whole tag set. */
+            tags?: number[] | null;
+            url?: string | null;
+            username?: string | null;
+        };
         FieldError: {
             field: string;
             message: string;
@@ -575,6 +674,19 @@ export interface components {
         NewApiKey: {
             name: string;
             permissions: components["schemas"]["Permission"][];
+        };
+        NewDownloadClient: {
+            category?: string;
+            enabled?: boolean;
+            kind?: string;
+            localPath?: string | null;
+            name: string;
+            /** @description Stored encrypted and never returned. */
+            password?: string | null;
+            remotePath?: string | null;
+            tags?: number[];
+            url: string;
+            username?: string | null;
         };
         NewQualityProfile: {
             /** Format: int32 */
@@ -729,6 +841,10 @@ export interface components {
             email: string;
             id: string;
             name: string;
+        };
+        TestResult: {
+            /** @description The qBittorrent version, for example `v4.6.2`. */
+            version: string;
         };
         TmdbSettings: {
             /** @description A key is stored but cannot be decrypted: enter it again. */
@@ -928,6 +1044,247 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_clients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The download clients */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClient"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewDownloadClient"];
+            };
+        };
+        responses: {
+            /** @description The new download client */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClient"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download client id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such download client */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download client id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed download client */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClient"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such download client */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    test_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download client id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The login works */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such download client */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The stored password cannot be read */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The client refused the login or did not answer */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

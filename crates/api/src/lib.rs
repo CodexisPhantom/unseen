@@ -4,6 +4,7 @@ pub mod access;
 mod api_keys;
 pub mod audit;
 pub mod auth;
+mod download_clients;
 pub mod error;
 mod health;
 mod lookup;
@@ -145,6 +146,22 @@ pub fn routes() -> ApiRouter {
             routes!(root_folders::delete_root_folder),
         )
         .require(Permission::SettingsManage, routes!(root_folders::browse))
+        .require(
+            Permission::ClientsRead,
+            routes!(download_clients::list_clients),
+        )
+        .require(
+            Permission::ClientsManage,
+            routes!(download_clients::create_client),
+        )
+        .require(
+            Permission::ClientsManage,
+            routes!(
+                download_clients::update_client,
+                download_clients::delete_client,
+                download_clients::test_client
+            ),
+        )
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.

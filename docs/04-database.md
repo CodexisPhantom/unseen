@@ -121,7 +121,7 @@ folder, quality profile, minimum availability) for movies added from it.
 |---|---|---|
 | `indexers` | `id` int PK, `name`, `kind` text (`torznab`), `url`, `api_key` text (secret), `categories` json, `priority` int default 25, `use_proxy` bool default true, `enabled` bool, `created_at` | unique(`name`) |
 | `indexer_tags` | `indexer_id` FK cascade, `tag_id` FK cascade | PK(`indexer_id`, `tag_id`); index(`tag_id`) |
-| `download_clients` | `id` int PK, `name`, `kind` text (`qbittorrent`), `url`, `username` null, `password` null (secret), `category` text, `remove_completed` bool default false, `enabled` bool, `created_at` | unique(`name`) |
+| `download_clients` | `id` int PK, `name`, `kind` text (`qbittorrent`), `url`, `username` null, `password` null (secret), `category` text, `remote_path` text null, `local_path` text null, `remove_completed` bool default false, `enabled` bool, `created_at` | unique(`name`) |
 | `download_client_tags` | `download_client_id` FK cascade, `tag_id` FK cascade | PK(`download_client_id`, `tag_id`); index(`tag_id`) |
 | `downloads` | `id` int PK, `movie_id` int FK cascade, `movie_profile_id` int null FK set null, `indexer_id` int null FK set null, `download_client_id` int null FK set null, `client_download_id` text (torrent hash), `release_title`, `quality_id` int, `custom_format_score` int default 0, `size` int, `state` text, `error` null, `attempts` int default 0, `grabbed_at`, `completed_at` null, `imported_at` null | unique(`download_client_id`, `client_download_id`); index(`state`); index(`movie_id`) |
 | `blocklist` | `id` int PK, `movie_id` int FK cascade, `release_title`, `indexer_id` int null FK set null, `reason`, `created_at` | index(`movie_id`) |
@@ -134,6 +134,10 @@ the delete while one of its downloads is still active.
 Tag rule, as in Radarr: an indexer or download client without tags is used
 for every movie. With tags, it is used only for movies that share at least
 one tag.
+
+A download client's remote path mapping is `remote_path` (the folder as the
+client sees it) and `local_path` (the same folder as Unseen sees it). Both are
+set or both are null.
 
 ## System tables
 

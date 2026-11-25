@@ -13,6 +13,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0003ApiKeys),
             Box::new(M0004Movies),
             Box::new(M0005AuditLog),
+            Box::new(M0007DownloadClients),
         ]
     }
 }
@@ -299,6 +300,54 @@ impl MigrationTrait for M0005AuditLog {
         manager
             .get_connection()
             .execute_unprepared(M0005_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0007DownloadClients;
+
+impl MigrationName for M0007DownloadClients {
+    fn name(&self) -> &str {
+        "m0007_download_clients"
+    }
+}
+
+/// Download clients and their tags (docs/04-database.md, "Integration
+/// tables"). `password` holds the encrypted form (ADR 0011). `remote_path`
+/// and `local_path` are the client's remote path mapping: both set or both
+/// null.
+const M0007_UP: &str = r#"
+CREATE TABLE download_clients (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    name text NOT NULL UNIQUE,
+    kind text NOT NULL,
+    url text NOT NULL,
+    username text,
+    password text,
+    category text NOT NULL,
+    remote_path text,
+    local_path text,
+    remove_completed boolean NOT NULL DEFAULT FALSE,
+    enabled boolean NOT NULL,
+    created_at text NOT NULL,
+    CHECK ((remote_path IS NULL) = (local_path IS NULL))
+);
+
+CREATE TABLE download_client_tags (
+    download_client_id integer NOT NULL REFERENCES download_clients (id) ON DELETE CASCADE,
+    tag_id integer NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+    PRIMARY KEY (download_client_id, tag_id)
+);
+CREATE INDEX download_client_tags_tag_id_idx ON download_client_tags (tag_id);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0007DownloadClients {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0007_UP)
             .await?;
         Ok(())
     }

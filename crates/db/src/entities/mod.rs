@@ -2,6 +2,8 @@
 //! the generated `auth_schema`.
 
 pub mod audit_log;
+pub mod download_client_tags;
+pub mod download_clients;
 pub mod movie_files;
 pub mod movie_profiles;
 pub mod movie_tags;

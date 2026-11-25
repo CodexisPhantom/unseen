@@ -244,6 +244,304 @@
         "x-permission": "system:audit"
       }
     },
+    "/api/v1/download-clients": {
+      "get": {
+        "tags": [
+          "download-clients"
+        ],
+        "summary": "Every download client, ordered by name.",
+        "operationId": "list_clients",
+        "responses": {
+          "200": {
+            "description": "The download clients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DownloadClient"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "clients:read"
+      },
+      "post": {
+        "tags": [
+          "download-clients"
+        ],
+        "summary": "Adds a download client. The password is stored encrypted.",
+        "operationId": "create_client",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewDownloadClient"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new download client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadClient"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "clients:manage"
+      }
+    },
+    "/api/v1/download-clients/{id}": {
+      "delete": {
+        "tags": [
+          "download-clients"
+        ],
+        "summary": "Deletes a download client.",
+        "operationId": "delete_client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Download client id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such download client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "clients:manage"
+      },
+      "patch": {
+        "tags": [
+          "download-clients"
+        ],
+        "summary": "Changes a download client. A request without `password` keeps the stored\npassword; an empty one removes it.",
+        "operationId": "update_client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Download client id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadClientPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The changed download client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadClient"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such download client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "clients:manage"
+      }
+    },
+    "/api/v1/download-clients/{id}/test": {
+      "post": {
+        "tags": [
+          "download-clients"
+        ],
+        "summary": "Logs in to the saved download client and reports its version.",
+        "operationId": "test_client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Download client id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The login works",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such download client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The stored password cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The client refused the login or did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "clients:manage"
+      }
+    },
     "/api/v1/filesystem": {
       "get": {
         "tags": [
@@ -2019,6 +2317,149 @@
           }
         }
       },
+      "DownloadClient": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "url",
+          "hasPassword",
+          "passwordMustBeReentered",
+          "category",
+          "enabled",
+          "tags",
+          "createdAt"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "The qBittorrent category of the torrents Unseen adds."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "The password itself is never returned."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`qbittorrent`."
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "... and the same folder as Unseen sees it."
+          },
+          "name": {
+            "type": "string"
+          },
+          "passwordMustBeReentered": {
+            "type": "boolean",
+            "description": "A password is stored but cannot be decrypted: enter it again."
+          },
+          "remotePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Remote path mapping: a path as the client sees it ..."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "A client without tags serves every movie; one with tags serves the\nmovies that share a tag (docs/04-database.md)."
+          },
+          "url": {
+            "type": "string",
+            "description": "The WebUI address, for example `http://qbittorrent:8080`."
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DownloadClientPatch": {
+        "type": "object",
+        "description": "An empty string clears `username`, `password`, `remotePath` and\n`localPath`. An absent field keeps the stored value.",
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remotePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Replaces the whole tag set."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "FieldError": {
         "type": "object",
         "required": [
@@ -2217,6 +2658,62 @@
             "items": {
               "$ref": "#/components/schemas/Permission"
             }
+          }
+        }
+      },
+      "NewDownloadClient": {
+        "type": "object",
+        "required": [
+          "name",
+          "url"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stored encrypted and never returned."
+          },
+          "remotePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "url": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -2744,6 +3241,18 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "TestResult": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "The qBittorrent version, for example `v4.6.2`."
           }
         }
       },
