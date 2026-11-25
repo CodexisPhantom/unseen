@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<caps>
+  <server version="1.1" title="Prowlarr" strapline="Your torrent indexer proxy" email="support@prowlarr.com" url="https://prowlarr.com/" image="https://prowlarr.com/logo.png" />
+  <limits max="100" default="100" />
+  <retention days="0" />
+  <registration available="no" open="no" />
+  <searching>
+    <search available="yes" supportedParams="q" />
+    <tv-search available="yes" supportedParams="q,season,ep" />
+    <movie-search available="yes" supportedParams="q" />
+    <music-search available="no" supportedParams="" />
+    <audio-search available="no" supportedParams="" />
+    <book-search available="no" supportedParams="" />
+  </searching>
+  <categories>
+    <category id="2000" name="Movies">
+      <subcat id="2030" name="Movies/SD" />
+      <subcat id="2040" name="Movies/HD" />
+    </category>
+  </categories>
+</caps>

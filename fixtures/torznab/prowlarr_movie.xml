@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="1.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+  <channel>
+    <atom:link href="http://prowlarr:9696/1/api" rel="self" type="application/rss+xml" />
+    <title>Example Tracker</title>
+    <description>Example Tracker Indexer</description>
+    <language>en-US</language>
+    <category>search</category>
+    <item>
+      <title>Inception 2010 1080p BluRay DTS x264-GRP</title>
+      <guid>https://tracker.example/torrent/2001</guid>
+      <prowlarrindexer id="1">Example Tracker</prowlarrindexer>
+      <description>Inception 2010 1080p BluRay DTS x264-GRP</description>
+      <link>http://prowlarr:9696/1/download?apikey=abc&amp;link=Zm9v&amp;file=Inception</link>
+      <comments>https://tracker.example/torrent/2001</comments>
+      <pubDate>Tue, 17 Nov 2026 12:00:00 GMT</pubDate>
+      <enclosure url="http://prowlarr:9696/1/download?apikey=abc&amp;link=Zm9v&amp;file=Inception" length="12884901888" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="2000" />
+      <torznab:attr name="category" value="2040" />
+      <torznab:attr name="size" value="12884901888" />
+      <torznab:attr name="seeders" value="120" />
+      <torznab:attr name="peers" value="150" />
+      <torznab:attr name="infohash" value="aabbccddeeff00112233445566778899aabbccdd" />
+    </item>
+  </channel>
+</rss>

@@ -9,6 +9,7 @@ use db::secret::{Secret, decrypt, encrypt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::http::check_url_text;
+use unseen_core::torznab::{TorznabClient, TorznabError};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -334,4 +335,91 @@ pub async fn delete_indexer(
         .data(json!({ "name": current.model.name }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// What the test learned about the indexer.
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TestResult {
+    /// The indexer advertises movie search.
+    movie_search: bool,
+    /// The indexer advertises plain text search.
+    text_search: bool,
+    /// Movie search accepts an IMDb id.
+    imdb_id: bool,
+    /// Movie search accepts a TMDB id.
+    tmdb_id: bool,
+    categories: Vec<TestCategory>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct TestCategory {
+    id: u32,
+    name: String,
+}
+
+fn test_error(error: TorznabError) -> Problem {
+    let (code, title) = match &error {
+        TorznabError::ApiKey => (
+            "indexer_api_key_rejected",
+            "The indexer refused the API key",
+        ),
+        TorznabError::RateLimited { .. } => (
+            "indexer_rate_limited",
+            "The indexer is rate limiting this server",
+        ),
+        TorznabError::Url(_) | TorznabError::Indexer { .. } | TorznabError::Unavailable(_) => {
+            ("indexer_unavailable", "The indexer is not available")
+        }
+    };
+    tracing::warn!(%error, "indexer test");
+    let mut problem = Problem::new(StatusCode::BAD_GATEWAY, code, title);
+    problem.detail = Some(error.to_string());
+    problem
+}
+
+/// Reads the capabilities of the saved indexer and asks it for one item, so
+/// a wrong API key is found even when `caps` is open.
+#[utoipa::path(
+    post,
+    path = "/api/v1/indexers/{id}/test",
+    tag = "indexers",
+    params(("id" = i32, Path, description = "Indexer id")),
+    responses(
+        (status = 200, description = "The indexer answers", body = TestResult),
+        (status = 403, description = "Permission denied", body = Problem),
+        (status = 404, description = "No such indexer", body = Problem),
+        (status = 409, description = "The stored API key cannot be read", body = Problem),
+        (status = 502, description = "The indexer refused the key or did not answer", body = Problem),
+    )
+)]
+pub async fn test_indexer(
+    _: Require<IndexersManage>,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<TestResult>, Problem> {
+    let model = load(&state, id).await?.model;
+    let key = decrypt(&state.secrets, &model.api_key).map_err(|_| {
+        Problem::conflict(
+            "indexer_api_key_unreadable",
+            "The stored API key cannot be read; enter it again",
+        )
+    })?;
+    let client = TorznabClient::new(state.http.clone(), &model.url, key.expose());
+    let caps = client.test().await.map_err(test_error)?;
+    let movie = caps.movie_search.as_ref();
+    Ok(Json(TestResult {
+        movie_search: movie.is_some(),
+        text_search: caps.search.is_some(),
+        imdb_id: movie.is_some_and(|mode| mode.supports("imdbid")),
+        tmdb_id: movie.is_some_and(|mode| mode.supports("tmdbid")),
+        categories: caps
+            .categories
+            .into_iter()
+            .map(|c| TestCategory {
+                id: c.id,
+                name: c.name,
+            })
+            .collect(),
+    }))
 }
