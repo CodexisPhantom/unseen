@@ -10,6 +10,10 @@ describe('entryFor', () => {
 		expect(entryFor('settings/profiles')?.title).toBe('Settings');
 	});
 
+	it('guards the import page with import:run', () => {
+		expect(entryFor('import')?.anyOf).toEqual(['import:run']);
+	});
+
 	it('needs no permission for the home page and unknown pages', () => {
 		expect(entryFor('')).toBeUndefined();
 		expect(entryFor('nope')).toBeUndefined();

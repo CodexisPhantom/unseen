@@ -71,7 +71,13 @@ library). Decide in M4; until then those tokens render from the release name.
    tags if present), look it up on TMDB, find the video files. The largest
    becomes the file of the primary profile. Other video files (not samples
    or extras) are adopted as unmanaged files.
-3. The user reviews the matches and confirms.
+3. The user reviews the matches and confirms. The review page (`/import`,
+   permission `import:run`) lists each folder with its proposed match and main
+   file. Only confident matches are selected up front. A match is corrected
+   through the movie lookup (this needs `library:add`), a folder is skipped by
+   clearing its checkbox, and one quality profile and monitored state apply to
+   all adopted movies. The adopt call returns when done; the page then shows one
+   summary with the counts of adopted, failed and left-out folders.
 4. Unseen stores the movie with its existing folder name and relative file path.
 
 Adoption never moves, renames or deletes anything. Renaming to the template
