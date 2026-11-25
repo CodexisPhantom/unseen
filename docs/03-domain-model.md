@@ -30,6 +30,9 @@ Status: reviewed (2026-11-16). Terms match Sonarr/Radarr unless the "Differs" co
 | Adopt | Register existing library files without moving them. | Upstream: "library import" |
 | Instance import | One-way copy of settings and items from a running Radarr/Sonarr. | New |
 | Download client | qBittorrent or SABnzbd. | No |
+| Subtitle | A subtitle file next to a media file, with a language and a kind (normal, hearing impaired or forced). Imported with the video, or downloaded from a subtitle provider (M10). | Bazarr, not Radarr or Sonarr |
+| Language profile | A named, ordered list of wanted subtitles (language and kind) with an optional cutoff. A movie has at most one. | Bazarr: "language profile" |
+| Subtitle provider | A source of subtitles. OpenSubtitles in V1. | Bazarr: "provider" |
 | Blocklist | Releases that failed and must not be grabbed again. | No |
 | User | An account. | Upstream has one user |
 | Owner | Built-in role with every permission. | New |
@@ -54,6 +57,8 @@ erDiagram
   MOVIE ||--|{ MOVIE_PROFILE : has
   QUALITY_PROFILE ||--o{ MOVIE_PROFILE : "applies to"
   MOVIE_PROFILE ||--o| MOVIE_FILE : holds
+  LANGUAGE_PROFILE ||--o{ MOVIE : "wants subtitles for"
+  MOVIE_FILE ||--o{ SUBTITLE : has
   MOVIE ||--o{ MOVIE_FILE : has
   QUALITY_PROFILE ||--o{ CUSTOM_FORMAT_SCORE : scores
   CUSTOM_FORMAT ||--o{ CUSTOM_FORMAT_SCORE : ""
@@ -81,6 +86,34 @@ Decided 2026-11-15, see ADR 0010.
   deletes them on its own.
 - Editions are a property of a file, not a separate slot. To keep two
   editions on purpose, use two profiles or leave one unmanaged.
+
+## Subtitles (M10)
+
+Decided in the subtitles design, see [08-integrations.md](08-integrations.md)
+for the provider and [09-filesystem.md](09-filesystem.md) for the names.
+
+- A **language profile** lists the subtitles a movie wants, in order: each
+  item is a language (`en`, `fr`, `pt-BR`) and a kind. The kinds are
+  `normal`, `hi` (hearing impaired, SDH) and `forced` (foreign parts only).
+  The optional **cutoff** is an item: once that item and every item before
+  it exist, Unseen stops looking. Without a cutoff Unseen looks for every
+  item.
+- A movie has one language profile, or none (no subtitles wanted). The
+  setting `subtitles.default_profile_id` gives the profile of a new movie.
+  The profile belongs to the movie, not to its movie profiles: a 1080p and a
+  2160p file of the same movie get the same languages.
+- A **subtitle** belongs to a movie file and is unique for its language and
+  kind. A file has at most one subtitle per language and kind.
+  Embedded subtitle tracks are not read or listed in V1.
+- A subtitle is **wanted** when the movie is monitored, has a language
+  profile and a file, and an item of the profile up to the cutoff has no
+  subtitle yet.
+- Subtitle files found next to a video are subtitles too: they are
+  recorded at import and by a library scan, with no provider. A downloaded
+  subtitle never replaces one that was imported or added by the user.
+- Replacing the video file keeps its subtitles: they are renamed with the
+  new file. A subtitle that came from a provider is searched again only when
+  the user asks. Not for V1: syncing subtitles to a new cut of the film.
 
 ## Decisions (2026-11-15)
 

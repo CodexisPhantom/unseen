@@ -96,10 +96,40 @@ apart.
 
 ### Sidecar subtitles
 
+The name rule below is the one for subtitles that Unseen downloads (M10) as
+well as for those it imports.
+
 Subtitle files next to the video with the same base name (`.srt`, `.ass`,
 `.ssa`, `.sub`, `.idx`) are imported with it and renamed to match, keeping
 their language suffix (`Movie (2020) Bluray-1080p.en.srt`). The extension
 list is the setting `import.extra_file_extensions`; empty turns it off.
+
+Subtitle names are `<video base name>.<language>[.<kind>].<extension>`:
+
+| Subtitle | Name |
+|---|---|
+| English | `Movie (2020) Bluray-1080p.en.srt` |
+| English, hearing impaired | `Movie (2020) Bluray-1080p.en.hi.srt` |
+| French, forced | `Movie (2020) Bluray-1080p.fr.forced.srt` |
+| Brazilian Portuguese | `Movie (2020) Bluray-1080p.pt-BR.srt` |
+
+- The language is the code stored in `subtitles.language`. The kind suffix
+  is `hi` or `forced`; `normal` has none. These are the names Bazarr, Plex
+  and Jellyfin read, so a library that Bazarr filled is adopted as it is.
+- An imported file keeps its own language and kind suffix when it has one.
+  Reading a name accepts `sdh` and `cc` as `hi`, `foreign` as `forced`, and
+  three-letter codes (`eng`); the stored name is the normalised one only when
+  Unseen renames the file. A file without a language suffix is imported as it is and recorded
+  with the language `und` (undetermined), which satisfies no wanted item.
+- A downloaded file is always UTF-8 text with the provider's extension
+  (`srt`, `ass`). It is written to a temporary name in the movie folder and
+  renamed, so a media server never sees a half file. An existing file with
+  the target name is never overwritten.
+- When the video is renamed or upgraded, its subtitles are renamed with it
+  and keep their language and kind. They are deleted with the video.
+- Several movie profiles of one movie have separate video names, so each
+  video has its own subtitle files, one set per file.
+
 Other extra files (`.nfo`, images, samples) are not imported: Unseen does
 not manage them and they would be left behind on upgrades.
 

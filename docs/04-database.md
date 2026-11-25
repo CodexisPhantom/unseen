@@ -1,7 +1,8 @@
 # 04 Database schema
 
-Status: reviewed (2026-11-16). V1 tables only. TV, Usenet and subtitle tables come with their
-milestones.
+Status: reviewed (2026-11-16). V1 tables only. TV and Usenet tables come with their
+milestones. The subtitle tables are designed below (M10) and are created by the
+subtitles issues.
 
 ## Rules
 
@@ -139,6 +140,32 @@ A download client's remote path mapping is `remote_path` (the folder as the
 client sees it) and `local_path` (the same folder as Unseen sees it). Both are
 set or both are null.
 
+## Subtitle tables (M10)
+
+Designed in the subtitles design. Created by #105, not before.
+
+| Table | Columns | Keys and constraints |
+|---|---|---|
+| `language_profiles` | `id` int PK, `name` text, `items` json (ordered list of `{ language, kind }`; `kind` is `normal`, `hi` or `forced`), `cutoff` int null (index into `items`), `created_at`, `updated_at` | unique(`name`) |
+| `subtitles` | `id` int PK, `movie_file_id` int FK cascade, `language` text (`en`, `pt-BR`), `kind` text (`normal`, `hi`, `forced`), `relative_path` text, `provider` text null (`opensubtitles`; null for a file that was imported or added by the user), `provider_id` text null (the provider's file id), `score` int null, `added_at` | unique(`movie_file_id`, `language`, `kind`); index(`movie_file_id`) |
+
+`movies` gets `language_profile_id` int null FK `language_profiles`
+(restrict: a profile that a movie uses cannot be deleted). A null value means
+no subtitles are wanted for the movie.
+
+`language_profiles.items` is a JSON column for the reason given in the
+decisions: it is always read and written as one ordered list and nothing
+points at an item. `subtitles.language` is a lower case ISO 639-1 code, with
+an upper case region (`pt-BR`, `zh-CN`) only where the provider and media
+servers distinguish the variants.
+
+The OpenSubtitles download quota is not a table: the last answer of the
+provider is kept in `settings` under `subtitles.opensubtitles.quota`
+(see [08-integrations.md](08-integrations.md)).
+
+Episode subtitles (M7 and later) add `episode_file_id` to `subtitles` in the
+TV migration; exactly one of the two file columns is set.
+
 ## System tables
 
 | Table | Columns | Keys |
@@ -190,6 +217,8 @@ erDiagram
   quality_profiles ||--o{ collections : ""
   quality_profiles ||--o{ import_sources : ""
   movie_profiles ||--o{ downloads : ""
+  language_profiles ||--o{ movies : ""
+  movie_files ||--o{ subtitles : ""
   indexers ||--o{ blocklist : ""
 ```
 
