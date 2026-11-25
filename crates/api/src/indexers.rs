@@ -16,6 +16,7 @@ use crate::AppState;
 use crate::access::{IndexersManage, IndexersRead, Require};
 use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
+use crate::proxy::indexer_client;
 
 /// The only indexer protocol in V1.
 const TORZNAB: &str = "torznab";
@@ -405,7 +406,8 @@ pub async fn test_indexer(
             "The stored API key cannot be read; enter it again",
         )
     })?;
-    let client = TorznabClient::new(state.http.clone(), &model.url, key.expose());
+    let http = indexer_client(&state, model.use_proxy).await?;
+    let client = TorznabClient::new(http, &model.url, key.expose());
     let caps = client.test().await.map_err(test_error)?;
     let movie = caps.movie_search.as_ref();
     Ok(Json(TestResult {

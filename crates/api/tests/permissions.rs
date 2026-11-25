@@ -423,6 +423,21 @@ fn app_router_passes_route_coverage() {
             ),
             profiles(
                 Method::GET,
+                "/api/v1/settings/proxy",
+                Permission::SettingsRead
+            ),
+            profiles(
+                Method::PUT,
+                "/api/v1/settings/proxy",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/settings/proxy/test",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::GET,
                 "/api/v1/root-folders",
                 Permission::SettingsRead
             ),

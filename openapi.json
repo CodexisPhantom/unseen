@@ -2802,6 +2802,170 @@
         "x-permission": "settings:manage"
       }
     },
+    "/api/v1/settings/proxy": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "The proxy settings, without the credentials.",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "The settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProxySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:read"
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Changes the proxy. The URL is stored encrypted.",
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProxySettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The settings after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProxySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The environment sets this setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      }
+    },
+    "/api/v1/settings/proxy/test": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Sends one request through the saved proxy, to check that it works.",
+        "operationId": "test_proxy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProxyTest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The proxy carried the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProxyTestResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No proxy is set, or it cannot be used",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The request through the proxy failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      }
+    },
     "/api/v1/settings/tmdb": {
       "get": {
         "tags": [
@@ -4973,6 +5137,93 @@
           }
         ],
         "description": "One entry of the ordered list, lowest quality first."
+      },
+      "ProxySettings": {
+        "type": "object",
+        "required": [
+          "hasUrl",
+          "hasCredentials",
+          "urlMustBeReentered",
+          "bypassLocal",
+          "overridden"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The proxy address without credentials, for example\n`socks5h://proxy.example:1080`."
+          },
+          "bypassLocal": {
+            "type": "boolean",
+            "description": "Requests to local addresses skip the proxy."
+          },
+          "hasCredentials": {
+            "type": "boolean",
+            "description": "The address carries a user name or a password. They are never returned."
+          },
+          "hasUrl": {
+            "type": "boolean",
+            "description": "A proxy is set."
+          },
+          "overridden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields set by an environment variable (`UNSEEN_SETTING_...`)."
+          },
+          "urlMustBeReentered": {
+            "type": "boolean",
+            "description": "A URL is stored but cannot be decrypted: enter it again."
+          }
+        }
+      },
+      "ProxySettingsPatch": {
+        "type": "object",
+        "properties": {
+          "bypassLocal": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Absent keeps the stored value."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`http://`, `https://`, `socks5://` or `socks5h://`, with optional\n`user:password@`. Absent keeps the stored URL; an empty string removes\nthe proxy."
+          }
+        }
+      },
+      "ProxyTest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The address to request through the proxy. Absent: a public page."
+          }
+        }
+      },
+      "ProxyTestResult": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The HTTP status the target answered with, through the proxy.",
+            "minimum": 0
+          }
+        }
       },
       "QualityDefinition": {
         "type": "object",
