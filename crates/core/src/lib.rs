@@ -4,4 +4,5 @@ pub mod permission;
 pub mod profile;
 pub mod quality;
 pub mod release;
+pub mod root_folder;
 pub mod tmdb;

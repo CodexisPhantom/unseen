@@ -244,6 +244,59 @@
         "x-permission": "system:audit"
       }
     },
+    "/api/v1/filesystem": {
+      "get": {
+        "tags": [
+          "root-folders"
+        ],
+        "summary": "Lists the sub-folders of a folder on the server, for choosing a root\nfolder. Without a path it lists the top level.",
+        "operationId": "browse",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Absolute path of the folder to list. Empty or absent lists the top level.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sub-folders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderListing"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The path cannot be listed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -588,8 +641,8 @@
             }
           }
         },
-        "x-owner-only": true,
-        "x-permission": "authenticated"
+        "x-permission": "authenticated",
+        "x-owner-only": true
       }
     },
     "/api/v1/permissions": {
@@ -1154,6 +1207,158 @@
           }
         },
         "x-permission": "roles:manage"
+      }
+    },
+    "/api/v1/root-folders": {
+      "get": {
+        "tags": [
+          "root-folders"
+        ],
+        "summary": "Every root folder with its free space and unmapped folders.",
+        "operationId": "list_root_folders",
+        "responses": {
+          "200": {
+            "description": "The root folders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RootFolder"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:read"
+      },
+      "post": {
+        "tags": [
+          "root-folders"
+        ],
+        "summary": "Adds a root folder after checking the path on disk.",
+        "operationId": "create_root_folder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRootFolder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new root folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RootFolder"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The folder is already a root folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The path is not usable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      }
+    },
+    "/api/v1/root-folders/{id}": {
+      "delete": {
+        "tags": [
+          "root-folders"
+        ],
+        "summary": "Deletes a root folder that no movie uses. The folder on disk stays.",
+        "operationId": "delete_root_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Root folder id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such root folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A movie lives in the root folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
       }
     },
     "/api/v1/settings/tmdb": {
@@ -1761,6 +1966,21 @@
           }
         }
       },
+      "BrowserFolder": {
+        "type": "object",
+        "required": [
+          "name",
+          "path"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
       "CreatedApiKey": {
         "type": "object",
         "required": [
@@ -1811,6 +2031,33 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "FolderListing": {
+        "type": "object",
+        "required": [
+          "path",
+          "folders"
+        ],
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrowserFolder"
+            },
+            "description": "The sub-folders, by name."
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The folder above, `None` at the top level."
+          },
+          "path": {
+            "type": "string",
+            "description": "The listed folder. Empty for the top level (the drives on Windows)."
           }
         }
       },
@@ -2035,6 +2282,18 @@
             "items": {
               "$ref": "#/components/schemas/Permission"
             }
+          }
+        }
+      },
+      "NewRootFolder": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "An absolute path on the server. It must exist, be a directory that\nUnseen can write to, and not lie inside or contain another root folder."
           }
         }
       },
@@ -2392,6 +2651,48 @@
               "$ref": "#/components/schemas/Permission"
             },
             "description": "Replaces the whole set."
+          }
+        }
+      },
+      "RootFolder": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "accessible",
+          "unmappedFolders",
+          "createdAt"
+        ],
+        "properties": {
+          "accessible": {
+            "type": "boolean",
+            "description": "False when the folder is missing or cannot be read right now."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "freeSpace": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Bytes available to Unseen on the filesystem of the folder. Absent when\nthe folder is not accessible.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "path": {
+            "type": "string"
+          },
+          "unmappedFolders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sub-folders on disk that no movie uses, sorted."
           }
         }
       },

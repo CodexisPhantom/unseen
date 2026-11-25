@@ -372,6 +372,26 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/settings/tmdb",
                 Permission::SettingsManage
             ),
+            profiles(
+                Method::GET,
+                "/api/v1/root-folders",
+                Permission::SettingsRead
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/root-folders",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/root-folders/{id}",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/filesystem",
+                Permission::SettingsManage
+            ),
         ]
     );
 

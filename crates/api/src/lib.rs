@@ -11,6 +11,7 @@ mod me;
 mod owner;
 mod profiles;
 mod roles;
+mod root_folders;
 pub mod setup;
 mod tmdb;
 mod users;
@@ -131,6 +132,19 @@ pub fn routes() -> ApiRouter {
         .require(Permission::LibraryAdd, routes!(lookup::lookup))
         .require(Permission::SettingsRead, routes!(tmdb::get_settings))
         .require(Permission::SettingsManage, routes!(tmdb::update_settings))
+        .require(
+            Permission::SettingsRead,
+            routes!(root_folders::list_root_folders),
+        )
+        .require(
+            Permission::SettingsManage,
+            routes!(root_folders::create_root_folder),
+        )
+        .require(
+            Permission::SettingsManage,
+            routes!(root_folders::delete_root_folder),
+        )
+        .require(Permission::SettingsManage, routes!(root_folders::browse))
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.

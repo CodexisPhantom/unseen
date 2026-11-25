@@ -18,6 +18,21 @@ folder and a download path are on different filesystems.
 When Unseen and qBittorrent see the same folder under different paths, a
 remote path mapping per download client translates them, as in Radarr.
 
+## Root folders
+
+`GET/POST /api/v1/root-folders`, `DELETE /api/v1/root-folders/{id}`. Reading
+needs `settings:read`; adding, deleting and the folder browser
+(`GET /api/v1/filesystem`) need `settings:manage`.
+
+A new root folder must be an absolute path that exists, is a directory,
+and is writable (Unseen creates and removes a probe file). It must not be
+the same as, lie inside, or contain another root folder; the comparison uses
+whole path components on the resolved paths. A failed check is a 422 on the
+field `path`; the same folder twice is a 409. The response carries the free
+space of the filesystem and the sub-folders on disk that no movie uses. A
+root folder that holds movies cannot be deleted (409). Deleting never touches
+the disk.
+
 ## Naming templates
 
 Defaults equal the Radarr defaults:
