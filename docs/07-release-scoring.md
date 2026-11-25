@@ -148,6 +148,32 @@ and one of these is true:
   `minUpgradeFormatScore` more;
 - the quality and score are the same and the release is a higher revision.
 
+## Implementation notes
+
+The rules live in `crates/core/src/scoring.rs`. Rules 3 and 6 (blocklist and
+format score) and the custom format step of the comparison are not there yet:
+they arrive with the blocklist and custom formats. Choices the doc left open:
+
+- `rank` lists every rule a release breaks, in the order above, and sorts
+  accepted releases before rejected ones. A rejected release is ordered like
+  an accepted one, so manual search stays stable.
+- Releases are compared by their position in the profile; the members of a
+  quality group are equal. Indexer priority is 1 to 50 and a lower number
+  wins. Seeders are rounded on a `log10(seeders + 1)` scale. The title and the
+  guid end every tie, so the order does not depend on the input order.
+- A release is equal to the existing file when its position in the profile
+  and its revision are the same. It is not an upgrade. When the existing file
+  is at or above the cutoff, only a higher revision of the same quality
+  replaces it; every other release is rejected with "cutoff met".
+- Title match ignores case and punctuation. A release without a year matches;
+  a release with another year does not.
+- A release with no language tag counts as the original language of the
+  movie. A `MULTI` release satisfies any language. A profile language code
+  without a matching release tag in the parser cannot be satisfied by a
+  tagged release.
+- A quality without size limits, a release without a size and a movie without
+  a runtime skip the size check.
+
 ## Test table
 
 These rows become unit tests. Expected values are a draft. Before
