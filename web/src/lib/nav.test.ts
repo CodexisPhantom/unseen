@@ -15,6 +15,10 @@ describe('entryFor', () => {
 		expect(entry?.anyOf).toEqual(['indexers:read']);
 	});
 
+	it('guards the import page with import:run', () => {
+		expect(entryFor('import')?.anyOf).toEqual(['import:run']);
+	});
+
 	it('needs no permission for the home page and unknown pages', () => {
 		expect(entryFor('')).toBeUndefined();
 		expect(entryFor('nope')).toBeUndefined();
