@@ -14,6 +14,7 @@ mod me;
 mod movies;
 mod owner;
 mod profiles;
+mod proxy;
 mod roles;
 mod root_folders;
 pub mod setup;
@@ -157,6 +158,11 @@ pub fn routes() -> ApiRouter {
         )
         .require(Permission::SettingsRead, routes!(tmdb::get_settings))
         .require(Permission::SettingsManage, routes!(tmdb::update_settings))
+        .require(Permission::SettingsRead, routes!(proxy::get_settings))
+        .require(
+            Permission::SettingsManage,
+            routes!(proxy::update_settings, proxy::test_proxy),
+        )
         .require(
             Permission::SettingsRead,
             routes!(root_folders::list_root_folders),

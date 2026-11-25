@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::redirect::Policy;
-use reqwest::{Client, Method, RequestBuilder, Url};
+use reqwest::{Client, ClientBuilder, Method, Proxy as ReqwestProxy, RequestBuilder, Url};
 
 const MAX_REDIRECTS: usize = 5;
 
@@ -108,6 +108,106 @@ fn redirect_policy() -> Policy {
     })
 }
 
+/// True for a host that is on the local network: a private, loopback or
+/// link-local address, `localhost`, a name without a dot (a container name)
+/// and the usual local suffixes.
+fn is_local(host: url::Host<&str>) -> bool {
+    match host {
+        url::Host::Ipv4(ip) => ip.is_loopback() || ip.is_private() || ip.is_link_local(),
+        url::Host::Ipv6(ip) => {
+            ip.is_loopback() || ip.is_unicast_link_local() || (ip.segments()[0] & 0xfe00) == 0xfc00
+        }
+        url::Host::Domain(name) => {
+            let name = name.trim_end_matches('.').to_ascii_lowercase();
+            !name.contains('.')
+                || [".local", ".lan", ".internal", ".home.arpa"]
+                    .iter()
+                    .any(|suffix| name.ends_with(suffix))
+        }
+    }
+}
+
+/// Why a proxy URL was refused.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ProxyError {
+    Invalid,
+    Scheme,
+    Address,
+}
+
+impl fmt::Display for ProxyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Invalid => "not a valid proxy URL",
+            Self::Scheme => "the scheme must be http, https, socks5 or socks5h",
+            Self::Address => "this address is not allowed",
+        })
+    }
+}
+
+impl Error for ProxyError {}
+
+/// A proxy for the traffic of indexers (docs/08-integrations.md).
+#[derive(Clone)]
+pub struct Proxy {
+    url: Url,
+    bypass_local: bool,
+}
+
+impl Proxy {
+    /// `http://host:port`, `https://...`, `socks5://...` or `socks5h://...`,
+    /// with optional `user:password@`. SOCKS5 always lets the proxy resolve
+    /// names, so the local resolver does not see the indexer's name.
+    pub fn parse(text: &str, bypass_local: bool) -> Result<Self, ProxyError> {
+        let mut url = Url::parse(text.trim()).map_err(|_| ProxyError::Invalid)?;
+        match url.scheme() {
+            "http" | "https" | "socks5h" => {}
+            "socks5" => url
+                .set_scheme("socks5h")
+                .map_err(|()| ProxyError::Invalid)?,
+            _ => return Err(ProxyError::Scheme),
+        }
+        match url.host() {
+            None => return Err(ProxyError::Invalid),
+            Some(url::Host::Ipv4(ip)) if is_blocked(ip.into()) => return Err(ProxyError::Address),
+            Some(url::Host::Ipv6(ip)) if is_blocked(ip.into()) => return Err(ProxyError::Address),
+            Some(_) => {}
+        }
+        Ok(Self { url, bypass_local })
+    }
+
+    /// The address without credentials, for display: `socks5h://host:1080`.
+    pub fn display(&self) -> String {
+        let mut url = self.url.clone();
+        let _ = url.set_username("");
+        let _ = url.set_password(None);
+        url.as_str().trim_end_matches('/').to_owned()
+    }
+
+    pub fn has_credentials(&self) -> bool {
+        !self.url.username().is_empty() || self.url.password().is_some()
+    }
+
+    fn to_reqwest(&self) -> ReqwestProxy {
+        let proxy = self.url.clone();
+        let bypass_local = self.bypass_local;
+        ReqwestProxy::custom(move |target| {
+            if bypass_local && target.host().is_some_and(is_local) {
+                None
+            } else {
+                Some(proxy.clone())
+            }
+        })
+    }
+}
+
+/// Never shows the credentials.
+impl fmt::Debug for Proxy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Proxy({})", self.display())
+    }
+}
+
 /// A `reqwest` client that applies the outbound URL check to every request.
 #[derive(Clone)]
 pub struct OutboundClient(Client);
@@ -115,13 +215,33 @@ pub struct OutboundClient(Client);
 impl OutboundClient {
     /// 10 s to connect, 30 s in total (docs/08-integrations.md).
     pub fn new() -> Result<Self, reqwest::Error> {
+        Self::builder().build().map(Self)
+    }
+
+    /// The same client, with every request that is not local (when the proxy
+    /// bypasses local addresses) sent through `proxy`. The check on the URL of
+    /// the request still runs; a name is resolved by the proxy, so the
+    /// address check on resolved names does not apply to the target.
+    pub fn with_proxy(proxy: &Proxy) -> Result<Self, reqwest::Error> {
+        // No system proxy on top: the only proxy is the one in settings.
+        Self::builder()
+            .no_proxy()
+            .proxy(proxy.to_reqwest())
+            .build()
+            .map(Self)
+    }
+
+    fn builder() -> ClientBuilder {
         Client::builder()
             .dns_resolver(Arc::new(GuardedResolver))
             .redirect(redirect_policy())
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(30))
-            .build()
-            .map(Self)
+    }
+
+    /// [`Self::request`] with `GET`.
+    pub fn get(&self, url: &str) -> Result<RequestBuilder, UrlError> {
+        self.request(Method::GET, url)
     }
 
     /// Starts a request, or refuses the URL before anything is sent.
@@ -180,6 +300,132 @@ mod tests {
     fn allows_http_and_https_only() {
         assert_eq!(check_url(&url("ftp://example.com/")), Err(UrlError::Scheme));
         assert_eq!(check_url(&url("file:///etc/passwd")), Err(UrlError::Scheme));
+    }
+
+    #[test]
+    fn local_hosts_are_recognised() {
+        for local in [
+            "http://localhost/",
+            "http://prowlarr:9696/",
+            "http://192.168.1.10/",
+            "http://10.0.0.5/",
+            "http://172.16.0.1/",
+            "http://127.0.0.1/",
+            "http://[::1]/",
+            "http://[fd00::1]/",
+            "http://nas.local/",
+            "http://box.lan/",
+        ] {
+            assert!(is_local(url(local).host().unwrap()), "{local}");
+        }
+        for public in [
+            "http://indexer.example/",
+            "http://8.8.8.8/",
+            "http://[2001:db8::1]/",
+        ] {
+            assert!(!is_local(url(public).host().unwrap()), "{public}");
+        }
+    }
+
+    #[test]
+    fn a_proxy_url_is_checked_and_shown_without_credentials() {
+        let socks = Proxy::parse("socks5://user:secret@proxy.example:1080", true).unwrap();
+        assert_eq!(socks.display(), "socks5h://proxy.example:1080");
+        assert!(socks.has_credentials());
+        assert!(!format!("{socks:?}").contains("secret"));
+        assert!(
+            !Proxy::parse("http://proxy:3128", true)
+                .unwrap()
+                .has_credentials()
+        );
+
+        assert_eq!(
+            Proxy::parse("ftp://proxy", true).unwrap_err(),
+            ProxyError::Scheme
+        );
+        assert_eq!(
+            Proxy::parse("proxy", true).unwrap_err(),
+            ProxyError::Invalid
+        );
+        assert_eq!(
+            Proxy::parse("http://169.254.169.254:3128", true).unwrap_err(),
+            ProxyError::Address
+        );
+    }
+
+    /// A proxy that records the first line of each request and answers 200.
+    async fn recording_proxy() -> (SocketAddr, Arc<std::sync::Mutex<Vec<String>>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log = seen.clone();
+        tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let log = log.clone();
+                tokio::spawn(async move {
+                    let mut buffer = [0; 2048];
+                    let read = socket.read(&mut buffer).await.unwrap_or(0);
+                    let text = String::from_utf8_lossy(&buffer[..read]);
+                    log.lock()
+                        .unwrap()
+                        .push(text.lines().next().unwrap_or_default().to_owned());
+                    let _ = socket
+                        .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\nproxied")
+                        .await;
+                });
+            }
+        });
+        (addr, seen)
+    }
+
+    #[tokio::test]
+    async fn a_proxied_request_goes_to_the_proxy() {
+        let (proxy, seen) = recording_proxy().await;
+        let proxy = Proxy::parse(&format!("http://{proxy}"), true).unwrap();
+        let client = OutboundClient::with_proxy(&proxy).unwrap();
+        // The name does not resolve: only the proxy can answer.
+        let body = client
+            .request(Method::GET, "http://indexer.example/api?t=caps")
+            .unwrap()
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert_eq!(body, "proxied");
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            ["GET http://indexer.example/api?t=caps HTTP/1.1"]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_local_address_bypasses_the_proxy_only_when_asked() {
+        let (proxy_addr, seen) = recording_proxy().await;
+        let (target, _) = recording_proxy().await;
+        let local = format!("http://127.0.0.1:{}/", target.port());
+
+        let bypass = Proxy::parse(&format!("http://{proxy_addr}"), true).unwrap();
+        let client = OutboundClient::with_proxy(&bypass).unwrap();
+        client
+            .request(Method::GET, &local)
+            .unwrap()
+            .send()
+            .await
+            .unwrap();
+        assert!(seen.lock().unwrap().is_empty(), "went through the proxy");
+
+        let through = Proxy::parse(&format!("http://{proxy_addr}"), false).unwrap();
+        let client = OutboundClient::with_proxy(&through).unwrap();
+        client
+            .request(Method::GET, &local)
+            .unwrap()
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(seen.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]

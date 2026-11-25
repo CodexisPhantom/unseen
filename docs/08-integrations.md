@@ -44,6 +44,18 @@ in settings. It applies to indexer traffic only. Each indexer has a "use
 proxy" switch, default on. Local addresses bypass the proxy by default.
 TMDB, download clients and import sources are never proxied.
 
+Details: the URL is `http://`, `https://`, `socks5://` or `socks5h://`, with
+optional `user:password@`, stored encrypted in `proxy.url` and never returned
+(the API shows the address without credentials). SOCKS5 always lets the proxy
+resolve names. "Local" for the bypass means a private, loopback or
+link-local address, `localhost`, a name without a dot (a container name) and
+the suffixes `.local`, `.lan`, `.internal` and `.home.arpa`. The system proxy
+variables (`HTTP_PROXY` and others) are ignored for indexer traffic. When a
+proxy is set but cannot be used (unreadable or invalid), an indexer with the
+switch on fails; it never falls back to a direct connection. Through a proxy
+the target name is resolved by the proxy, so the check on resolved addresses
+does not apply to it; the check on the URL itself still does.
+
 ## TRaSH guides (M5)
 
 | | |

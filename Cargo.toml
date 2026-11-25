@@ -25,7 +25,7 @@ hkdf = "0.12"
 rand = "0.8"
 regex = "1"
 roxmltree = "0.21"
-reqwest = "0.12"
+reqwest = { version = "0.12", features = ["socks"] }
 rust-embed = { version = "8", features = ["mime-guess"] }
 sea-orm = { version = "2.0", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
 sea-orm-migration = { version = "2.0", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls"] }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import DownloadClientsSection from '#lib/components/download-clients-section.svelte';
+	import ProxySection from '#lib/components/proxy-section.svelte';
 	import RootFoldersSection from '#lib/components/root-folders-section.svelte';
 	import { session } from '#lib/session.svelte.js';
 </script>
@@ -13,6 +14,9 @@
 <div class="mt-6 grid gap-10">
 	{#if session.can('settings:read')}
 		<RootFoldersSection />
+	{/if}
+	{#if session.can('settings:read')}
+		<ProxySection />
 	{/if}
 	{#if session.can('clients:read')}
 		<DownloadClientsSection />

@@ -152,6 +152,29 @@ pub async fn set_string(db: &DatabaseConnection, name: &str, value: &str) -> Res
     upsert(db, name, serde_json::Value::String(value.to_owned())).await
 }
 
+/// Reads a yes/no setting. `None` when the key has no row.
+pub async fn get_bool(db: &DatabaseConnection, name: &str) -> Result<Option<bool>, DbErr> {
+    refuse_secret(name)?;
+    Ok(fetch(db, name).await?.and_then(|value| value.as_bool()))
+}
+
+/// Stores a yes/no setting, replacing the previous value.
+pub async fn set_bool(db: &DatabaseConnection, name: &str, value: bool) -> Result<(), DbErr> {
+    refuse_secret(name)?;
+    upsert(db, name, serde_json::Value::Bool(value)).await
+}
+
+/// Deletes the row, so the setting falls back to its default. Any key.
+pub async fn remove(db: &DatabaseConnection, name: &str) -> Result<(), DbErr> {
+    db.execute_raw(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        "DELETE FROM settings WHERE key = ?",
+        [name.into()],
+    ))
+    .await?;
+    Ok(())
+}
+
 fn refuse_secret(name: &str) -> Result<(), DbErr> {
     if SECRET_KEYS.contains(&name) {
         Err(DbErr::Custom(format!("{name} is a secret setting")))
@@ -245,6 +268,21 @@ mod tests {
             get_string(&db, "tmdb.language").await.unwrap().as_deref(),
             Some("de-DE")
         );
+    }
+
+    #[tokio::test]
+    async fn bool_round_trip_and_remove() {
+        let (db, _dir) = temp_db().await;
+        assert_eq!(get_bool(&db, "proxy.bypass_local").await.unwrap(), None);
+        set_bool(&db, "proxy.bypass_local", false).await.unwrap();
+        assert_eq!(
+            get_bool(&db, "proxy.bypass_local").await.unwrap(),
+            Some(false)
+        );
+        remove(&db, "proxy.bypass_local").await.unwrap();
+        assert_eq!(get_bool(&db, "proxy.bypass_local").await.unwrap(), None);
+        // Removing a row that is not there is not an error.
+        remove(&db, "proxy.bypass_local").await.unwrap();
     }
 
     #[tokio::test]
