@@ -8,5 +8,6 @@ pub mod qbittorrent;
 pub mod quality;
 pub mod release;
 pub mod root_folder;
+pub mod scoring;
 pub mod tmdb;
 pub mod torznab;
