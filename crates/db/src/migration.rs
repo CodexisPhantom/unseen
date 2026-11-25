@@ -18,6 +18,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0008DownloadClientApiKey),
             Box::new(M0009QualityDefinitions),
             Box::new(M0010Subtitles),
+            Box::new(M0011Collections),
         ]
     }
 }
@@ -534,6 +535,49 @@ impl MigrationTrait for M0010Subtitles {
         manager
             .get_connection()
             .execute_unprepared(M0010_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0011Collections;
+
+impl MigrationName for M0011Collections {
+    fn name(&self) -> &str {
+        "m0011_collections"
+    }
+}
+
+/// Collections and the link from a movie to its collection (docs/04-database.md,
+/// "Library tables"). A collection outlives its movies: deleting a movie
+/// leaves the row, and deleting a root folder or quality profile clears the
+/// defaults of the collection.
+const M0011_UP: &str = r#"
+CREATE TABLE collections (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    tmdb_id integer NOT NULL UNIQUE,
+    title text NOT NULL,
+    sort_title text NOT NULL,
+    overview text,
+    poster_path text,
+    monitored boolean NOT NULL DEFAULT FALSE,
+    root_folder_id integer REFERENCES root_folders (id) ON DELETE SET NULL,
+    quality_profile_id integer REFERENCES quality_profiles (id) ON DELETE SET NULL,
+    minimum_availability text NOT NULL,
+    added_at text NOT NULL,
+    updated_at text NOT NULL
+);
+
+ALTER TABLE movies ADD COLUMN collection_id integer REFERENCES collections (id) ON DELETE SET NULL;
+CREATE INDEX movies_collection_id_idx ON movies (collection_id);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0011Collections {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0011_UP)
             .await?;
         Ok(())
     }

@@ -489,9 +489,9 @@ pub async fn adopt(
     let actor = Actor::of(&state, &caller).await;
     let mut adopted = Vec::new();
     for ((item, files), details) in ready.into_iter().zip(details) {
-        let metadata = match details {
+        let (metadata, collection) = match details {
             Ok(details) => match Metadata::from_details(&details) {
-                Some(metadata) => metadata,
+                Some(metadata) => (metadata, details.collection),
                 None => {
                     failed_items.push(failure(
                         &item.folder_name,
@@ -519,6 +519,14 @@ pub async fn adopt(
                 continue;
             }
         };
+        let collection_id = match &collection {
+            Some(reference) => Some(
+                db::collections::ensure(&state.db, tmdb.as_ref(), reference)
+                    .await
+                    .map_err(failed)?,
+            ),
+            None => None,
+        };
         let stored: Vec<NewFile> = files
             .iter()
             .map(|file| NewFile {
@@ -535,6 +543,7 @@ pub async fn adopt(
                 folder_name: item.folder_name.clone(),
                 monitored: body.monitored,
                 minimum_availability: body.minimum_availability.clone(),
+                collection_id,
             },
             &body.quality_profile_ids,
             &body.tags,

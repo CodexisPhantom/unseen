@@ -244,6 +244,207 @@
         "x-permission": "system:audit"
       }
     },
+    "/api/v1/collections": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Every collection of the library, by sort title.",
+        "operationId": "list_collections",
+        "responses": {
+          "200": {
+            "description": "The collections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Collection"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      }
+    },
+    "/api/v1/collections/{id}": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "A collection with its movies in the library and the ones that are\nmissing. The missing ones come from TMDB.",
+        "operationId": "get_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The TMDB key is not set (`tmdb_not_configured`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "TMDB failed or refused the key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      },
+      "patch": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Changes the monitored state and the defaults of a collection. Setting\n`monitored` to `true` adds the movies of the collection that are missing,\nreleased or announced, with the root folder, quality profile and minimum\navailability of the collection. Send it again to retry after a failure.",
+        "operationId": "update_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The changed collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The TMDB key is not set (`tmdb_not_configured`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "TMDB failed or refused the key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:edit"
+      }
+    },
     "/api/v1/download-clients": {
       "get": {
         "tags": [
@@ -4087,6 +4288,148 @@
           }
         }
       },
+      "Collection": {
+        "type": "object",
+        "required": [
+          "id",
+          "tmdbId",
+          "title",
+          "sortTitle",
+          "monitored",
+          "minimumAvailability",
+          "movieCount",
+          "addedAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "addedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minimumAvailability": {
+            "type": "string",
+            "description": "`announced`, `inCinemas` or `released`."
+          },
+          "monitored": {
+            "type": "boolean",
+            "description": "A monitored collection has its missing movies added."
+          },
+          "movieCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many movies of this collection are in the library."
+          },
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "posterPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path on TMDB's image host; the browser loads the image."
+          },
+          "qualityProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The primary profile of the movies added from this collection."
+          },
+          "rootFolderId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Where the movies added from this collection go."
+          },
+          "sortTitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "CollectionDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Collection"
+          },
+          {
+            "type": "object",
+            "required": [
+              "movies",
+              "missing"
+            ],
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MissingMovie"
+                },
+                "description": "The movies of the collection on TMDB that are not in the library."
+              },
+              "movies": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Movie"
+                },
+                "description": "The movies of the collection that are in the library."
+              }
+            }
+          }
+        ]
+      },
+      "CollectionPatch": {
+        "type": "object",
+        "description": "A field that is absent keeps the stored value.",
+        "properties": {
+          "minimumAvailability": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`announced`, `inCinemas` or `released`."
+          },
+          "monitored": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`true` needs a root folder and a quality profile, set here or before,\nand adds the missing released and announced movies."
+          },
+          "qualityProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "rootFolderId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "CreatedApiKey": {
         "type": "object",
         "required": [
@@ -4603,6 +4946,49 @@
           }
         }
       },
+      "MissingMovie": {
+        "type": "object",
+        "description": "A movie of the collection that is not in the library.",
+        "required": [
+          "tmdbId",
+          "title"
+        ],
+        "properties": {
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "posterPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "releaseDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Absent when TMDB has no release date yet."
+          }
+        }
+      },
       "Movie": {
         "type": "object",
         "required": [
@@ -4624,6 +5010,14 @@
         "properties": {
           "addedAt": {
             "type": "string"
+          },
+          "collectionId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The collection the movie belongs to."
           },
           "digitalRelease": {
             "type": [

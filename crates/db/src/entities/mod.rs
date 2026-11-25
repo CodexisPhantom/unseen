@@ -2,6 +2,7 @@
 //! the generated `auth_schema`.
 
 pub mod audit_log;
+pub mod collections;
 pub mod download_client_tags;
 pub mod download_clients;
 pub mod indexer_tags;
