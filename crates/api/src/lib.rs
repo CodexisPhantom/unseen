@@ -4,6 +4,7 @@ pub mod access;
 mod api_keys;
 pub mod audit;
 pub mod auth;
+mod collections;
 mod download_clients;
 pub mod error;
 mod health;
@@ -152,6 +153,18 @@ pub fn routes() -> ApiRouter {
         .require(Permission::LibraryDelete, routes!(movies::remove_profile))
         .require(Permission::LibraryRead, routes!(movies::list_files))
         .require(Permission::LibraryDelete, routes!(movies::delete_file))
+        .require(
+            Permission::LibraryRead,
+            routes!(collections::list_collections),
+        )
+        .require(
+            Permission::LibraryRead,
+            routes!(collections::get_collection),
+        )
+        .require(
+            Permission::LibraryEdit,
+            routes!(collections::update_collection),
+        )
         .require(Permission::LibraryRead, routes!(tags::list_tags))
         .require(
             Permission::LibraryEdit,

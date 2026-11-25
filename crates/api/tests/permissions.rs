@@ -397,6 +397,17 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/movies/{id}/files/{fid}",
                 Permission::LibraryDelete
             ),
+            profiles(Method::GET, "/api/v1/collections", Permission::LibraryRead),
+            profiles(
+                Method::GET,
+                "/api/v1/collections/{id}",
+                Permission::LibraryRead
+            ),
+            profiles(
+                Method::PATCH,
+                "/api/v1/collections/{id}",
+                Permission::LibraryEdit
+            ),
             profiles(Method::GET, "/api/v1/tags", Permission::LibraryRead),
             profiles(Method::POST, "/api/v1/tags", Permission::LibraryEdit),
             profiles(Method::DELETE, "/api/v1/tags/{id}", Permission::LibraryEdit),

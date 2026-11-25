@@ -75,6 +75,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every collection of the library, by sort title. */
+        get: operations["list_collections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A collection with its movies in the library and the ones that are
+         *     missing. The missing ones come from TMDB.
+         */
+        get: operations["get_collection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Changes the monitored state and the defaults of a collection. Setting
+         *     `monitored` to `true` adds the movies of the collection that are missing,
+         *     released or announced, with the root folder, quality profile and minimum
+         *     availability of the collection. Send it again to retry after a failure.
+         */
+        patch: operations["update_collection"];
+        trace?: never;
+    };
     "/api/v1/download-clients": {
         parameters: {
             query?: never;
@@ -926,6 +969,58 @@ export interface components {
             name: string;
             path: string;
         };
+        Collection: {
+            addedAt: string;
+            /** Format: int32 */
+            id: number;
+            /** @description `announced`, `inCinemas` or `released`. */
+            minimumAvailability: string;
+            /** @description A monitored collection has its missing movies added. */
+            monitored: boolean;
+            /**
+             * Format: int64
+             * @description How many movies of this collection are in the library.
+             */
+            movieCount: number;
+            overview?: string | null;
+            /** @description Path on TMDB's image host; the browser loads the image. */
+            posterPath?: string | null;
+            /**
+             * Format: int32
+             * @description The primary profile of the movies added from this collection.
+             */
+            qualityProfileId?: number | null;
+            /**
+             * Format: int32
+             * @description Where the movies added from this collection go.
+             */
+            rootFolderId?: number | null;
+            sortTitle: string;
+            title: string;
+            /** Format: int32 */
+            tmdbId: number;
+            updatedAt: string;
+        };
+        CollectionDetail: components["schemas"]["Collection"] & {
+            /** @description The movies of the collection on TMDB that are not in the library. */
+            missing: components["schemas"]["MissingMovie"][];
+            /** @description The movies of the collection that are in the library. */
+            movies: components["schemas"]["Movie"][];
+        };
+        /** @description A field that is absent keeps the stored value. */
+        CollectionPatch: {
+            /** @description `announced`, `inCinemas` or `released`. */
+            minimumAvailability?: string | null;
+            /**
+             * @description `true` needs a root folder and a quality profile, set here or before,
+             *     and adds the missing released and announced movies.
+             */
+            monitored?: boolean | null;
+            /** Format: int32 */
+            qualityProfileId?: number | null;
+            /** Format: int32 */
+            rootFolderId?: number | null;
+        };
         CreatedApiKey: {
             apiKey: components["schemas"]["ApiKey"];
             /** @description The key. This is the only response that carries it. */
@@ -1069,8 +1164,27 @@ export interface components {
             id: string;
             name: string;
         };
+        /** @description A movie of the collection that is not in the library. */
+        MissingMovie: {
+            overview?: string | null;
+            posterPath?: string | null;
+            releaseDate?: string | null;
+            title: string;
+            /** Format: int32 */
+            tmdbId: number;
+            /**
+             * Format: int32
+             * @description Absent when TMDB has no release date yet.
+             */
+            year?: number | null;
+        };
         Movie: {
             addedAt: string;
+            /**
+             * Format: int32
+             * @description The collection the movie belongs to.
+             */
+            collectionId?: number | null;
             digitalRelease?: string | null;
             /** @description The movie's folder inside the root folder. */
             folderName: string;
@@ -1705,6 +1819,166 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_collections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The collections */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Collection"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The collection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such collection */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The TMDB key is not set (`tmdb_not_configured`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TMDB failed or refused the key */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed collection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Collection"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such collection */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The TMDB key is not set (`tmdb_not_configured`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TMDB failed or refused the key */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

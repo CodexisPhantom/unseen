@@ -20,7 +20,7 @@ use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::tmdb::{client, provider_error};
 
-const AVAILABILITIES: [&str; 3] = ["announced", "inCinemas", "released"];
+pub(crate) const AVAILABILITIES: [&str; 3] = ["announced", "inCinemas", "released"];
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +54,8 @@ pub struct Movie {
     physical_release: Option<String>,
     /// Path on TMDB's image host; the browser loads the image.
     poster_path: Option<String>,
+    /// The collection the movie belongs to.
+    collection_id: Option<i32>,
     root_folder_id: i32,
     /// The movie's folder inside the root folder.
     folder_name: String,
@@ -85,6 +87,7 @@ impl From<Stored> for Movie {
             digital_release: m.digital_release,
             physical_release: m.physical_release,
             poster_path: m.poster_path,
+            collection_id: m.collection_id,
             root_folder_id: m.root_folder_id,
             folder_name: m.folder_name,
             monitored: m.monitored,
@@ -227,7 +230,7 @@ async fn load(state: &AppState, id: i32) -> Result<Stored, Problem> {
         .ok_or_else(Problem::not_found)
 }
 
-fn check_availability(value: &str) -> Result<(), Problem> {
+pub(crate) fn check_availability(value: &str) -> Result<(), Problem> {
     if AVAILABILITIES.contains(&value) {
         Ok(())
     } else {
@@ -368,7 +371,8 @@ pub async fn create_movie(
         return Err(movie_error(MovieError::TmdbTaken));
     }
 
-    let details = match client(&state).await?.details(body.tmdb_id).await {
+    let provider = client(&state).await?;
+    let details = match provider.details(body.tmdb_id).await {
         Ok(details) => details,
         Err(MetadataError::NotFound) => {
             return Err(Problem::validation("tmdbId", "is not a movie on TMDB"));
@@ -379,6 +383,14 @@ pub async fn create_movie(
         Problem::validation("tmdbId", "has no release date on TMDB yet, so no year")
     })?;
     let folder_name = naming::movie_folder_name(&metadata.title, metadata.year);
+    let collection_id = match &details.collection {
+        Some(reference) => Some(
+            db::collections::ensure(&state.db, provider.as_ref(), reference)
+                .await
+                .map_err(failed)?,
+        ),
+        None => None,
+    };
     let created = db::movies::create(
         &state.db,
         StoredNew {
@@ -387,6 +399,7 @@ pub async fn create_movie(
             folder_name,
             monitored: body.monitored,
             minimum_availability: body.minimum_availability,
+            collection_id,
         },
         &body.quality_profile_ids,
         &body.tags,

@@ -102,6 +102,8 @@ pub struct NewMovie {
     pub folder_name: String,
     pub monitored: bool,
     pub minimum_availability: String,
+    /// The collection the movie belongs to, from `collections::ensure`.
+    pub collection_id: Option<i32>,
 }
 
 /// The editable parts of a movie. `None` keeps the stored value.
@@ -211,24 +213,35 @@ async fn insert_profile(
     })
 }
 
-/// Loads movies with their relations; `id` limits it to one movie.
-async fn load(db: &DatabaseConnection, id: Option<i32>) -> Result<Vec<Movie>, DbErr> {
+/// Which movies [`load`] reads.
+#[derive(Clone, Copy)]
+enum Scope {
+    Library,
+    Movie(i32),
+    Collection(i32),
+}
+
+/// Loads movies with their relations.
+async fn load(db: &DatabaseConnection, scope: Scope) -> Result<Vec<Movie>, DbErr> {
     let mut query = movies::Entity::find().order_by_asc(movies::Column::SortTitle);
-    if let Some(id) = id {
-        query = query.filter(movies::Column::Id.eq(id));
+    match scope {
+        Scope::Library => {}
+        Scope::Movie(id) => query = query.filter(movies::Column::Id.eq(id)),
+        Scope::Collection(id) => query = query.filter(movies::Column::CollectionId.eq(id)),
     }
     let models = query.all(db).await?;
 
-    // One movie is filtered in SQL; the whole library is read unfiltered
-    // instead of with an id list of thousands of entries.
+    // A few movies are filtered in SQL by their ids; the whole library is
+    // read unfiltered instead of with an id list of thousands of entries.
     let mut tags: HashMap<i32, Vec<i32>> = HashMap::new();
     let mut tag_query = movie_tags::Entity::find();
     let mut file_query = movie_files::Entity::find();
     let mut profile_query = movie_profiles::Entity::find();
-    if let Some(id) = id {
-        tag_query = tag_query.filter(movie_tags::Column::MovieId.eq(id));
-        file_query = file_query.filter(movie_files::Column::MovieId.eq(id));
-        profile_query = profile_query.filter(movie_profiles::Column::MovieId.eq(id));
+    if !matches!(scope, Scope::Library) {
+        let ids: Vec<i32> = models.iter().map(|model| model.id).collect();
+        tag_query = tag_query.filter(movie_tags::Column::MovieId.is_in(ids.clone()));
+        file_query = file_query.filter(movie_files::Column::MovieId.is_in(ids.clone()));
+        profile_query = profile_query.filter(movie_profiles::Column::MovieId.is_in(ids));
     }
     for link in tag_query
         .order_by_asc(movie_tags::Column::TagId)
@@ -275,11 +288,19 @@ async fn load(db: &DatabaseConnection, id: Option<i32>) -> Result<Vec<Movie>, Db
 
 /// Every movie, by sort title.
 pub async fn list(db: &DatabaseConnection) -> Result<Vec<Movie>, DbErr> {
-    load(db, None).await
+    load(db, Scope::Library).await
 }
 
 pub async fn find(db: &DatabaseConnection, id: i32) -> Result<Option<Movie>, DbErr> {
-    Ok(load(db, Some(id)).await?.pop())
+    Ok(load(db, Scope::Movie(id)).await?.pop())
+}
+
+/// The movies of one collection that are in the library, by sort title.
+pub async fn in_collection(
+    db: &DatabaseConnection,
+    collection_id: i32,
+) -> Result<Vec<Movie>, DbErr> {
+    load(db, Scope::Collection(collection_id)).await
 }
 
 /// A file of an adopted movie, as found on disk.
@@ -350,6 +371,7 @@ pub async fn create_with_files(
         digital_release: Set(meta.digital_release),
         physical_release: Set(meta.physical_release),
         poster_path: Set(meta.poster_path),
+        collection_id: Set(new.collection_id),
         root_folder_id: Set(new.root_folder_id),
         folder_name: Set(new.folder_name),
         monitored: Set(new.monitored),
@@ -546,6 +568,11 @@ pub async fn refresh(
         .await
         .map_err(RefreshError::Provider)?;
     let meta = Metadata::from_details(&details).ok_or(RefreshError::NoYear)?;
+    // A movie that left its collection at the provider leaves it here.
+    let collection_id = match &details.collection {
+        Some(reference) => Some(crate::collections::sync(db, provider, reference).await?),
+        None => None,
+    };
     let mut movie: movies::ActiveModel = current.into();
     movie.imdb_id = Set(meta.imdb_id);
     movie.title = Set(meta.title);
@@ -559,6 +586,7 @@ pub async fn refresh(
     movie.digital_release = Set(meta.digital_release);
     movie.physical_release = Set(meta.physical_release);
     movie.poster_path = Set(meta.poster_path);
+    movie.collection_id = Set(collection_id);
     movie.updated_at = Set(crate::now());
     Ok(movie.update(db).await?)
 }
@@ -816,6 +844,7 @@ mod lifecycle_tests {
             folder_name: naming::movie_folder_name(title, 1999),
             monitored: true,
             minimum_availability: "released".into(),
+            collection_id: None,
         }
     }
 

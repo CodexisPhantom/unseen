@@ -104,6 +104,23 @@ ApiRouter::new().require(Permission::LibraryRead, routes!(list_movies))
 - A route coverage test calls `api::routes().verify()` and fails when a route
   has no access rule or disagrees with OpenAPI `x-permission`.
 
+## Collections
+
+A collection is created once, when the first movie of a TMDB collection is
+added, adopted or refreshed. The row stays when its last movie is deleted.
+`GET /collections` lists the rows with the count of movies in the library.
+`GET /collections/{id}` adds the movies in the library and the ones missing,
+which come from TMDB.
+
+`PATCH /collections/{id}` sets `monitored`, `rootFolderId`,
+`qualityProfileId` and `minimumAvailability`. Setting `monitored` to `true`
+needs a root folder and a quality profile, and adds every movie of the
+collection that is not in the library and that TMDB marks released or
+announced. The new movies are monitored and carry the collection's defaults.
+TMDB is asked before anything is stored, so a TMDB failure leaves the
+collection as it was; send the request again to retry. The scheduled check
+for new movies of a monitored collection is M5.
+
 ## SSE
 
 `GET /api/v1/events`, `text/event-stream`. Events are filtered by the
