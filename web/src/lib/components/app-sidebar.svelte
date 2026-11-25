@@ -10,6 +10,7 @@
 	import { afterNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import Logo from '#lib/components/logo.svelte';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import UserMenu from '#lib/components/user-menu.svelte';
 	import { navEntries } from '#lib/nav.js';
@@ -49,11 +50,7 @@
 				<Sidebar.MenuButton size="lg">
 					{#snippet child({ props })}
 						<a href={resolve('')} {...props}>
-							<span
-								class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
-							>
-								U
-							</span>
+							<Logo class="size-8" />
 							<span class="font-semibold">Unseen</span>
 						</a>
 					{/snippet}
