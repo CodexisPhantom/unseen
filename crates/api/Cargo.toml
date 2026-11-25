@@ -33,6 +33,7 @@ utoipa-axum.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+wiremock.workspace = true
 
 [lints]
 workspace = true

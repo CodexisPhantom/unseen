@@ -10,14 +10,16 @@ publish.workspace = true
 name = "unseen_core"
 
 [dependencies]
+async-trait.workspace = true
 regex.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 url.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+wiremock.workspace = true
 
 [lints]
 workspace = true

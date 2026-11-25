@@ -32,13 +32,14 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 url = "2"
 utoipa = "6"
 utoipa-axum = "0.3"
+wiremock = "0.6"
 
 # The auth library is generic over our schema, so its code is compiled into
 # `api`. With debug information the rlib passes 4 GB, which the MSVC linker
