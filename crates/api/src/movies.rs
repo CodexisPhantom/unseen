@@ -11,7 +11,6 @@ use db::movies::{Metadata, Movie as Stored, MovieError, NewMovie as StoredNew, P
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::metadata::MetadataError;
-use unseen_core::naming;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
@@ -20,7 +19,7 @@ use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::tmdb::{client, provider_error};
 
-const AVAILABILITIES: [&str; 3] = ["announced", "inCinemas", "released"];
+pub(crate) const AVAILABILITIES: [&str; 3] = ["announced", "inCinemas", "released"];
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +53,8 @@ pub struct Movie {
     physical_release: Option<String>,
     /// Path on TMDB's image host; the browser loads the image.
     poster_path: Option<String>,
+    /// The collection the movie belongs to.
+    collection_id: Option<i32>,
     root_folder_id: i32,
     /// The movie's folder inside the root folder.
     folder_name: String,
@@ -85,6 +86,7 @@ impl From<Stored> for Movie {
             digital_release: m.digital_release,
             physical_release: m.physical_release,
             poster_path: m.poster_path,
+            collection_id: m.collection_id,
             root_folder_id: m.root_folder_id,
             folder_name: m.folder_name,
             monitored: m.monitored,
@@ -227,7 +229,7 @@ async fn load(state: &AppState, id: i32) -> Result<Stored, Problem> {
         .ok_or_else(Problem::not_found)
 }
 
-fn check_availability(value: &str) -> Result<(), Problem> {
+pub(crate) fn check_availability(value: &str) -> Result<(), Problem> {
     if AVAILABILITIES.contains(&value) {
         Ok(())
     } else {
@@ -267,7 +269,7 @@ pub(crate) async fn check_profile(state: &AppState, id: i32, field: &str) -> Res
 
 /// The folder of a movie on disk, or `None` when the stored name would lead
 /// out of the root folder.
-fn movie_dir(root: &str, folder_name: &str) -> Option<PathBuf> {
+pub(crate) fn movie_dir(root: &str, folder_name: &str) -> Option<PathBuf> {
     let mut parts = FsPath::new(folder_name).components();
     match (parts.next(), parts.next()) {
         (Some(Component::Normal(_)), None) => Some(FsPath::new(root).join(folder_name)),
@@ -277,7 +279,7 @@ fn movie_dir(root: &str, folder_name: &str) -> Option<PathBuf> {
 
 /// A file below the movie's folder, or `None` for a path that is absolute or
 /// climbs out.
-fn movie_file_path(dir: &FsPath, relative: &str) -> Option<PathBuf> {
+pub(crate) fn movie_file_path(dir: &FsPath, relative: &str) -> Option<PathBuf> {
     let parts = FsPath::new(relative).components();
     let inside = parts.clone().next().is_some()
         && parts
@@ -368,7 +370,8 @@ pub async fn create_movie(
         return Err(movie_error(MovieError::TmdbTaken));
     }
 
-    let details = match client(&state).await?.details(body.tmdb_id).await {
+    let provider = client(&state).await?;
+    let details = match provider.details(body.tmdb_id).await {
         Ok(details) => details,
         Err(MetadataError::NotFound) => {
             return Err(Problem::validation("tmdbId", "is not a movie on TMDB"));
@@ -378,7 +381,16 @@ pub async fn create_movie(
     let metadata = Metadata::from_details(&details).ok_or_else(|| {
         Problem::validation("tmdbId", "has no release date on TMDB yet, so no year")
     })?;
-    let folder_name = naming::movie_folder_name(&metadata.title, metadata.year);
+    let collection = details.collection.as_ref().map(|c| c.name.as_str());
+    let folder_name = crate::naming_settings::movie_folder(&state, &metadata, collection).await?;
+    let collection_id = match &details.collection {
+        Some(reference) => Some(
+            db::collections::ensure(&state.db, provider.as_ref(), reference)
+                .await
+                .map_err(failed)?,
+        ),
+        None => None,
+    };
     let created = db::movies::create(
         &state.db,
         StoredNew {
@@ -387,6 +399,7 @@ pub async fn create_movie(
             folder_name,
             monitored: body.monitored,
             minimum_availability: body.minimum_availability,
+            collection_id,
         },
         &body.quality_profile_ids,
         &body.tags,
@@ -460,7 +473,7 @@ pub async fn update_movie(
     Ok(Json(updated))
 }
 
-async fn root_path(state: &AppState, movie: &movies::Model) -> Result<String, Problem> {
+pub(crate) async fn root_path(state: &AppState, movie: &movies::Model) -> Result<String, Problem> {
     Ok(db::root_folders::find(&state.db, movie.root_folder_id)
         .await
         .map_err(failed)?

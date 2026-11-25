@@ -14,6 +14,7 @@ pub mod access;
 pub mod api_keys;
 pub mod audit;
 pub mod backfill;
+pub mod collections;
 pub mod download_clients;
 pub mod entities;
 pub mod indexers;
@@ -25,6 +26,7 @@ pub mod roles;
 pub mod root_folders;
 pub mod secret;
 pub mod settings;
+pub mod subtitles;
 pub mod tags;
 pub mod testing;
 pub mod users;
@@ -88,11 +90,13 @@ mod tests {
             "account",
             "api_key_permissions",
             "audit_log",
+            "collections",
             "download_client_tags",
             "download_clients",
             "api_keys",
             "indexer_tags",
             "indexers",
+            "language_profiles",
             "movie_files",
             "movie_profiles",
             "movie_tags",
@@ -102,6 +106,7 @@ mod tests {
             "roles",
             "root_folders",
             "session",
+            "subtitles",
             "tags",
             "settings",
             "user",

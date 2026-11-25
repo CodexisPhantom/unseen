@@ -46,6 +46,15 @@ Settings. A missing row means the default below.
 | `naming.movie_file` | `{Movie Title} ({Release Year}) {Quality Full}` | `settings:manage` |
 | `naming.rename_movies` | `false` | `settings:manage` |
 | `naming.replace_illegal_characters` | `true` | `settings:manage` |
+| `naming.show_folder` | `{Series Title}` | `settings:manage` |
+| `naming.season_folder` | `Season {season}` | `settings:manage` |
+| `naming.specials_folder` | `Specials` | `settings:manage` |
+| `naming.episode_standard` | `{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}` | `settings:manage` |
+| `naming.episode_daily` | `{Series Title} - {Air-Date} - {Episode Title} {Quality Full}` | `settings:manage` |
+| `naming.episode_anime` | `{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}` | `settings:manage` |
+| `naming.multi_episode_style` | `prefixed_range` (`extend`, `duplicate`, `repeat`, `scene`, `range`) | `settings:manage` |
+| `naming.rename_episodes` | `false` | `settings:manage` |
+| `naming.colon_replacement` | `smart`; also `delete`, `dash`, `spaceDash`, `spaceDashSpace` | `settings:manage` |
 | `import.use_hardlinks` | `true` | `settings:manage` |
 | `import.skip_free_space_check` | `false` | `settings:manage` |
 | `import.extra_file_extensions` | `srt,ass,ssa,sub,idx` | `settings:manage` |
@@ -59,7 +68,7 @@ Settings. A missing row means the default below.
 | `tasks.missing_search_interval_hours` | `24` | `settings:manage` |
 | `tasks.metadata_refresh_interval_hours` | `24` | `settings:manage` |
 | `auth.session_days` | `30` | `settings:manage` |
-| `subtitles.default_profile_id` | none | `settings:manage` |
+| `subtitles.default_profile_id` | none | `subtitles:manage` |
 | `subtitles.minimum_score` | `60` | `settings:manage` |
 | `subtitles.exclude_machine_translated` | `true` | `settings:manage` |
 | `subtitles.opensubtitles.api_key`, `.username`, `.password` | none (secrets) | `settings:manage` |

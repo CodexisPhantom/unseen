@@ -11,6 +11,7 @@ export interface NavEntry {
 export const navEntries: readonly NavEntry[] = [
 	{ title: 'Library', path: 'library', anyOf: ['library:read'] },
 	{ title: 'Add', path: 'add', anyOf: ['library:add'] },
+	{ title: 'Import', path: 'import', anyOf: ['import:run'] },
 	{ title: 'Activity', path: 'activity', anyOf: ['queue:read'] },
 	{
 		title: 'Settings',
@@ -19,6 +20,7 @@ export const navEntries: readonly NavEntry[] = [
 	},
 	{ title: 'Profiles', path: 'settings/profiles', anyOf: ['profiles:read'] },
 	{ title: 'Quality sizes', path: 'settings/quality-sizes', anyOf: ['profiles:read'] },
+	{ title: 'Indexers', path: 'settings/indexers', anyOf: ['indexers:read'] },
 	{ title: 'Users', path: 'users', anyOf: ['users:manage'] },
 	{ title: 'Roles', path: 'roles', anyOf: ['roles:manage'] },
 	{

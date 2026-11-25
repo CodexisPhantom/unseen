@@ -2,10 +2,12 @@
 //! the generated `auth_schema`.
 
 pub mod audit_log;
+pub mod collections;
 pub mod download_client_tags;
 pub mod download_clients;
 pub mod indexer_tags;
 pub mod indexers;
+pub mod language_profiles;
 pub mod movie_files;
 pub mod movie_profiles;
 pub mod movie_tags;
@@ -15,6 +17,7 @@ pub mod quality_profiles;
 pub mod role_permissions;
 pub mod roles;
 pub mod root_folders;
+pub mod subtitles;
 pub mod tags;
 pub mod user_permissions;
 pub mod user_roles;

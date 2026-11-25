@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entryFor } from './nav.js';
+import { entryFor, navEntries } from './nav.js';
 
 describe('entryFor', () => {
 	it('matches the first segment only', () => {
@@ -8,6 +8,15 @@ describe('entryFor', () => {
 		expect(entryFor('/settings/indexers')?.title).toBe('Settings');
 		expect(entryFor('libraryx')).toBeUndefined();
 		expect(entryFor('settings/profiles')?.title).toBe('Settings');
+	});
+
+	it('lists the indexers page for indexers:read only', () => {
+		const entry = navEntries.find((candidate) => candidate.path === 'settings/indexers');
+		expect(entry?.anyOf).toEqual(['indexers:read']);
+	});
+
+	it('guards the import page with import:run', () => {
+		expect(entryFor('import')?.anyOf).toEqual(['import:run']);
 	});
 
 	it('needs no permission for the home page and unknown pages', () => {

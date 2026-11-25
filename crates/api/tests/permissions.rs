@@ -397,6 +397,62 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/movies/{id}/files/{fid}",
                 Permission::LibraryDelete
             ),
+            profiles(
+                Method::GET,
+                "/api/v1/language-profiles",
+                Permission::LibraryRead
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/language-profiles",
+                Permission::SubtitlesManage
+            ),
+            profiles(
+                Method::PUT,
+                "/api/v1/language-profiles/{id}",
+                Permission::SubtitlesManage
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/language-profiles/{id}",
+                Permission::SubtitlesManage
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/movies/{id}/subtitles",
+                Permission::LibraryRead
+            ),
+            profiles(
+                Method::PUT,
+                "/api/v1/movies/{id}/language-profile",
+                Permission::SubtitlesManage
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/movies/{id}/subtitles/scan",
+                Permission::SubtitlesManage
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/settings/subtitles",
+                Permission::LibraryRead
+            ),
+            profiles(
+                Method::PUT,
+                "/api/v1/settings/subtitles",
+                Permission::SubtitlesManage
+            ),
+            profiles(Method::GET, "/api/v1/collections", Permission::LibraryRead),
+            profiles(
+                Method::GET,
+                "/api/v1/collections/{id}",
+                Permission::LibraryRead
+            ),
+            profiles(
+                Method::PATCH,
+                "/api/v1/collections/{id}",
+                Permission::LibraryEdit
+            ),
             profiles(Method::GET, "/api/v1/tags", Permission::LibraryRead),
             profiles(Method::POST, "/api/v1/tags", Permission::LibraryEdit),
             profiles(Method::DELETE, "/api/v1/tags/{id}", Permission::LibraryEdit),
@@ -419,6 +475,21 @@ fn app_router_passes_route_coverage() {
             profiles(
                 Method::PUT,
                 "/api/v1/settings/tmdb",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/settings/naming",
+                Permission::SettingsRead
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/settings/naming/preview",
+                Permission::SettingsRead
+            ),
+            profiles(
+                Method::PUT,
+                "/api/v1/settings/naming",
                 Permission::SettingsManage
             ),
             profiles(

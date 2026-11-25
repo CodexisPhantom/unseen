@@ -18,10 +18,12 @@ pub struct Model {
     pub digital_release: Option<String>,
     pub physical_release: Option<String>,
     pub poster_path: Option<String>,
+    pub collection_id: Option<i32>,
     pub root_folder_id: i32,
     pub folder_name: String,
     pub monitored: bool,
     pub minimum_availability: String,
+    pub language_profile_id: Option<i32>,
     pub added_at: String,
     pub updated_at: String,
 }
