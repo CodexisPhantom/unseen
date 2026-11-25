@@ -369,7 +369,12 @@ async fn settings_store_the_key_encrypted_and_never_return_it() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         reply,
-        json!({ "hasApiKey": false, "apiKeyMustBeReentered": false, "language": "en-US" })
+        json!({
+            "hasApiKey": false,
+            "apiKeyMustBeReentered": false,
+            "language": "en-US",
+            "overridden": []
+        })
     );
 
     let (status, reply) = app
@@ -382,7 +387,12 @@ async fn settings_store_the_key_encrypted_and_never_return_it() {
     assert_eq!(status, StatusCode::OK, "{reply}");
     assert_eq!(
         reply,
-        json!({ "hasApiKey": true, "apiKeyMustBeReentered": false, "language": "fr-FR" })
+        json!({
+            "hasApiKey": true,
+            "apiKeyMustBeReentered": false,
+            "language": "fr-FR",
+            "overridden": []
+        })
     );
     assert!(!reply.to_string().contains(KEY));
 
@@ -413,6 +423,63 @@ async fn settings_store_the_key_encrypted_and_never_return_it() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(reply["hasApiKey"], true);
     assert_eq!(reply["language"], "de-DE");
+}
+
+#[tokio::test]
+async fn an_environment_setting_wins_and_refuses_changes() {
+    let server = MockServer::start().await;
+    let mut app = App::new(&server).await;
+    app.state.settings_overrides = db::settings::Overrides::from_vars([
+        ("UNSEEN_SETTING_TMDB_API_KEY".to_owned(), KEY.to_owned()),
+        (
+            "UNSEEN_SETTING_TMDB_LANGUAGE".to_owned(),
+            "it-IT".to_owned(),
+        ),
+    ]);
+    app.router = router(app.state.clone());
+
+    let (status, reply) = app.owner(Method::GET, SETTINGS, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        reply,
+        json!({
+            "hasApiKey": true,
+            "apiKeyMustBeReentered": false,
+            "language": "it-IT",
+            "overridden": ["apiKey", "language"]
+        })
+    );
+    assert!(!reply.to_string().contains(KEY));
+
+    for body in [
+        json!({ "apiKey": "other-key" }),
+        json!({ "language": "fr-FR" }),
+    ] {
+        let (status, reply) = app.owner(Method::PUT, SETTINGS, Some(body)).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{reply}");
+        assert_eq!(reply["code"], "setting_overridden");
+        assert!(
+            reply["detail"]
+                .as_str()
+                .unwrap()
+                .contains("UNSEEN_SETTING_")
+        );
+    }
+    // Nothing was written, and no audit entry was made.
+    assert!(
+        db::settings::get_string(&app.state.db, "tmdb.language")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let (_, log) = app
+        .owner(
+            Method::GET,
+            "/api/v1/audit-log?action=setting.updated",
+            None,
+        )
+        .await;
+    assert_eq!(log["total"], 0);
 }
 
 #[tokio::test]

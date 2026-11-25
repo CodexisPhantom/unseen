@@ -1363,6 +1363,11 @@ export interface components {
             hasApiKey: boolean;
             /** @description For example `en-US`. */
             language: string;
+            /**
+             * @description Fields set by an environment variable (`UNSEEN_SETTING_...`). They are
+             *     read-only: a change is refused with 409 `setting_overridden`.
+             */
+            overridden: string[];
         };
         TmdbSettingsPatch: {
             /** @description A v3 API key or a v4 read access token. Absent keeps the stored key. */

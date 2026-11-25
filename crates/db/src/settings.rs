@@ -1,6 +1,10 @@
 //! The `settings` table (docs/10-configuration.md). The value column is JSON.
 //! A secret key holds the encrypted form as a JSON string.
 
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Statement};
 
 use crate::secret::{self, Secret, SecretKey};
@@ -8,6 +12,53 @@ use crate::secret::{self, Secret, SecretKey};
 /// Setting keys that hold a secret. [`set_secret`] and [`get_secret`] refuse
 /// every other key.
 pub const SECRET_KEYS: &[&str] = &["tmdb.api_key", "proxy.url"];
+
+/// Settings given in the environment. `UNSEEN_SETTING_<KEY>` wins over the
+/// table, where `<KEY>` is the setting key in upper case with `.` written as
+/// `_`: `tmdb.api_key` is `UNSEEN_SETTING_TMDB_API_KEY`. The table is never
+/// written for such a key; callers refuse the change instead.
+#[derive(Clone, Default)]
+pub struct Overrides(Arc<HashMap<String, Secret>>);
+
+impl Overrides {
+    const PREFIX: &'static str = "UNSEEN_SETTING_";
+
+    /// Reads the process environment once, at startup.
+    pub fn from_env() -> Self {
+        Self::from_vars(std::env::vars())
+    }
+
+    /// Keeps the variables that start with `UNSEEN_SETTING_` and have a
+    /// value. An empty value does not override.
+    pub fn from_vars(vars: impl IntoIterator<Item = (String, String)>) -> Self {
+        Self(Arc::new(
+            vars.into_iter()
+                .filter(|(name, value)| name.starts_with(Self::PREFIX) && !value.is_empty())
+                .map(|(name, value)| (name, Secret::new(value)))
+                .collect(),
+        ))
+    }
+
+    /// The variable that overrides `key`.
+    pub fn var_name(key: &str) -> String {
+        format!("{}{}", Self::PREFIX, key.to_uppercase().replace('.', "_"))
+    }
+
+    pub fn get(&self, key: &str) -> Option<&Secret> {
+        self.0.get(&Self::var_name(key))
+    }
+
+    pub fn contains(&self, key: &str) -> bool {
+        self.get(key).is_some()
+    }
+}
+
+/// The values can be secrets: only the count shows.
+impl fmt::Debug for Overrides {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Overrides({} set)", self.0.len())
+    }
+}
 
 /// What the table holds for a secret key.
 #[derive(Debug, PartialEq, Eq)]
@@ -169,6 +220,19 @@ mod tests {
             assert!(!bytes.windows(11).any(|w| w == b"needle-9f3a"));
         }
         assert!(checked > 0);
+    }
+
+    #[test]
+    fn overrides_keep_only_non_empty_setting_variables() {
+        let overrides = Overrides::from_vars([
+            ("UNSEEN_SETTING_TMDB_API_KEY".to_owned(), "abc".to_owned()),
+            ("UNSEEN_SETTING_TMDB_LANGUAGE".to_owned(), String::new()),
+            ("UNSEEN_BIND".to_owned(), "0.0.0.0:1".to_owned()),
+        ]);
+        assert_eq!(overrides.get("tmdb.api_key").unwrap().expose(), "abc");
+        assert!(!overrides.contains("tmdb.language"));
+        assert!(!overrides.contains("bind"));
+        assert_eq!(format!("{overrides:?}"), "Overrides(1 set)");
     }
 
     #[tokio::test]
