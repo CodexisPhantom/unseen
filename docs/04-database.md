@@ -1,8 +1,8 @@
 # 04 Database schema
 
-Status: reviewed (2026-11-16). V1 tables only. TV and Usenet tables come with their
-milestones. The subtitle tables are designed below (M10) and are created by the
-subtitles issues.
+Status: reviewed (2026-11-16). V1 tables, plus the TV and subtitle tables
+designed below (M7, M10), which their issues create. Usenet tables come with
+their milestone.
 
 ## Rules
 
@@ -163,8 +163,105 @@ The OpenSubtitles download quota is not a table: the last answer of the
 provider is kept in `settings` under `subtitles.opensubtitles.quota`
 (see [08-integrations.md](08-integrations.md)).
 
-Episode subtitles (M7 and later) add `episode_file_id` to `subtitles` in the
-TV migration; exactly one of the two file columns is set.
+Episode subtitles: `subtitles` also has `episode_file_id` (see
+[TV tables](#tv-tables-m7)). Both file columns are nullable and exactly one
+is set; unique(`episode_file_id`, `language`, `kind`) sits next to the movie
+key.
+
+## TV tables (M7)
+
+Designed in the TV design. Created by #86, not before. The shape follows the
+movie tables, and the same rules apply (integer keys, `restrict` unless
+stated). The model is in [03-domain-model.md](03-domain-model.md#tv-m7).
+
+| Table | Columns | Keys and constraints |
+|---|---|---|
+| `shows` | `id` int PK, `tvdb_id` int null, `tmdb_id` int null, `imdb_id` text null, `metadata_provider` text (`tvdb`, `tmdb`: the numbering provider), `title`, `original_title` null, `sort_title`, `year` int, `overview` null, `runtime` int null (minutes per episode), `status` text (`continuing`, `ended`, `upcoming`), `series_type` text (`standard`, `daily`, `anime`), `network` null, `poster_path` null, `season_folder` bool default true, `root_folder_id` int FK, `folder_name` text, `monitored` bool, `monitor_new_items` text (`all`, `none`) default `all`, `refreshed_at` null, `added_at`, `updated_at` | unique(`tvdb_id`); unique(`tmdb_id`); check `tvdb_id` or `tmdb_id` is not null; index(`root_folder_id`) |
+| `show_aliases` | `id` int PK, `show_id` int FK cascade, `title` text | unique(`show_id`, `title`) |
+| `show_profiles` | `id` int PK, `show_id` int FK cascade, `quality_profile_id` int FK restrict, `is_primary` bool, `created_at` | unique(`show_id`, `quality_profile_id`); partial unique(`show_id`) where `is_primary` = 1; index(`quality_profile_id`) |
+| `show_tags` | `show_id` FK cascade, `tag_id` FK cascade | PK(`show_id`, `tag_id`); index(`tag_id`) |
+| `seasons` | `show_id` int FK cascade, `season_number` int (0 is the specials), `monitored` bool | PK(`show_id`, `season_number`) |
+| `episodes` | `id` int PK, `show_id` int, `season_number` int, `episode_number` int, `absolute_number` int null, `title`, `overview` null, `air_date` text null (date), `air_date_utc` null, `runtime` int null, `tvdb_id` int null, `tmdb_id` int null, `monitored` bool, `added_at`, `updated_at` | unique(`show_id`, `season_number`, `episode_number`); FK(`show_id`, `season_number`) to `seasons` cascade; unique(`tvdb_id`); unique(`tmdb_id`); index(`air_date`); index(`show_id`, `absolute_number`) |
+| `episode_files` | `id` int PK, `show_id` int FK cascade, `relative_path` text (from the show folder, for example `Season 1/Show - S01E01 - Title WEBDL-1080p.mkv`), `size` int, `quality_id` int, `release_group` null, `scene_name` null, `media_info` json null, `languages` json null, `show_profile_id` int null FK set null, `added_at` | unique(`show_id`, `relative_path`); index(`show_profile_id`) |
+| `episode_file_episodes` | `episode_file_id` int FK cascade, `episode_id` int FK cascade | PK(`episode_file_id`, `episode_id`); index(`episode_id`) |
+| `download_episodes` | `download_id` int FK cascade, `episode_id` int FK cascade | PK(`download_id`, `episode_id`); index(`episode_id`) |
+
+```mermaid
+erDiagram
+  root_folders ||--o{ shows : ""
+  shows ||--o{ show_aliases : ""
+  shows ||--|{ show_profiles : ""
+  quality_profiles ||--o{ show_profiles : ""
+  shows ||--o{ show_tags : ""
+  tags ||--o{ show_tags : ""
+  shows ||--|{ seasons : ""
+  seasons ||--|{ episodes : ""
+  shows ||--o{ episode_files : ""
+  show_profiles ||--o{ episode_files : ""
+  episode_files ||--|{ episode_file_episodes : ""
+  episodes ||--o{ episode_file_episodes : ""
+  downloads ||--|{ download_episodes : ""
+  episodes ||--o{ download_episodes : ""
+  show_profiles ||--o{ downloads : ""
+  shows ||--o{ downloads : ""
+  shows ||--o{ blocklist : ""
+  shows ||--o{ history : ""
+```
+
+Notes:
+
+- An episode file covers one or more episodes through `episode_file_episodes`
+  (a multi-episode release is one file). An episode can have several files:
+  one per show profile, plus unmanaged ones. A file with `show_profile_id` set
+  is the managed file of that profile for every episode it covers. A null
+  value means unmanaged, as with `movie_files.movie_profile_id`.
+- "At most one managed file per episode and show profile" cannot be a
+  constraint in SQLite, because the profile is on the file and the episode is
+  on the link table. The import writes both in one transaction, and a
+  database test checks the rule.
+- `episodes.air_date` is the date the provider gives; daily shows are matched
+  on it. `air_date_utc` is the moment, when the provider has one. The domain
+  model defines when an episode counts as aired.
+- `absolute_number` is nullable and not unique: providers repeat numbers for
+  specials. Numbering rules for anime beyond this column come with #90.
+- `seasons` has no integer id: Sonarr's API addresses a season by its number
+  inside the series, and nothing else points at a season row.
+- A show has no `quality_profile_id`: its profiles are in `show_profiles`.
+  The compat API shows the primary one.
+- Deleting a show deletes its seasons, episodes, episode file rows, link rows
+  and download rows. It never deletes files on disk. Deleting a show profile
+  sets `episode_files.show_profile_id` to null: the files become unmanaged.
+- Subtitles: the subtitle migration (#105) runs after this one. It creates
+  `subtitles` with both `movie_file_id` and `episode_file_id` (each int null,
+  FK cascade, exactly one set) and adds `shows.language_profile_id`
+  (int null FK `language_profiles`, restrict), as it does for movies.
+
+### Changes to existing tables
+
+The TV migration also changes tables that exist from V1. Existing rows keep
+their meaning: each new column defaults to the movie value.
+
+| Table | Change |
+|---|---|
+| `root_folders` | Add `media_kind` text (`movie`, `show`) default `movie`. A root folder holds one kind, which cannot change while a movie or show uses the folder |
+| `quality_profiles` | Add `media_kind` default `movie`. Replace unique(`name`) with unique(`media_kind`, `name`), so a Sonarr and a Radarr profile can both be called `HD-1080p` |
+| `quality_definitions` | Add `media_kind` default `movie`. The key becomes PK(`media_kind`, `quality_id`). The `show` rows are seeded from Sonarr's defaults |
+| `custom_formats` | Add `media_kind` default `movie`. Replace unique(`name`) with unique(`media_kind`, `name`). A profile scores only formats of its own kind |
+| `trash_guide_items` | Add `media_kind` default `movie`. The TRaSH data for Sonarr loads as `show` |
+| `indexers` | Add `tv_categories` json default `[]`: the Torznab categories for shows, for example 5000. An empty list means the indexer is not searched for shows |
+| `downloads` | `movie_id` becomes nullable. Add `show_id` int null FK cascade and `show_profile_id` int null FK set null. Check: exactly one of `movie_id` and `show_id` is set. Add index(`show_id`). The episodes of a download are in `download_episodes`: one row for an episode release, many for a multi-episode release or a season pack |
+| `blocklist` | `movie_id` becomes nullable. Add `show_id` int null FK cascade. Check: exactly one of the two is set. Add index(`show_id`) |
+| `history` | Add `show_id` int null FK set null and `episode_id` int null FK set null. Add index(`show_id`, `created_at`) |
+
+SQLite cannot drop `NOT NULL` or add a `CHECK` to an existing table. The
+migration rebuilds `downloads` and `blocklist`: create the new table, copy the
+rows, drop the old table, rename the new one, recreate the indexes. It runs
+with foreign keys off and ends with a foreign key check. A database test
+applies the migration to a database that holds V1 movies, downloads and
+history, and compares the rows before and after.
+
+The blocklist is per show: a blocked release title is skipped for that show,
+whatever episodes the release covers.
 
 ## System tables
 
