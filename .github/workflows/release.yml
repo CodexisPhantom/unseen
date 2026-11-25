@@ -1,0 +1,85 @@
+name: Release
+
+# A version tag builds the image once and pushes the same image to GHCR and
+# Docker Hub (docs/13-deployment.md).
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+# The jobs only read the repository; the image goes out with the secrets below.
+permissions:
+  contents: read
+
+env:
+  GHCR_IMAGE: ghcr.io/codexisphantom/unseen
+  DOCKERHUB_IMAGE: codexisphantom/unseen
+
+jobs:
+  image:
+    name: Publish image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check the Docker Hub secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          missing=0
+          for name in DOCKERHUB_USERNAME DOCKERHUB_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The repository secret $name is not set. Add it under Settings > Secrets and variables > Actions."
+              missing=1
+            fi
+          done
+          exit $missing
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: |
+            ${{ env.GHCR_IMAGE }}
+            ${{ env.DOCKERHUB_IMAGE }}
+          # x.y.z and x.y; latest for a release that is not a pre-release.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+      # One build, one push with every tag: both registries get the same digest.
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check that both registries hold the same digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          for image in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+            found=$(docker buildx imagetools inspect "$image:$VERSION" --format '{{.Manifest.Digest}}')
+            echo "$image:$VERSION $found"
+            if [ "$found" != "$DIGEST" ]; then
+              echo "::error::$image:$VERSION has digest $found, expected $DIGEST."
+              exit 1
+            fi
+          done

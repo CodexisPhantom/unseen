@@ -59,6 +59,24 @@ Add a new versioned migration in `crates/db`. Never edit a released migration.
 Auth tables change only through our own migrations. See
 [docs/04-database.md](docs/04-database.md).
 
+## Release
+
+Push a version tag such as `v0.1.0`. `.github/workflows/release.yml` builds the
+image once and pushes `x.y.z`, `x.y` and `latest` to
+`ghcr.io/codexisphantom/unseen` and `codexisphantom/unseen`. A pre-release tag
+(`v0.2.0-rc.1`) gets only its own version tag. The workflow ends by checking
+that both registries hold the same digest.
+
+Repository secrets (Settings > Secrets and variables > Actions):
+
+| Secret | Holds |
+|---|---|
+| `DOCKERHUB_USERNAME` | The Docker Hub user that owns `codexisphantom/unseen` |
+| `DOCKERHUB_TOKEN` | A Docker Hub access token with write access to that repository |
+
+GHCR uses the workflow's own `GITHUB_TOKEN`. The workflow fails on its first
+step, naming the secret, when one of the two is missing.
+
 ## Issues and pull requests
 
 - One type label, one or more area labels, one size label, one milestone.
