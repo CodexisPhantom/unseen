@@ -1,0 +1,10 @@
+{
+  "tv-sonarr": {
+    "name": "tv-sonarr",
+    "savePath": "/downloads/tv"
+  },
+  "unseen": {
+    "name": "unseen",
+    "savePath": ""
+  }
+}

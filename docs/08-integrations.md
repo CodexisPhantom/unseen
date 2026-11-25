@@ -74,7 +74,7 @@ Same as Torznab with NZB enclosures and `newznab:attr`. Details in M9.
 
 | | |
 |---|---|
-| Endpoints (WebUI API v2) | `POST /api/v2/auth/login`, `GET /api/v2/app/version`, `POST /api/v2/torrents/add`, `GET /api/v2/torrents/info?category=`, `GET /api/v2/torrents/properties`, `POST /api/v2/torrents/delete`, `POST /api/v2/torrents/createCategory`, `GET /api/v2/app/preferences` |
+| Endpoints (WebUI API v2) | `POST /api/v2/auth/login`, `GET /api/v2/app/version`, `POST /api/v2/torrents/add`, `GET /api/v2/torrents/info?category=`, `GET /api/v2/torrents/properties`, `POST /api/v2/torrents/delete`, `GET /api/v2/torrents/categories`, `POST /api/v2/torrents/createCategory`, `GET /api/v2/app/preferences` |
 | Auth | API key (qBittorrent 5.2 or later): `Authorization: Bearer qbt_...` on every request, no login. Otherwise a cookie session from username and password; log in again on 403. When a client has a key, the key wins |
 | Rate limits | None; poll every 5 s while downloads are active, 60 s when idle |
 | Failure | See retries in [06-state-machines.md](06-state-machines.md) |
@@ -82,6 +82,22 @@ Same as Torznab with NZB enclosures and `newznab:attr`. Details in M9.
 
 Torrents are identified by info hash. The category is how Unseen finds its
 own torrents.
+
+Rules of the client in `core` (`qbittorrent.rs`):
+
+- Every torrent call takes the category of the download client and refuses an
+  empty one, because an empty category filter means the torrents that have no
+  category. A torrent in another category, or in none, is never listed. A
+  delete or a properties call for its hash does nothing: the hashes sent to
+  qBittorrent are the ones found in our category, never the caller's text.
+- Add takes a magnet link or an http(s) torrent URL, sets the category and
+  nothing else. The save path is left to qBittorrent, and Unseen reads
+  `content_path` from the torrent list. The category is created when
+  `torrents/categories` does not have it, without a save path. A magnet link
+  gives its info hash at once; a torrent URL does not, because qBittorrent
+  fetches it, so the caller finds that torrent by listing the category.
+- The session cookie is kept between calls. A 403 on a call logs in again once
+  and repeats the call; a second 403 is `Credentials`. An API key never logs in.
 
 ## SABnzbd (M9)
 
