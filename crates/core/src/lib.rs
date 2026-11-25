@@ -2,6 +2,7 @@ pub mod http;
 pub mod metadata;
 pub mod permission;
 pub mod profile;
+pub mod qbittorrent;
 pub mod quality;
 pub mod release;
 pub mod root_folder;

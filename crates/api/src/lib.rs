@@ -4,6 +4,7 @@ pub mod access;
 mod api_keys;
 pub mod audit;
 pub mod auth;
+mod download_clients;
 pub mod error;
 mod health;
 mod indexers;
@@ -155,6 +156,22 @@ pub fn routes() -> ApiRouter {
         .require(
             Permission::IndexersManage,
             routes!(indexers::update_indexer, indexers::delete_indexer),
+        )
+        .require(
+            Permission::ClientsRead,
+            routes!(download_clients::list_clients),
+        )
+        .require(
+            Permission::ClientsManage,
+            routes!(download_clients::create_client),
+        )
+        .require(
+            Permission::ClientsManage,
+            routes!(
+                download_clients::update_client,
+                download_clients::delete_client,
+                download_clients::test_client
+            ),
         )
 }
 
