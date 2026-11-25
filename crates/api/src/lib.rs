@@ -30,6 +30,8 @@ pub struct AppState {
     pub auth: auth::Auth,
     pub policy: auth::Policy,
     pub setup: setup::Setup,
+    /// Encrypts the integration secrets (ADR 0011).
+    pub secrets: db::secret::SecretKey,
 }
 
 impl AppState {
@@ -51,6 +53,7 @@ impl AppState {
             auth,
             policy,
             setup: setup::Setup::default(),
+            secrets: db::secret::SecretKey::derive(secret),
         })
     }
 }
