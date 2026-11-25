@@ -65,6 +65,23 @@ profiles, quality definitions, custom formats, indexers, download clients
 (including "remove completed downloads"), import sources, users, roles, API
 keys.
 
+### Environment overrides
+
+`UNSEEN_SETTING_<KEY>` sets a key of the `settings` table from the
+environment. `<KEY>` is the key in upper case with `.` written as `_`:
+`tmdb.api_key` is `UNSEEN_SETTING_TMDB_API_KEY`, `tmdb.language` is
+`UNSEEN_SETTING_TMDB_LANGUAGE`. Variables are read once at startup; an empty
+value does not override.
+
+- The environment value wins over the table. The table is never written for
+  an overridden key, and a secret in the environment is not stored.
+- A request that changes an overridden setting is refused with 409
+  `setting_overridden`, naming the variable.
+- The settings response lists the overridden fields in `overridden`, so a UI
+  can show them as read-only.
+- Only settings, not tables: indexers, clients, profiles and the rest cannot
+  be declared in the environment.
+
 ## Decisions (2026-11-15)
 
 - Port 7979. It continues the family pattern (Radarr 7878, Sonarr 8989,
@@ -73,5 +90,5 @@ keys.
 - No config file. Root folders, profiles, indexers and clients live in
   tables with relations and secrets; a file would be a second source of
   truth for them and would need its own merge rules. No real advantage.
-- Environment overrides for database settings: not in V1. Planned for M11:
-  a setting given in the environment wins and is read-only in the UI.
+- Environment overrides for database settings: a setting given as
+  `UNSEEN_SETTING_<KEY>` wins and is read-only (see above).

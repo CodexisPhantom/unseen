@@ -5326,7 +5326,8 @@
         "required": [
           "hasApiKey",
           "apiKeyMustBeReentered",
-          "language"
+          "language",
+          "overridden"
         ],
         "properties": {
           "apiKeyMustBeReentered": {
@@ -5340,6 +5341,13 @@
           "language": {
             "type": "string",
             "description": "For example `en-US`."
+          },
+          "overridden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields set by an environment variable (`UNSEEN_SETTING_...`). They are\nread-only: a change is refused with 409 `setting_overridden`."
           }
         }
       },

@@ -46,6 +46,9 @@ pub struct AppState {
     pub http: unseen_core::http::OutboundClient,
     /// Tests point this at a mock server.
     pub tmdb_base_url: String,
+    /// Settings given as `UNSEEN_SETTING_<KEY>`: they win over the table and
+    /// cannot be changed through the API (docs/10-configuration.md).
+    pub settings_overrides: db::settings::Overrides,
 }
 
 impl AppState {
@@ -71,6 +74,7 @@ impl AppState {
             http: unseen_core::http::OutboundClient::new()
                 .map_err(|error| AuthError::internal(format!("build http client: {error}")))?,
             tmdb_base_url: unseen_core::tmdb::DEFAULT_BASE_URL.to_owned(),
+            settings_overrides: db::settings::Overrides::from_env(),
         })
     }
 }

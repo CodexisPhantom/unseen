@@ -49,18 +49,28 @@ pub fn provider_error(error: MetadataError) -> Problem {
 }
 
 async fn language(state: &AppState) -> Result<String, Problem> {
+    if let Some(language) = state.settings_overrides.get(LANGUAGE) {
+        return Ok(language.expose().to_owned());
+    }
     Ok(get_string(&state.db, LANGUAGE)
         .await
         .map_err(failed)?
         .unwrap_or_else(|| DEFAULT_LANGUAGE.to_owned()))
 }
 
+/// The key from the environment, else the stored one.
+async fn stored_key(state: &AppState) -> Result<Option<SecretSetting>, Problem> {
+    if let Some(key) = state.settings_overrides.get(KEY) {
+        return Ok(Some(SecretSetting::Set(key.clone())));
+    }
+    get_secret(&state.db, &state.secrets, KEY)
+        .await
+        .map_err(failed)
+}
+
 /// The provider for the stored key and language, or `tmdb_not_configured`.
 pub async fn client(state: &AppState) -> Result<Box<dyn MetadataProvider>, Problem> {
-    let key = match get_secret(&state.db, &state.secrets, KEY)
-        .await
-        .map_err(failed)?
-    {
+    let key = match stored_key(state).await? {
         Some(SecretSetting::Set(key)) => key,
         Some(SecretSetting::MustReenter) => {
             return Err(not_configured(
@@ -90,6 +100,9 @@ pub struct TmdbSettings {
     api_key_must_be_reentered: bool,
     /// For example `en-US`.
     language: String,
+    /// Fields set by an environment variable (`UNSEEN_SETTING_...`). They are
+    /// read-only: a change is refused with 409 `setting_overridden`.
+    overridden: Vec<&'static str>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -102,14 +115,28 @@ pub struct TmdbSettingsPatch {
 }
 
 async fn current(state: &AppState) -> Result<TmdbSettings, Problem> {
-    let key = get_secret(&state.db, &state.secrets, KEY)
-        .await
-        .map_err(failed)?;
+    let key = stored_key(state).await?;
+    let overridden = [("apiKey", KEY), ("language", LANGUAGE)]
+        .into_iter()
+        .filter(|(_, key)| state.settings_overrides.contains(key))
+        .map(|(field, _)| field)
+        .collect();
     Ok(TmdbSettings {
         has_api_key: matches!(key, Some(SecretSetting::Set(_))),
         api_key_must_be_reentered: matches!(key, Some(SecretSetting::MustReenter)),
         language: language(state).await?,
+        overridden,
     })
+}
+
+/// 409 for a change to a setting that the environment sets.
+fn overridden(key: &str) -> Problem {
+    let mut problem = Problem::conflict("setting_overridden", "The environment sets this setting");
+    problem.detail = Some(format!(
+        "{key} is set by {} and cannot be changed here. Remove the variable to edit it.",
+        db::settings::Overrides::var_name(key)
+    ));
+    problem
 }
 
 /// The TMDB settings, without the key.
@@ -158,6 +185,13 @@ pub async fn update_settings(
             "language",
             "must look like `en` or `en-US`",
         ));
+    }
+
+    if api_key.is_some() && state.settings_overrides.contains(KEY) {
+        return Err(overridden(KEY));
+    }
+    if body.language.is_some() && state.settings_overrides.contains(LANGUAGE) {
+        return Err(overridden(LANGUAGE));
     }
 
     let before = current(&state).await?;
