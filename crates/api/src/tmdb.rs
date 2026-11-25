@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use db::settings::{SecretSetting, get_secret, get_string, set_secret, set_string};
 use serde::{Deserialize, Serialize};
-use unseen_core::metadata::MetadataError;
+use unseen_core::metadata::{MetadataError, MetadataProvider};
 use unseen_core::tmdb::{DEFAULT_LANGUAGE, TmdbClient, is_valid_language};
 use utoipa::ToSchema;
 
@@ -55,8 +55,8 @@ async fn language(state: &AppState) -> Result<String, Problem> {
         .unwrap_or_else(|| DEFAULT_LANGUAGE.to_owned()))
 }
 
-/// The client for the stored key and language, or `tmdb_not_configured`.
-pub async fn client(state: &AppState) -> Result<TmdbClient, Problem> {
+/// The provider for the stored key and language, or `tmdb_not_configured`.
+pub async fn client(state: &AppState) -> Result<Box<dyn MetadataProvider>, Problem> {
     let key = match get_secret(&state.db, &state.secrets, KEY)
         .await
         .map_err(failed)?
@@ -73,12 +73,12 @@ pub async fn client(state: &AppState) -> Result<TmdbClient, Problem> {
             ));
         }
     };
-    Ok(TmdbClient::new(
+    Ok(Box::new(TmdbClient::new(
         state.http.clone(),
         &state.tmdb_base_url,
         key.expose(),
         &language(state).await?,
-    ))
+    )))
 }
 
 #[derive(Serialize, ToSchema)]
