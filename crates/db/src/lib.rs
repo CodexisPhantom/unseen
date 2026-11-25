@@ -16,6 +16,7 @@ pub mod audit;
 pub mod entities;
 mod migration;
 pub mod movies;
+pub mod profiles;
 pub mod roles;
 pub mod secret;
 pub mod settings;
@@ -37,6 +38,7 @@ pub fn now() -> String {
 pub async fn connect(data_dir: &Path) -> Result<DatabaseConnection, DbErr> {
     let db = open(data_dir).await?;
     migration::Migrator::up(&db, None).await?;
+    profiles::seed_defaults(&db).await?;
     Ok(db)
 }
 
