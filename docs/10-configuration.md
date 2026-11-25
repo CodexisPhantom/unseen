@@ -59,6 +59,12 @@ Settings. A missing row means the default below.
 | `tasks.missing_search_interval_hours` | `24` | `settings:manage` |
 | `tasks.metadata_refresh_interval_hours` | `24` | `settings:manage` |
 | `auth.session_days` | `30` | `settings:manage` |
+| `subtitles.default_profile_id` | none | `settings:manage` |
+| `subtitles.minimum_score` | `60` | `settings:manage` |
+| `subtitles.exclude_machine_translated` | `true` | `settings:manage` |
+| `subtitles.opensubtitles.api_key`, `.username`, `.password` | none (secrets) | `settings:manage` |
+| `subtitles.opensubtitles.quota` | none; written by Unseen from the provider's last answer | not editable |
+| `tasks.subtitle_search_interval_hours` | `24` | `settings:manage` |
 
 Stored in their own tables, not in `settings`: root folders, quality
 profiles, quality definitions, custom formats, indexers, download clients
