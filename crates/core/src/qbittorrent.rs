@@ -93,8 +93,12 @@ impl QbClient {
             .send()
             .await
             .map_err(unavailable)?;
-        match response.status() {
-            StatusCode::OK => {}
+        let status = response.status();
+        match status {
+            // Older versions answer 200 with a body; newer ones may answer
+            // 204 without one.
+            StatusCode::OK | StatusCode::NO_CONTENT => {}
+            StatusCode::UNAUTHORIZED => return Err(QbError::Credentials),
             StatusCode::FORBIDDEN => return Err(QbError::Banned),
             status => return Err(QbError::Unavailable(format!("HTTP {status}"))),
         }
@@ -107,6 +111,9 @@ impl QbClient {
             .and_then(|cookie| cookie.split(';').next())
             .map(str::to_owned);
         let body = response.text().await.map_err(unavailable)?;
+        if status == StatusCode::NO_CONTENT {
+            return Ok(cookie.unwrap_or_default());
+        }
         match (body.trim(), cookie) {
             ("Fails.", _) => Err(QbError::Credentials),
             // With "bypass authentication for localhost" there is no cookie.
@@ -202,6 +209,33 @@ mod tests {
             ResponseTemplate::new(200).set_body_string("Fails."),
         )
         .await;
+        assert_eq!(
+            client(&server, "bad").test().await,
+            Err(QbError::Credentials)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_204_login_is_a_good_login_and_a_401_is_wrong_credentials() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v2/auth/login"))
+            .respond_with(ResponseTemplate::new(204).insert_header("set-cookie", "SID=n1; path=/"))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v2/app/version"))
+            .and(header("cookie", "SID=n1"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("v5.1.0"))
+            .mount(&server)
+            .await;
+        assert_eq!(
+            client(&server, "good").test().await.as_deref(),
+            Ok("v5.1.0")
+        );
+
+        let server = MockServer::start().await;
+        login_answer(&server, ResponseTemplate::new(401)).await;
         assert_eq!(
             client(&server, "bad").test().await,
             Err(QbError::Credentials)
