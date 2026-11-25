@@ -1,3 +1,4 @@
+pub mod backfill;
 pub mod http;
 pub mod library;
 pub mod metadata;
