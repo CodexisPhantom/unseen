@@ -5,6 +5,7 @@
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
 	import { api } from '#lib/api/client.js';
+	import Logo from '#lib/components/logo.svelte';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import * as Form from '#lib/components/ui/form/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -43,6 +44,7 @@
 <main class="flex min-h-svh items-center justify-center p-4">
 	<Card.Root class="w-full max-w-sm">
 		<Card.Header>
+			<Logo class="mb-2 size-10" />
 			<Card.Title>Create the Owner account</Card.Title>
 			<Card.Description>
 				This account can do everything, including creating other users.
