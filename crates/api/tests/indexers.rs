@@ -2,12 +2,14 @@ use api::{AppState, router};
 use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{Method, Request, StatusCode, header};
-use better_auth::seaorm::sea_orm::{ActiveModelTrait, Set};
+use better_auth::seaorm::sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 use db::entities::{role_permissions, roles, user_roles};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
+use wiremock::matchers::{method, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const HOST: &str = "unseen.test";
 const ORIGIN: &str = "http://unseen.test";
@@ -350,9 +352,134 @@ async fn reading_needs_indexers_read_and_writing_needs_indexers_manage() {
         (Method::POST, PATH.to_owned(), Some(body("New"))),
         (Method::PATCH, path.clone(), Some(json!({ "name": "x" }))),
         (Method::DELETE, path.clone(), None),
+        (Method::POST, format!("{path}/test"), None),
     ] {
         let (status, _, reply) = app.send(method, &path, Some(&reader), payload).await;
         assert_eq!(status, StatusCode::FORBIDDEN);
         assert_eq!(reply["requiredPermission"], "indexers:manage");
     }
+}
+
+const CAPS: &str = include_str!("../../../fixtures/torznab/jackett_caps.xml");
+const FEED: &str = include_str!("../../../fixtures/torznab/jackett_movie.xml");
+const REJECTED: &str = include_str!("../../../fixtures/torznab/error_credentials.xml");
+
+fn xml(body: &str) -> ResponseTemplate {
+    ResponseTemplate::new(200).set_body_string(body)
+}
+
+async fn indexer_at(app: &App, server: &MockServer, key: &str) -> i64 {
+    let mut request = body("Local");
+    request["url"] = json!(server.uri());
+    request["apiKey"] = json!(key);
+    let (status, reply) = app.owner(Method::POST, PATH, Some(request)).await;
+    assert_eq!(status, StatusCode::CREATED, "{reply}");
+    reply["id"].as_i64().unwrap()
+}
+
+#[tokio::test]
+async fn the_test_button_reports_what_the_indexer_can_do() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(query_param("t", "caps"))
+        .and(query_param("apikey", "good-key"))
+        .respond_with(xml(CAPS))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(query_param("t", "movie"))
+        .respond_with(xml(FEED))
+        .mount(&server)
+        .await;
+    let id = indexer_at(&app, &server, "good-key").await;
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert_eq!(reply["movieSearch"], true);
+    assert_eq!(reply["imdbId"], true);
+    assert_eq!(reply["tmdbId"], true);
+    assert!(
+        reply["categories"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == 2000 && c["name"] == "Movies")
+    );
+}
+
+#[tokio::test]
+async fn the_test_button_names_a_wrong_api_key() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(xml(REJECTED))
+        .mount(&server)
+        .await;
+    let id = indexer_at(&app, &server, "wrong-key").await;
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(reply["code"], "indexer_api_key_rejected");
+    assert!(!reply.to_string().contains("wrong-key"));
+}
+
+#[tokio::test]
+async fn the_test_button_reports_an_unreachable_indexer_and_unknown_ids() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    let id = indexer_at(&app, &server, "k").await;
+    drop(server);
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(reply["code"], "indexer_unavailable");
+    assert!(!reply.to_string().contains("apikey"));
+
+    let (status, _) = app
+        .owner(Method::POST, &format!("{PATH}/999/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_test_button_names_a_rate_limited_indexer() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "30"))
+        .mount(&server)
+        .await;
+    let id = indexer_at(&app, &server, "k").await;
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(reply["code"], "indexer_rate_limited");
+}
+
+#[tokio::test]
+async fn an_unreadable_stored_key_must_be_entered_again() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    let id = indexer_at(&app, &server, "k").await;
+    let other = db::secret::SecretKey::derive("another root secret");
+    let foreign = db::secret::encrypt(&other, &db::secret::Secret::new("k"));
+    let mut model: db::entities::indexers::ActiveModel =
+        db::entities::indexers::Entity::find_by_id(id as i32)
+            .one(&app.state.db)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+    model.api_key = Set(foreign);
+    model.update(&app.state.db).await.unwrap();
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(reply["code"], "indexer_api_key_unreadable");
 }
