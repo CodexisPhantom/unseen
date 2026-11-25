@@ -7,6 +7,7 @@ describe('entryFor', () => {
 		expect(entryFor('library/12/files')?.title).toBe('Library');
 		expect(entryFor('/settings/indexers')?.title).toBe('Settings');
 		expect(entryFor('libraryx')).toBeUndefined();
+		expect(entryFor('settings/profiles')?.title).toBe('Settings');
 	});
 
 	it('needs no permission for the home page and unknown pages', () => {
