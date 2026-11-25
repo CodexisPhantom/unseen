@@ -447,6 +447,11 @@ fn app_router_passes_route_coverage() {
                 Permission::IndexersManage
             ),
             profiles(
+                Method::POST,
+                "/api/v1/indexers/{id}/test",
+                Permission::IndexersManage
+            ),
+            profiles(
                 Method::GET,
                 "/api/v1/download-clients",
                 Permission::ClientsRead
