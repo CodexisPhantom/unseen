@@ -53,7 +53,8 @@ src/routes/
   (app)/                    authenticated shell: sidebar, header
     +layout.ts              loads /me, redirects to /login or /setup
     library/                list, movie detail, collections
-    add/                    search TMDB and add
+    add/                    search TMDB and add; the add dialog remembers the
+                            last root folder and profile in localStorage
     activity/               queue
     settings/               general, root folders, profiles, quality sizes,
                             custom formats, TRaSH guides, indexers, clients
