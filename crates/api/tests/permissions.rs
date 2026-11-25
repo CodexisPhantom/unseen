@@ -362,6 +362,43 @@ fn app_router_passes_route_coverage() {
                 Permission::ProfilesManage
             ),
             profiles(Method::GET, "/api/v1/movies/lookup", Permission::LibraryAdd),
+            profiles(Method::GET, "/api/v1/movies", Permission::LibraryRead),
+            profiles(Method::POST, "/api/v1/movies", Permission::LibraryAdd),
+            profiles(Method::GET, "/api/v1/movies/{id}", Permission::LibraryRead),
+            profiles(
+                Method::PATCH,
+                "/api/v1/movies/{id}",
+                Permission::LibraryEdit
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/movies/{id}",
+                Permission::LibraryDelete
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/movies/{id}/profiles",
+                Permission::LibraryAdd
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/movies/{id}/profiles/{pid}",
+                Permission::LibraryDelete
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/movies/{id}/files",
+                Permission::LibraryRead
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/movies/{id}/files/{fid}",
+                Permission::LibraryDelete
+            ),
+            profiles(Method::GET, "/api/v1/tags", Permission::LibraryRead),
+            profiles(Method::POST, "/api/v1/tags", Permission::LibraryEdit),
+            profiles(Method::DELETE, "/api/v1/tags/{id}", Permission::LibraryEdit),
+            profiles(Method::PATCH, "/api/v1/tags/{id}", Permission::LibraryEdit),
             profiles(
                 Method::GET,
                 "/api/v1/settings/tmdb",

@@ -1,5 +1,6 @@
 pub mod http;
 pub mod metadata;
+pub mod naming;
 pub mod permission;
 pub mod profile;
 pub mod qbittorrent;

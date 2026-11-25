@@ -23,6 +23,7 @@ pub mod roles;
 pub mod root_folders;
 pub mod secret;
 pub mod settings;
+pub mod tags;
 pub mod testing;
 pub mod users;
 

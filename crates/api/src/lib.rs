@@ -10,11 +10,13 @@ mod health;
 mod indexers;
 mod lookup;
 mod me;
+mod movies;
 mod owner;
 mod profiles;
 mod roles;
 mod root_folders;
 pub mod setup;
+mod tags;
 mod tmdb;
 mod users;
 mod web;
@@ -132,6 +134,20 @@ pub fn routes() -> ApiRouter {
             routes!(profiles::update_profile, profiles::delete_profile),
         )
         .require(Permission::LibraryAdd, routes!(lookup::lookup))
+        .require(Permission::LibraryRead, routes!(movies::list_movies))
+        .require(Permission::LibraryAdd, routes!(movies::create_movie))
+        .require(Permission::LibraryRead, routes!(movies::get_movie))
+        .require(Permission::LibraryEdit, routes!(movies::update_movie))
+        .require(Permission::LibraryDelete, routes!(movies::delete_movie))
+        .require(Permission::LibraryAdd, routes!(movies::add_profile))
+        .require(Permission::LibraryDelete, routes!(movies::remove_profile))
+        .require(Permission::LibraryRead, routes!(movies::list_files))
+        .require(Permission::LibraryDelete, routes!(movies::delete_file))
+        .require(Permission::LibraryRead, routes!(tags::list_tags))
+        .require(
+            Permission::LibraryEdit,
+            routes!(tags::create_tag, tags::update_tag, tags::delete_tag),
+        )
         .require(Permission::SettingsRead, routes!(tmdb::get_settings))
         .require(Permission::SettingsManage, routes!(tmdb::update_settings))
         .require(

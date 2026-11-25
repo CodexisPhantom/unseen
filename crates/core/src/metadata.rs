@@ -79,6 +79,44 @@ pub struct MovieDetails {
     pub release_dates: Vec<ReleaseDate>,
 }
 
+/// The earliest date of each kind that a movie list shows.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct KeyDates {
+    pub in_cinemas: Option<String>,
+    pub digital: Option<String>,
+    pub physical: Option<String>,
+}
+
+impl MovieDetails {
+    /// The earliest theatrical, digital and physical release over all
+    /// countries. Time stamps compare as text because they are ISO 8601 in UTC.
+    pub fn key_dates(&self) -> KeyDates {
+        let earliest = |kinds: &[ReleaseKind]| {
+            self.release_dates
+                .iter()
+                .filter(|date| kinds.contains(&date.kind))
+                .map(|date| date.date.clone())
+                .min()
+        };
+        KeyDates {
+            in_cinemas: earliest(&[ReleaseKind::Theatrical, ReleaseKind::TheatricalLimited]),
+            digital: earliest(&[ReleaseKind::Digital]),
+            physical: earliest(&[ReleaseKind::Physical]),
+        }
+    }
+
+    /// The status in Radarr's words: `tba`, `announced`, `released` or
+    /// `deleted`.
+    pub fn radarr_status(&self) -> &'static str {
+        match self.status.as_str() {
+            "Released" => "released",
+            "Post Production" | "In Production" | "Planned" | "Rumored" => "announced",
+            "Canceled" => "deleted",
+            _ => "tba",
+        }
+    }
+}
+
 /// A collection with its movies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Collection {
@@ -183,6 +221,70 @@ pub fn parse_term(term: &str) -> Result<LookupTerm, TermError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn details(status: &str, dates: &[(ReleaseKind, &str)]) -> MovieDetails {
+        MovieDetails {
+            summary: MovieSummary {
+                tmdb_id: 1,
+                title: "T".into(),
+                original_title: "T".into(),
+                overview: String::new(),
+                release_date: None,
+                poster_path: None,
+            },
+            imdb_id: None,
+            runtime_minutes: None,
+            status: status.into(),
+            genres: vec![],
+            collection: None,
+            release_dates: dates
+                .iter()
+                .map(|(kind, date)| ReleaseDate {
+                    country: "US".into(),
+                    kind: *kind,
+                    date: (*date).into(),
+                    certification: None,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn key_dates_are_the_earliest_per_kind() {
+        let found = details(
+            "Released",
+            &[
+                (ReleaseKind::Theatrical, "1999-04-02T00:00:00.000Z"),
+                (ReleaseKind::TheatricalLimited, "1999-03-31T00:00:00.000Z"),
+                (ReleaseKind::Premiere, "1999-03-01T00:00:00.000Z"),
+                (ReleaseKind::Digital, "2000-01-01T00:00:00.000Z"),
+                (ReleaseKind::Digital, "1999-12-01T00:00:00.000Z"),
+            ],
+        )
+        .key_dates();
+        assert_eq!(
+            found.in_cinemas.as_deref(),
+            Some("1999-03-31T00:00:00.000Z")
+        );
+        assert_eq!(found.digital.as_deref(), Some("1999-12-01T00:00:00.000Z"));
+        assert_eq!(found.physical, None);
+        assert_eq!(details("Released", &[]).key_dates(), KeyDates::default());
+    }
+
+    #[test]
+    fn tmdb_statuses_map_to_radarr_statuses() {
+        for (tmdb, radarr) in [
+            ("Released", "released"),
+            ("Post Production", "announced"),
+            ("In Production", "announced"),
+            ("Planned", "announced"),
+            ("Rumored", "announced"),
+            ("Canceled", "deleted"),
+            ("", "tba"),
+        ] {
+            assert_eq!(details(tmdb, &[]).radarr_status(), radarr, "{tmdb}");
+        }
+    }
 
     #[test]
     fn reads_the_three_forms() {

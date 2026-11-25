@@ -47,6 +47,12 @@ wiremock = "0.6"
 [profile.dev.package.api]
 debug = false
 
+# Line tables are enough for backtraces. Full debug information made the
+# coverage build of the many `api` test binaries fill the CI disk (the linker
+# died with a bus error).
+[profile.dev]
+debug = "line-tables-only"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

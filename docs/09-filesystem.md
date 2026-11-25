@@ -43,7 +43,7 @@ Defaults equal the Radarr defaults:
 | Movie file | `{Movie Title} ({Release Year}) {Quality Full}` |
 | Rename movies | off (keep the original file name), as in Radarr |
 | Replace illegal characters | on |
-| Colon replacement | Radarr default (verify) |
+| Colon replacement | Delete (Radarr's default; `core::naming` implements it for the folder name, still to verify against a real Radarr) |
 
 Supported tokens in V1. The syntax is Radarr's, including the separator
 variants (`{Movie.Title}`, `{Movie_Title}`), case variants and the optional
