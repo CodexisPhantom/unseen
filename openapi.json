@@ -977,6 +977,140 @@
         "x-permission": "indexers:manage"
       }
     },
+    "/api/v1/library/adopt": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Adopts the confirmed folders: each becomes a movie that keeps its folder\nname and file names. The largest video file belongs to the primary\nprofile; other video files are stored as unmanaged files. The quality of\nevery file is `Unknown` until the parser backfill. A folder that cannot\nbe adopted is reported and the others still are.",
+        "operationId": "adopt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "What was adopted and what was not",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdoptResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The TMDB key is not set (`tmdb_not_configured`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "import:run"
+      }
+    },
+    "/api/v1/library/scan": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Lists the folders of a root folder that no movie uses, with a proposed\nTMDB match and the video files of each. Changes nothing, so it can run\nagain and again: adopted folders no longer appear.",
+        "operationId": "scan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The folders no movie uses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The TMDB key is not set (`tmdb_not_configured`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No such root folder, or it cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "TMDB failed or refused the key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "import:run"
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -3255,6 +3389,129 @@
   },
   "components": {
     "schemas": {
+      "AdoptFailure": {
+        "type": "object",
+        "required": [
+          "folderName",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`folder_not_found`, `no_video_file`, `movie_exists`, `folder_taken`,\n`tmdb_not_found`, `no_release_date` or `tmdb_unavailable`."
+          },
+          "folderName": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AdoptItem": {
+        "type": "object",
+        "required": [
+          "folderName",
+          "tmdbId"
+        ],
+        "properties": {
+          "folderName": {
+            "type": "string",
+            "description": "A sub-folder of the root folder."
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdoptRequest": {
+        "type": "object",
+        "required": [
+          "rootFolderId",
+          "qualityProfileIds",
+          "movies"
+        ],
+        "properties": {
+          "minimumAvailability": {
+            "type": "string",
+            "description": "`announced`, `inCinemas` or `released`."
+          },
+          "monitored": {
+            "type": "boolean"
+          },
+          "movies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdoptItem"
+            }
+          },
+          "qualityProfileIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "The first is the primary profile; it gets the largest file."
+          },
+          "rootFolderId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "AdoptResult": {
+        "type": "object",
+        "required": [
+          "adopted",
+          "failed"
+        ],
+        "properties": {
+          "adopted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Adopted"
+            }
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdoptFailure"
+            },
+            "description": "Folders that were not adopted. The others are adopted anyway."
+          }
+        }
+      },
+      "Adopted": {
+        "type": "object",
+        "required": [
+          "folderName",
+          "movieId",
+          "fileCount"
+        ],
+        "properties": {
+          "fileCount": {
+            "type": "integer",
+            "description": "Video files stored: the main file and the unmanaged ones.",
+            "minimum": 0
+          },
+          "folderName": {
+            "type": "string"
+          },
+          "movieId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "ApiKey": {
         "type": "object",
         "required": [
@@ -4840,6 +5097,121 @@
             "description": "Sub-folders on disk that no movie uses, sorted."
           }
         }
+      },
+      "ScanFile": {
+        "type": "object",
+        "description": "A video file of a folder.",
+        "required": [
+          "relativePath",
+          "size"
+        ],
+        "properties": {
+          "relativePath": {
+            "type": "string",
+            "description": "Relative to the movie folder."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ScanFolder": {
+        "type": "object",
+        "required": [
+          "folderName",
+          "title",
+          "status",
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScanFile"
+            },
+            "description": "Video files, the largest first. The largest is the main file."
+          },
+          "folderName": {
+            "type": "string"
+          },
+          "matchTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matchYear": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "posterPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScanStatus"
+          },
+          "title": {
+            "type": "string",
+            "description": "What the folder name says."
+          },
+          "tmdbId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The match, for `matched` and `duplicate`."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ScanRequest": {
+        "type": "object",
+        "required": [
+          "rootFolderId"
+        ],
+        "properties": {
+          "rootFolderId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ScanResult": {
+        "type": "object",
+        "required": [
+          "folders"
+        ],
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScanFolder"
+            }
+          }
+        }
+      },
+      "ScanStatus": {
+        "type": "string",
+        "enum": [
+          "matched",
+          "unmatched",
+          "duplicate",
+          "noVideo"
+        ]
       },
       "SetupRequest": {
         "type": "object",
