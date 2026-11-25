@@ -223,7 +223,9 @@ static THREE_D: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)\b3d\b"));
 static HYPHEN_GROUP: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)-([a-z0-9]+)(?:\[\w+\])?\s*$"));
 /// Text after a last hyphen that is the end of a tag, not a group.
 static NOT_GROUP: LazyLock<Regex> = LazyLock::new(|| {
-    re(r"(?i)^(?:dl|ray|rip|hd|x|ma|es|en|cat|eng|jap|ger|fra|fre|ita|hdrip|\d{1,2}(?:bit)?)$")
+    re(
+        r"(?i)^(?:dl|ray|rip|hd|x|ma|es|en|cat|eng|jap|ger|fra|fre|ita|hdrip|r|disk|\d{1,2}(?:bit)?|\d{3,4}[pi])$",
+    )
 });
 static BRACKET_GROUP: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)\[([a-z0-9.]+)\]\s*$"));
 

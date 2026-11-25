@@ -13,6 +13,7 @@ pub mod auth_schema;
 pub mod access;
 pub mod api_keys;
 pub mod audit;
+pub mod backfill;
 pub mod download_clients;
 pub mod entities;
 pub mod indexers;
