@@ -6,11 +6,13 @@ pub mod audit;
 pub mod auth;
 pub mod error;
 mod health;
+mod lookup;
 mod me;
 mod owner;
 mod profiles;
 mod roles;
 pub mod setup;
+mod tmdb;
 mod users;
 mod web;
 
@@ -34,6 +36,10 @@ pub struct AppState {
     pub setup: setup::Setup,
     /// Encrypts the integration secrets (ADR 0011).
     pub secrets: db::secret::SecretKey,
+    /// The client for TMDB and the other metadata calls.
+    pub http: unseen_core::http::OutboundClient,
+    /// Tests point this at a mock server.
+    pub tmdb_base_url: String,
 }
 
 impl AppState {
@@ -56,6 +62,9 @@ impl AppState {
             policy,
             setup: setup::Setup::default(),
             secrets: db::secret::SecretKey::derive(secret),
+            http: unseen_core::http::OutboundClient::new()
+                .map_err(|error| AuthError::internal(format!("build http client: {error}")))?,
+            tmdb_base_url: unseen_core::tmdb::DEFAULT_BASE_URL.to_owned(),
         })
     }
 }
@@ -119,6 +128,9 @@ pub fn routes() -> ApiRouter {
             Permission::ProfilesManage,
             routes!(profiles::update_profile, profiles::delete_profile),
         )
+        .require(Permission::LibraryAdd, routes!(lookup::lookup))
+        .require(Permission::SettingsRead, routes!(tmdb::get_settings))
+        .require(Permission::SettingsManage, routes!(tmdb::update_settings))
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.

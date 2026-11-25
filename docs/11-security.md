@@ -136,7 +136,7 @@ Action names are `area.verb`: `auth.sign_in`, `auth.sign_in_failed`,
 `auth.sign_out`, `setup.completed`, `user.created`, `user.updated`,
 `user.deleted`, `user.permissions_changed`, `owner.transferred`, `role.created`, `role.updated`,
 `role.deleted`, `quality_profile.created`, `quality_profile.updated`,
-`quality_profile.deleted`, `api_key.created`, `api_key.revoked`. A failed sign-in names
+`quality_profile.deleted`, `setting.updated`, `api_key.created`, `api_key.revoked`. A failed sign-in names
 the email that was tried and no user. The address is the peer of the
 connection; `UNSEEN_TRUSTED_PROXIES` is not read yet. Nothing in the app
 updates or deletes a row; retention is still open (docs/04).

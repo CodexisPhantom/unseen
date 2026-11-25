@@ -361,6 +361,17 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/quality-profiles/{id}",
                 Permission::ProfilesManage
             ),
+            profiles(Method::GET, "/api/v1/movies/lookup", Permission::LibraryAdd),
+            profiles(
+                Method::GET,
+                "/api/v1/settings/tmdb",
+                Permission::SettingsRead
+            ),
+            profiles(
+                Method::PUT,
+                "/api/v1/settings/tmdb",
+                Permission::SettingsManage
+            ),
         ]
     );
 

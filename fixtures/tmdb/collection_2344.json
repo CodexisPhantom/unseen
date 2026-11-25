@@ -1,0 +1,33 @@
+{
+  "id": 2344,
+  "name": "The Matrix Collection",
+  "overview": "A series of science fiction action films.",
+  "poster_path": "/lh4aGpd3U9rm9B8Oqr6CUgQLtZL.jpg",
+  "backdrop_path": "/bRm2DEgUiYciDw3myHuYFInD7la.jpg",
+  "parts": [
+    {
+      "adult": false,
+      "backdrop_path": "/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg",
+      "id": 603,
+      "title": "The Matrix",
+      "original_title": "The Matrix",
+      "overview": "Set in the 22nd century, The Matrix tells the story of a computer hacker.",
+      "poster_path": "/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg",
+      "media_type": "movie",
+      "genre_ids": [28, 878],
+      "release_date": "1999-03-30"
+    },
+    {
+      "adult": false,
+      "backdrop_path": null,
+      "id": 604,
+      "title": "The Matrix Reloaded",
+      "original_title": "The Matrix Reloaded",
+      "overview": "Six months after the events depicted in The Matrix.",
+      "poster_path": "/9TGHDvWrqKBzwDxDodHYXEmOE6J.jpg",
+      "media_type": "movie",
+      "genre_ids": [28, 878],
+      "release_date": "2003-05-15"
+    }
+  ]
+}

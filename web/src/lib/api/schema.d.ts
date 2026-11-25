@@ -150,6 +150,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/movies/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Finds movies on TMDB by title, TMDB id (`tmdb:603`) or IMDb id
+         *     (`imdb:tt0133093`). An id that matches nothing gives an empty list.
+         */
+        get: operations["lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/owner/transfer": {
         parameters: {
             query?: never;
@@ -275,6 +295,24 @@ export interface paths {
          *     holds a permission the caller lacks.
          */
         patch: operations["update_role"];
+        trace?: never;
+    };
+    "/api/v1/settings/tmdb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The TMDB settings, without the key. */
+        get: operations["get_settings"];
+        /** Changes the TMDB key and language. The key is stored encrypted. */
+        put: operations["update_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/setup": {
@@ -452,6 +490,21 @@ export interface components {
             id: string;
             name: string;
         };
+        MovieLookup: {
+            /** @description Known for `tmdb:` and `imdb:` lookups, not for a text search. */
+            imdbId?: string | null;
+            originalTitle: string;
+            overview: string;
+            /** @description Path on TMDB's image host; the browser loads the image. */
+            posterPath?: string | null;
+            /** @description `YYYY-MM-DD`. */
+            releaseDate?: string | null;
+            title: string;
+            /** Format: int32 */
+            tmdbId: number;
+            /** Format: int32 */
+            year?: number | null;
+        };
         NewApiKey: {
             name: string;
             permissions: components["schemas"]["Permission"][];
@@ -586,6 +639,20 @@ export interface components {
             email: string;
             id: string;
             name: string;
+        };
+        TmdbSettings: {
+            /** @description A key is stored but cannot be decrypted: enter it again. */
+            apiKeyMustBeReentered: boolean;
+            /** @description The key itself is never returned. */
+            hasApiKey: boolean;
+            /** @description For example `en-US`. */
+            language: string;
+        };
+        TmdbSettingsPatch: {
+            /** @description A v3 API key or a v4 read access token. Absent keeps the stored key. */
+            apiKey?: string | null;
+            /** @description For example `en-US`. Absent keeps the stored language. */
+            language?: string | null;
         };
         Transfer: {
             /**
@@ -948,6 +1015,65 @@ export interface operations {
             };
             /** @description No such key */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    lookup: {
+        parameters: {
+            query?: {
+                /** @description Text to search for, `tmdb:123` or `imdb:tt0133093`. */
+                term?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The matches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovieLookup"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The TMDB key is not set (`tmdb_not_configured`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The term is empty or malformed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TMDB failed or refused the key */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1452,6 +1578,77 @@ export interface operations {
             };
             /** @description The name is taken */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TmdbSettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TmdbSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description The settings after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TmdbSettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

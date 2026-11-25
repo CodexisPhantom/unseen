@@ -450,6 +450,82 @@
         "x-permission": "authenticated"
       }
     },
+    "/api/v1/movies/lookup": {
+      "get": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Finds movies on TMDB by title, TMDB id (`tmdb:603`) or IMDb id\n(`imdb:tt0133093`). An id that matches nothing gives an empty list.",
+        "operationId": "lookup",
+        "parameters": [
+          {
+            "name": "term",
+            "in": "query",
+            "description": "Text to search for, `tmdb:123` or `imdb:tt0133093`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MovieLookup"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The TMDB key is not set (`tmdb_not_configured`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The term is empty or malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "TMDB failed or refused the key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:add"
+      }
+    },
     "/api/v1/owner/transfer": {
       "post": {
         "tags": [
@@ -1078,6 +1154,88 @@
           }
         },
         "x-permission": "roles:manage"
+      }
+    },
+    "/api/v1/settings/tmdb": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "The TMDB settings, without the key.",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "The settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TmdbSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:read"
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Changes the TMDB key and language. The key is stored encrypted.",
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TmdbSettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The settings after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TmdbSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
       }
     },
     "/api/v1/setup": {
@@ -1745,6 +1903,58 @@
           }
         }
       },
+      "MovieLookup": {
+        "type": "object",
+        "required": [
+          "tmdbId",
+          "title",
+          "originalTitle",
+          "overview"
+        ],
+        "properties": {
+          "imdbId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Known for `tmdb:` and `imdb:` lookups, not for a text search."
+          },
+          "originalTitle": {
+            "type": "string"
+          },
+          "overview": {
+            "type": "string"
+          },
+          "posterPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path on TMDB's image host; the browser loads the image."
+          },
+          "releaseDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`YYYY-MM-DD`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "NewApiKey": {
         "type": "object",
         "required": [
@@ -2233,6 +2443,47 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "TmdbSettings": {
+        "type": "object",
+        "required": [
+          "hasApiKey",
+          "apiKeyMustBeReentered",
+          "language"
+        ],
+        "properties": {
+          "apiKeyMustBeReentered": {
+            "type": "boolean",
+            "description": "A key is stored but cannot be decrypted: enter it again."
+          },
+          "hasApiKey": {
+            "type": "boolean",
+            "description": "The key itself is never returned."
+          },
+          "language": {
+            "type": "string",
+            "description": "For example `en-US`."
+          }
+        }
+      },
+      "TmdbSettingsPatch": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A v3 API key or a v4 read access token. Absent keeps the stored key."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For example `en-US`. Absent keeps the stored language."
           }
         }
       },
