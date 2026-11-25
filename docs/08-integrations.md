@@ -129,9 +129,37 @@ second provider needs no new scoring code.
 | Failure | A failed search leaves the subtitle wanted and records the error on the task. A bad API key or login disables the provider and shows an error in settings until it is changed. |
 | Mock | JSON fixtures: search results, a login answer, a download answer, a quota-exhausted answer |
 
-Open question for #106: confirm the request fields and the quota numbers
-against the provider's current documentation, which could not be read when
-this design was written. The behaviour above does not depend on the numbers.
+Implementation notes (`opensubtitles.rs`, trait in `subtitle_provider.rs`):
+
+- A search sends `tmdb_id`, else `imdb_id`, else `query` and `year`, plus
+  `moviehash`, `languages` and `type=movie`. The kinds wanted become
+  `hearing_impaired` and `foreign_parts_only` (`only` or `exclude`; the
+  default `include` is not sent). Parameters are sorted by name, as the
+  provider asks for its cache. Only the first page (50 results) is read. A
+  query with no id, title or hash makes no call.
+- A candidate's id is the `file_id` of its first file, which is what
+  `POST /download` takes. A result with no file or no language is dropped.
+  The kind is `forced` when `foreign_parts_only`, else `hi` when
+  `hearing_impaired`, else `normal`.
+- Search needs only the `Api-Key`. The login runs on the first download;
+  the token is kept, and one HTTP 401 on a download makes the client log in
+  again once. A missing username or password is `Unauthorized` without a call.
+- The quota is kept from the `remaining` and `reset_time_utc` fields of each
+  download answer. `quota()` returns it so the caller can store it
+  (`subtitles.opensubtitles.quota`) and give it back with `with_quota()`.
+  With none left, `download` returns `QuotaExhausted` without a request until
+  the reset time. HTTP 406 is the provider's "download count exceeded". A 429
+  on a download that the retries (three, honoring `Retry-After`) did not
+  clear is treated the same way. When an answer gives no reset time, the
+  client assumes one hour.
+- The answer to `POST /download` holds a `link` to the file. The client
+  fetches it through the outbound check, without the key or the token.
+- The `base_url` that `/login` returns (for VIP accounts) is ignored; the
+  configured base URL is used.
+- The fixtures in `fixtures/opensubtitles/` are written by hand from the
+  public API documentation as known when this was written. The documentation
+  site could not be read and no real account was used. Check the field names
+  against a real answer before the first release.
 
 ### Which subtitle is chosen
 
