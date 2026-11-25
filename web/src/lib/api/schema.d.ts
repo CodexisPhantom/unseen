@@ -75,6 +75,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/download-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every download client, ordered by name. */
+        get: operations["list_clients"];
+        put?: never;
+        /** Adds a download client. The password is stored encrypted. */
+        post: operations["create_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/download-clients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a download client. */
+        delete: operations["delete_client"];
+        options?: never;
+        head?: never;
+        /**
+         * Changes a download client. A request without `password` keeps the stored
+         *     password; an empty one removes it.
+         */
+        patch: operations["update_client"];
+        trace?: never;
+    };
+    "/api/v1/download-clients/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logs in to the saved download client and reports its version. */
+        post: operations["test_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/filesystem": {
         parameters: {
             query?: never;
@@ -110,6 +166,43 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/indexers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every indexer, ordered by name. */
+        get: operations["list_indexers"];
+        put?: never;
+        /** Adds an indexer. The key is stored encrypted. */
+        post: operations["create_indexer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/indexers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One indexer. */
+        get: operations["get_indexer"];
+        put?: never;
+        post?: never;
+        /** Deletes an indexer. */
+        delete: operations["delete_indexer"];
+        options?: never;
+        head?: never;
+        /** Changes an indexer. A request without `apiKey` keeps the stored key. */
+        patch: operations["update_indexer"];
         trace?: never;
     };
     "/api/v1/me": {
@@ -170,27 +263,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/movies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every movie, by sort title. */
-        get: operations["list_movies"];
-        put?: never;
-        /**
-         * Adds a movie by TMDB id. Unseen fetches the metadata and names the movie
-         *     folder with the default template `{Movie Title} ({Release Year})`.
-         */
-        post: operations["create_movie"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/movies/lookup": {
         parameters: {
             query?: never;
@@ -206,102 +278,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/movies/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** One movie. */
-        get: operations["get_movie"];
-        put?: never;
-        post?: never;
-        /**
-         * Removes a movie from the library. With `deleteFiles=true` the movie's
-         *     folder is deleted from disk too; by default the folder stays untouched.
-         */
-        delete: operations["delete_movie"];
-        options?: never;
-        head?: never;
-        /**
-         * Changes the monitored state, the minimum availability, the tags or the
-         *     primary profile of a movie.
-         */
-        patch: operations["update_movie"];
-        trace?: never;
-    };
-    "/api/v1/movies/{id}/files": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The files of a movie, managed and unmanaged. */
-        get: operations["list_files"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/movies/{id}/files/{fid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Deletes a file of a movie from disk and from the library. */
-        delete: operations["delete_file"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/movies/{id}/profiles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Attaches one more quality profile to a movie. It is not primary. */
-        post: operations["add_profile"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/movies/{id}/profiles/{pid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Detaches a quality profile. Its file stays as an unmanaged file. The
-         *     primary profile cannot be removed while another exists.
-         */
-        delete: operations["remove_profile"];
         options?: never;
         head?: never;
         patch?: never;
@@ -508,42 +484,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tags": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every tag, ordered by label. */
-        get: operations["list_tags"];
-        put?: never;
-        /** Creates a tag. */
-        post: operations["create_tag"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tags/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Deletes a tag that no movie carries. */
-        delete: operations["delete_tag"];
-        options?: never;
-        head?: never;
-        /** Renames a tag. */
-        patch: operations["update_tag"];
-        trace?: never;
-    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -670,6 +610,49 @@ export interface components {
             /** @description Replaces the direct grants. */
             permissions: components["schemas"]["Permission"][];
         };
+        DownloadClient: {
+            /** @description The qBittorrent category of the torrents Unseen adds. */
+            category: string;
+            createdAt: string;
+            enabled: boolean;
+            /** @description The password itself is never returned. */
+            hasPassword: boolean;
+            /** Format: int32 */
+            id: number;
+            /** @description `qbittorrent`. */
+            kind: string;
+            /** @description ... and the same folder as Unseen sees it. */
+            localPath?: string | null;
+            name: string;
+            /** @description A password is stored but cannot be decrypted: enter it again. */
+            passwordMustBeReentered: boolean;
+            /** @description Remote path mapping: a path as the client sees it ... */
+            remotePath?: string | null;
+            /**
+             * @description A client without tags serves every movie; one with tags serves the
+             *     movies that share a tag (docs/04-database.md).
+             */
+            tags: number[];
+            /** @description The WebUI address, for example `http://qbittorrent:8080`. */
+            url: string;
+            username?: string | null;
+        };
+        /**
+         * @description An empty string clears `username`, `password`, `remotePath` and
+         *     `localPath`. An absent field keeps the stored value.
+         */
+        DownloadClientPatch: {
+            category?: string | null;
+            enabled?: boolean | null;
+            localPath?: string | null;
+            name?: string | null;
+            password?: string | null;
+            remotePath?: string | null;
+            /** @description Replaces the whole tag set. */
+            tags?: number[] | null;
+            url?: string | null;
+            username?: string | null;
+        };
         FieldError: {
             field: string;
             message: string;
@@ -686,6 +669,47 @@ export interface components {
             database: components["schemas"]["DatabaseStatus"];
             /** @description Version of the running binary. */
             version: string;
+        };
+        Indexer: {
+            /** @description A key is stored but cannot be decrypted: enter it again. */
+            apiKeyMustBeReentered: boolean;
+            /** @description Torznab category ids to search, for example `2000` for movies. */
+            categories: number[];
+            createdAt: string;
+            enabled: boolean;
+            /** @description The key itself is never returned. */
+            hasApiKey: boolean;
+            /** Format: int32 */
+            id: number;
+            /** @description `torznab`. */
+            kind: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description 1 to 50. The lower number wins when two releases tie.
+             */
+            priority: number;
+            /**
+             * @description An indexer without tags serves every movie; one with tags serves the
+             *     movies that share a tag (docs/04-database.md).
+             */
+            tags: number[];
+            url: string;
+            /** @description Send the traffic through the configured proxy. */
+            useProxy: boolean;
+        };
+        IndexerPatch: {
+            /** @description Absent keeps the stored key. */
+            apiKey?: string | null;
+            categories?: number[] | null;
+            enabled?: boolean | null;
+            name?: string | null;
+            /** Format: int32 */
+            priority?: number | null;
+            /** @description Replaces the whole tag set. */
+            tags?: number[] | null;
+            url?: string | null;
+            useProxy?: boolean | null;
         };
         Me: {
             /** @description The user holds the Owner role. */
@@ -710,66 +734,6 @@ export interface components {
             id: string;
             name: string;
         };
-        Movie: {
-            addedAt: string;
-            digitalRelease?: string | null;
-            /** @description The movie's folder inside the root folder. */
-            folderName: string;
-            /** Format: int32 */
-            id: number;
-            imdbId?: string | null;
-            inCinemas?: string | null;
-            /** @description `announced`, `inCinemas` or `released`. */
-            minimumAvailability: string;
-            monitored: boolean;
-            originalTitle?: string | null;
-            overview?: string | null;
-            physicalRelease?: string | null;
-            /** @description Path on TMDB's image host; the browser loads the image. */
-            posterPath?: string | null;
-            /** @description The primary profile first. */
-            profiles: components["schemas"]["MovieProfile"][];
-            /** Format: int32 */
-            rootFolderId: number;
-            /**
-             * Format: int32
-             * @description Minutes.
-             */
-            runtime?: number | null;
-            sortTitle: string;
-            /** @description `tba`, `announced`, `released` or `deleted`. */
-            status: string;
-            tags: number[];
-            title: string;
-            /** Format: int32 */
-            tmdbId: number;
-            updatedAt: string;
-            /** Format: int32 */
-            year: number;
-        };
-        MovieFile: {
-            addedAt: string;
-            edition?: string | null;
-            /** Format: int32 */
-            id: number;
-            managed: boolean;
-            /**
-             * Format: int32
-             * @description The profile this file belongs to. Absent for an unmanaged file.
-             */
-            movieProfileId?: number | null;
-            /** Format: int32 */
-            qualityId: number;
-            /** @description Relative to the movie's folder. */
-            relativePath: string;
-            releaseGroup?: string | null;
-            sceneName?: string | null;
-            /**
-             * Format: int64
-             * @description Bytes.
-             */
-            size: number;
-        };
         MovieLookup: {
             /** @description Known for `tmdb:` and `imdb:` lookups, not for a text search. */
             imdbId?: string | null;
@@ -785,51 +749,35 @@ export interface components {
             /** Format: int32 */
             year?: number | null;
         };
-        MoviePatch: {
-            minimumAvailability?: string | null;
-            monitored?: boolean | null;
-            /**
-             * Format: int32
-             * @description Makes this profile attachment (`profiles[].id`) the primary one.
-             */
-            primaryProfileId?: number | null;
-            /** @description Replaces the whole tag set. */
-            tags?: number[] | null;
-        };
-        MovieProfile: {
-            /**
-             * Format: int32
-             * @description The managed file of this profile, if it has one.
-             */
-            fileId?: number | null;
-            /**
-             * Format: int32
-             * @description The id of this attachment, as `DELETE /movies/{id}/profiles/{pid}`
-             *     and `primaryProfileId` use it. Not the quality profile id.
-             */
-            id: number;
-            isPrimary: boolean;
-            /** Format: int32 */
-            qualityProfileId: number;
-        };
         NewApiKey: {
             name: string;
             permissions: components["schemas"]["Permission"][];
         };
-        NewMovie: {
-            minimumAvailability?: string;
-            monitored?: boolean;
-            /** @description One or more quality profiles. The first is the primary profile. */
-            qualityProfileIds: number[];
-            /** Format: int32 */
-            rootFolderId: number;
+        NewDownloadClient: {
+            category?: string;
+            enabled?: boolean;
+            kind?: string;
+            localPath?: string | null;
+            name: string;
+            /** @description Stored encrypted and never returned. */
+            password?: string | null;
+            remotePath?: string | null;
             tags?: number[];
-            /** Format: int32 */
-            tmdbId: number;
+            url: string;
+            username?: string | null;
         };
-        NewMovieProfile: {
+        NewIndexer: {
+            /** @description Stored encrypted and never returned. */
+            apiKey: string;
+            categories?: number[];
+            enabled?: boolean;
+            kind?: string;
+            name: string;
             /** Format: int32 */
-            qualityProfileId: number;
+            priority?: number;
+            tags?: number[];
+            url: string;
+            useProxy?: boolean;
         };
         NewQualityProfile: {
             /** Format: int32 */
@@ -985,14 +933,9 @@ export interface components {
             id: string;
             name: string;
         };
-        Tag: {
-            /** Format: int32 */
-            id: number;
-            label: string;
-        };
-        TagBody: {
-            /** @description Lower case letters, digits and `-`. Upper case is lowered. */
-            label: string;
+        TestResult: {
+            /** @description The qBittorrent version, for example `v4.6.2`. */
+            version: string;
         };
         TmdbSettings: {
             /** @description A key is stored but cannot be decrypted: enter it again. */
@@ -1201,6 +1144,247 @@ export interface operations {
             };
         };
     };
+    list_clients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The download clients */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClient"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewDownloadClient"];
+            };
+        };
+        responses: {
+            /** @description The new download client */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClient"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download client id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such download client */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download client id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed download client */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClient"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such download client */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    test_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download client id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The login works */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such download client */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The stored password cannot be read */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The client refused the login or did not answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     browse: {
         parameters: {
             query?: {
@@ -1267,6 +1451,229 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    list_indexers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The indexers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewIndexer"];
+            };
+        };
+        responses: {
+            /** @description The new indexer */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The indexer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed indexer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1419,95 +1826,6 @@ export interface operations {
             };
         };
     };
-    list_movies: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The library */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Movie"][];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    create_movie: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NewMovie"];
-            };
-        };
-        responses: {
-            /** @description The new movie */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Movie"];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description The movie is already added (`movie_exists`), its folder name is taken (`folder_taken`) or the TMDB key is not set (`tmdb_not_configured`) */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description TMDB failed or refused the key */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
     lookup: {
         parameters: {
             query?: {
@@ -1558,338 +1876,6 @@ export interface operations {
             };
             /** @description TMDB failed or refused the key */
             502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    get_movie: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Movie id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The movie */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Movie"];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such movie */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    delete_movie: {
-        parameters: {
-            query?: {
-                /** @description Also delete the movie's folder on disk. Default `false`. */
-                deleteFiles?: boolean;
-            };
-            header?: never;
-            path: {
-                /** @description Movie id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such movie */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    update_movie: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Movie id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MoviePatch"];
-            };
-        };
-        responses: {
-            /** @description The changed movie */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Movie"];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such movie */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    list_files: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Movie id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The files */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MovieFile"][];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such movie */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    delete_file: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Movie id */
-                id: number;
-                /** @description File id */
-                fid: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such movie or file */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    add_profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Movie id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NewMovieProfile"];
-            };
-        };
-        responses: {
-            /** @description The movie with the new profile */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Movie"];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such movie */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description The movie has this profile already */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such quality profile */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    remove_profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Movie id */
-                id: number;
-                /** @description Profile attachment id (`profiles[].id`) */
-                pid: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such movie or profile */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description The profile is primary (`primary_profile`) or the last one (`last_profile`) */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2663,197 +2649,6 @@ export interface operations {
                 };
             };
             /** @description The library refused the name, email or password */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    list_tags: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The tags */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Tag"][];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    create_tag: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TagBody"];
-            };
-        };
-        responses: {
-            /** @description The new tag */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Tag"];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description The label is taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    delete_tag: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Tag id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such tag */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description A movie carries the tag */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    update_tag: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Tag id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TagBody"];
-            };
-        };
-        responses: {
-            /** @description The renamed tag */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Tag"];
-                };
-            };
-            /** @description Permission denied */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description No such tag */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description The label is taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description Validation failed */
             422: {
                 headers: {
                     [name: string]: unknown;
