@@ -1,3 +1,5 @@
+![Unseen: your media, handled out of sight.](web/static/readme-banner.png)
+
 # Unseen
 
 One self-hosted app that replaces Sonarr, Radarr, Prowlarr and Bazarr, including
