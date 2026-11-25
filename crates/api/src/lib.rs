@@ -7,6 +7,7 @@ pub mod auth;
 pub mod error;
 mod health;
 mod me;
+mod owner;
 mod roles;
 pub mod setup;
 mod users;
@@ -76,6 +77,7 @@ pub fn routes() -> ApiRouter {
         .public(routes!(health::health))
         .public(routes!(setup::status, setup::create))
         .authenticated(routes!(me::me))
+        .authenticated(routes!(owner::transfer))
         .authenticated(routes!(roles::list_permissions))
         .authenticated(routes!(api_keys::list_own, api_keys::create_own))
         .authenticated(routes!(api_keys::revoke_own))
