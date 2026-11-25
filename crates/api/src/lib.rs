@@ -10,6 +10,7 @@ mod me;
 mod owner;
 mod profiles;
 mod roles;
+mod root_folders;
 pub mod setup;
 mod users;
 mod web;
@@ -119,6 +120,19 @@ pub fn routes() -> ApiRouter {
             Permission::ProfilesManage,
             routes!(profiles::update_profile, profiles::delete_profile),
         )
+        .require(
+            Permission::SettingsRead,
+            routes!(root_folders::list_root_folders),
+        )
+        .require(
+            Permission::SettingsManage,
+            routes!(root_folders::create_root_folder),
+        )
+        .require(
+            Permission::SettingsManage,
+            routes!(root_folders::delete_root_folder),
+        )
+        .require(Permission::SettingsManage, routes!(root_folders::browse))
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.
