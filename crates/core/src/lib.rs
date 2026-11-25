@@ -1,4 +1,5 @@
 pub mod http;
+pub mod library;
 pub mod metadata;
 pub mod naming;
 pub mod permission;

@@ -6,6 +6,7 @@
 	import { z } from 'zod';
 	import { authClient } from '#lib/auth-client.js';
 	import { safeRedirect, signInMessage } from '#lib/auth.js';
+	import Logo from '#lib/components/logo.svelte';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import * as Form from '#lib/components/ui/form/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -43,6 +44,7 @@
 <main class="flex min-h-svh items-center justify-center p-4">
 	<Card.Root class="w-full max-w-sm">
 		<Card.Header>
+			<Logo class="mb-2 size-10" />
 			<Card.Title>Sign in to Unseen</Card.Title>
 		</Card.Header>
 		<Card.Content>
