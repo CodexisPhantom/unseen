@@ -2,6 +2,7 @@
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import LibraryIcon from '@lucide/svelte/icons/library';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import RulerIcon from '@lucide/svelte/icons/ruler';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import SlidersIcon from '@lucide/svelte/icons/sliders-horizontal';
@@ -22,6 +23,7 @@
 		activity: ActivityIcon,
 		settings: SettingsIcon,
 		'settings/profiles': SlidersIcon,
+		'settings/quality-sizes': RulerIcon,
 		users: UsersIcon,
 		roles: ShieldIcon,
 		system: ServerIcon

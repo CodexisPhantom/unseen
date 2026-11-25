@@ -43,6 +43,15 @@ and editable (`profiles:manage`). Instance import and the TRaSH guide's
 quality sizes can overwrite it. A release whose size is outside minimum and
 maximum is rejected. A movie without a known runtime skips the check.
 
+The seed is the answer of `GET /api/v3/qualitydefinition` from a new Radarr
+7.0.3, recorded in `fixtures/radarr/qualitydefinition.json`; a test compares
+every row with it. Radarr gives no preferred size and no maximum from
+Bluray-1080p up (no limit). Sizes are megabytes of 1024 x 1024 bytes per
+minute. The check lives in `core` (`SizeLimits::check`); using it in
+rejection and scoring is a separate issue. The API validates a change: the
+minimum is 0 or more, the maximum is above 0 and not below the minimum, and
+the preferred size lies between them.
+
 ## Quality profile
 
 - An ordered list of qualities or quality groups, each allowed or not.

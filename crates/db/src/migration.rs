@@ -16,6 +16,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0006Indexers),
             Box::new(M0007DownloadClients),
             Box::new(M0008DownloadClientApiKey),
+            Box::new(M0009QualityDefinitions),
         ]
     }
 }
@@ -416,6 +417,71 @@ impl MigrationTrait for M0008DownloadClientApiKey {
         manager
             .get_connection()
             .execute_unprepared(M0008_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0009QualityDefinitions;
+
+impl MigrationName for M0009QualityDefinitions {
+    fn name(&self) -> &str {
+        "m0009_quality_definitions"
+    }
+}
+
+/// Size limits per quality, in megabytes per minute of runtime, seeded with
+/// Radarr's defaults (`GET /api/v3/qualitydefinition` of a new Radarr 7.0.3;
+/// the same values as `Quality.DefaultQualityDefinitions` in its source). A
+/// null `max_size` is no limit; a null `preferred_size` is no preference.
+const M0009_UP: &str = r#"
+CREATE TABLE quality_definitions (
+    quality_id integer PRIMARY KEY,
+    title text NOT NULL,
+    min_size real NOT NULL,
+    preferred_size real,
+    max_size real
+);
+
+INSERT INTO quality_definitions (quality_id, title, min_size, preferred_size, max_size) VALUES
+    (0, 'Unknown', 0, 95, 100),
+    (24, 'WORKPRINT', 0, 95, 100),
+    (25, 'CAM', 0, 95, 100),
+    (26, 'TELESYNC', 0, 95, 100),
+    (27, 'TELECINE', 0, 95, 100),
+    (29, 'REGIONAL', 0, 95, 100),
+    (28, 'DVDSCR', 0, 95, 100),
+    (1, 'SDTV', 0, 95, 100),
+    (2, 'DVD', 0, 95, 100),
+    (23, 'DVD-R', 0, 95, 100),
+    (8, 'WEBDL-480p', 0, 95, 100),
+    (12, 'WEBRip-480p', 0, 95, 100),
+    (20, 'Bluray-480p', 0, 95, 100),
+    (21, 'Bluray-576p', 0, 95, 100),
+    (4, 'HDTV-720p', 0, 95, 100),
+    (5, 'WEBDL-720p', 0, 95, 100),
+    (14, 'WEBRip-720p', 0, 95, 100),
+    (6, 'Bluray-720p', 0, 95, 100),
+    (9, 'HDTV-1080p', 0, 95, 100),
+    (3, 'WEBDL-1080p', 0, 95, 100),
+    (15, 'WEBRip-1080p', 0, 95, 100),
+    (7, 'Bluray-1080p', 0, NULL, NULL),
+    (30, 'Remux-1080p', 0, NULL, NULL),
+    (16, 'HDTV-2160p', 0, NULL, NULL),
+    (18, 'WEBDL-2160p', 0, NULL, NULL),
+    (17, 'WEBRip-2160p', 0, NULL, NULL),
+    (19, 'Bluray-2160p', 0, NULL, NULL),
+    (31, 'Remux-2160p', 0, NULL, NULL),
+    (22, 'BR-DISK', 0, NULL, NULL),
+    (10, 'Raw-HD', 0, NULL, NULL);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0009QualityDefinitions {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0009_UP)
             .await?;
         Ok(())
     }
