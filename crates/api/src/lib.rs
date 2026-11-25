@@ -15,6 +15,7 @@ mod movies;
 mod owner;
 mod profiles;
 mod proxy;
+mod quality_definitions;
 mod roles;
 mod root_folders;
 pub mod setup;
@@ -155,6 +156,14 @@ pub fn routes() -> ApiRouter {
         .require(
             Permission::LibraryEdit,
             routes!(tags::create_tag, tags::update_tag, tags::delete_tag),
+        )
+        .require(
+            Permission::ProfilesRead,
+            routes!(quality_definitions::list_definitions),
+        )
+        .require(
+            Permission::ProfilesManage,
+            routes!(quality_definitions::update_definition),
         )
         .require(Permission::SettingsRead, routes!(tmdb::get_settings))
         .require(Permission::SettingsManage, routes!(tmdb::update_settings))
