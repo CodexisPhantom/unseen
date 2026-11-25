@@ -85,7 +85,7 @@ export interface paths {
         /** Every download client, ordered by name. */
         get: operations["list_clients"];
         put?: never;
-        /** Adds a download client. The password is stored encrypted. */
+        /** Adds a download client. The password and the API key are stored encrypted. */
         post: operations["create_client"];
         delete?: never;
         options?: never;
@@ -108,8 +108,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Changes a download client. A request without `password` keeps the stored
-         *     password; an empty one removes it.
+         * Changes a download client. A request without `password` or `apiKey` keeps
+         *     the stored value; an empty one removes it.
          */
         patch: operations["update_client"];
         trace?: never;
@@ -123,7 +123,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Logs in to the saved download client and reports its version. */
+        /**
+         * Authenticates to the saved download client (with its API key when it has
+         *     one, else with the username and password) and reports its version.
+         */
         post: operations["test_client"];
         delete?: never;
         options?: never;
@@ -764,10 +767,17 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
         };
         DownloadClient: {
+            /** @description An API key is stored but cannot be decrypted: enter it again. */
+            apiKeyMustBeReentered: boolean;
             /** @description The qBittorrent category of the torrents Unseen adds. */
             category: string;
             createdAt: string;
             enabled: boolean;
+            /**
+             * @description The API key (qBittorrent 5.2 or later) is never returned. When one is
+             *     set, Unseen uses it and ignores the username and password.
+             */
+            hasApiKey: boolean;
             /** @description The password itself is never returned. */
             hasPassword: boolean;
             /** Format: int32 */
@@ -791,10 +801,11 @@ export interface components {
             username?: string | null;
         };
         /**
-         * @description An empty string clears `username`, `password`, `remotePath` and
+         * @description An empty string clears `username`, `password`, `apiKey`, `remotePath` and
          *     `localPath`. An absent field keeps the stored value.
          */
         DownloadClientPatch: {
+            apiKey?: string | null;
             category?: string | null;
             enabled?: boolean | null;
             localPath?: string | null;
@@ -994,6 +1005,8 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
         };
         NewDownloadClient: {
+            /** @description Stored encrypted and never returned. qBittorrent 5.2 or later. */
+            apiKey?: string | null;
             category?: string;
             enabled?: boolean;
             kind?: string;
@@ -1629,7 +1642,7 @@ export interface operations {
                     "application/json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The stored password cannot be read */
+            /** @description The stored password or API key cannot be read */
             409: {
                 headers: {
                     [name: string]: unknown;

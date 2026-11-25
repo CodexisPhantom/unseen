@@ -27,6 +27,8 @@ pub struct Values {
     pub username: Option<String>,
     /// The encrypted password, as `secret::encrypt` returns it.
     pub password: Option<String>,
+    /// The encrypted API key, as `secret::encrypt` returns it.
+    pub api_key: Option<String>,
     pub category: String,
     pub remote_path: Option<String>,
     pub local_path: Option<String>,
@@ -124,6 +126,7 @@ pub async fn create(db: &DatabaseConnection, values: Values) -> Result<Client, C
         url: Set(values.url),
         username: Set(values.username),
         password: Set(values.password),
+        api_key: Set(values.api_key),
         category: Set(values.category),
         remote_path: Set(values.remote_path),
         local_path: Set(values.local_path),
@@ -155,6 +158,7 @@ pub async fn update(
     client.url = Set(values.url);
     client.username = Set(values.username);
     client.password = Set(values.password);
+    client.api_key = Set(values.api_key);
     client.category = Set(values.category);
     client.remote_path = Set(values.remote_path);
     client.local_path = Set(values.local_path);
@@ -190,6 +194,7 @@ mod tests {
             url: "http://qbittorrent:8080".into(),
             username: Some("admin".into()),
             password: Some("v1:x:y".into()),
+            api_key: None,
             category: "radarr".into(),
             remote_path: None,
             local_path: None,

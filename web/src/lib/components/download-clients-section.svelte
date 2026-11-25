@@ -93,8 +93,8 @@
 						<Table.Cell>
 							{client.name}
 							{#if !client.enabled}<Badge variant="secondary" class="ms-2">Disabled</Badge>{/if}
-							{#if client.passwordMustBeReentered}
-								<Badge variant="destructive" class="ms-2">Password must be re-entered</Badge>
+							{#if client.passwordMustBeReentered || client.apiKeyMustBeReentered}
+								<Badge variant="destructive" class="ms-2">Secret must be re-entered</Badge>
 							{/if}
 							{#if results[client.id]}
 								<p

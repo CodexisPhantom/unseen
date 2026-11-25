@@ -411,3 +411,114 @@ async fn reading_needs_clients_read_and_writing_needs_clients_manage() {
         assert_eq!(reply["requiredPermission"], "clients:manage");
     }
 }
+
+const API_KEY: &str = "qbt_abcdefghijklmnopqrstuvwxyz12";
+
+#[tokio::test]
+async fn an_api_key_is_write_only_and_the_test_uses_it_without_a_login() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v2/auth/login"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/app/version"))
+        .and(wiremock::matchers::header(
+            "authorization",
+            format!("Bearer {API_KEY}").as_str(),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_string("v5.2.0"))
+        .mount(&server)
+        .await;
+
+    let mut request = body("Keyed");
+    request["url"] = json!(server.uri());
+    request["apiKey"] = json!(API_KEY);
+    let (status, created) = app.owner(Method::POST, PATH, Some(request)).await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["hasApiKey"], true);
+    assert_eq!(created["apiKeyMustBeReentered"], false);
+    let id = created["id"].as_i64().unwrap();
+
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert_eq!(reply["version"], "v5.2.0");
+
+    // A rename keeps the key; the key is in no response and no audit entry.
+    let (_, renamed) = app
+        .owner(
+            Method::PATCH,
+            &format!("{PATH}/{id}"),
+            Some(json!({ "name": "Renamed" })),
+        )
+        .await;
+    let (_, listed) = app.owner(Method::GET, PATH, None).await;
+    let (_, audit) = app.owner(Method::GET, "/api/v1/audit-log", None).await;
+    for reply in [&created, &renamed, &listed, &audit] {
+        assert!(!reply.to_string().contains(API_KEY), "{reply}");
+    }
+    assert_eq!(renamed["hasApiKey"], true);
+    let (status, _) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // An empty string removes the key.
+    let (_, cleared) = app
+        .owner(
+            Method::PATCH,
+            &format!("{PATH}/{id}"),
+            Some(json!({ "apiKey": "" })),
+        )
+        .await;
+    assert_eq!(cleared["hasApiKey"], false);
+}
+
+#[tokio::test]
+async fn a_refused_api_key_is_reported_and_an_unreadable_one_must_be_entered_again() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/app/version"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&server)
+        .await;
+    let mut request = body("Keyed");
+    request["url"] = json!(server.uri());
+    request["apiKey"] = json!("qbt_wrong");
+    let (_, created) = app.owner(Method::POST, PATH, Some(request)).await;
+    let id = created["id"].as_i64().unwrap();
+
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(reply["code"], "client_api_key_rejected");
+
+    let other = db::secret::SecretKey::derive("another root secret");
+    let mut model: db::entities::download_clients::ActiveModel =
+        db::entities::download_clients::Entity::find_by_id(id as i32)
+            .one(&app.state.db)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+    model.api_key = Set(Some(db::secret::encrypt(
+        &other,
+        &db::secret::Secret::new("x"),
+    )));
+    model.update(&app.state.db).await.unwrap();
+    let (_, listed) = app.owner(Method::GET, PATH, None).await;
+    assert_eq!(listed[0]["hasApiKey"], false);
+    assert_eq!(listed[0]["apiKeyMustBeReentered"], true);
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(reply["code"], "client_api_key_unreadable");
+}

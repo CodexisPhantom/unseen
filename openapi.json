@@ -282,7 +282,7 @@
         "tags": [
           "download-clients"
         ],
-        "summary": "Adds a download client. The password is stored encrypted.",
+        "summary": "Adds a download client. The password and the API key are stored encrypted.",
         "operationId": "create_client",
         "requestBody": {
           "content": {
@@ -389,7 +389,7 @@
         "tags": [
           "download-clients"
         ],
-        "summary": "Changes a download client. A request without `password` keeps the stored\npassword; an empty one removes it.",
+        "summary": "Changes a download client. A request without `password` or `apiKey` keeps\nthe stored value; an empty one removes it.",
         "operationId": "update_client",
         "parameters": [
           {
@@ -473,7 +473,7 @@
         "tags": [
           "download-clients"
         ],
-        "summary": "Logs in to the saved download client and reports its version.",
+        "summary": "Authenticates to the saved download client (with its API key when it has\none, else with the username and password) and reports its version.",
         "operationId": "test_client",
         "parameters": [
           {
@@ -519,7 +519,7 @@
             }
           },
           "409": {
-            "description": "The stored password cannot be read",
+            "description": "The stored password or API key cannot be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1765,8 +1765,8 @@
             }
           }
         },
-        "x-permission": "authenticated",
-        "x-owner-only": true
+        "x-owner-only": true,
+        "x-permission": "authenticated"
       }
     },
     "/api/v1/permissions": {
@@ -3386,12 +3386,18 @@
           "url",
           "hasPassword",
           "passwordMustBeReentered",
+          "hasApiKey",
+          "apiKeyMustBeReentered",
           "category",
           "enabled",
           "tags",
           "createdAt"
         ],
         "properties": {
+          "apiKeyMustBeReentered": {
+            "type": "boolean",
+            "description": "An API key is stored but cannot be decrypted: enter it again."
+          },
           "category": {
             "type": "string",
             "description": "The qBittorrent category of the torrents Unseen adds."
@@ -3401,6 +3407,10 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "hasApiKey": {
+            "type": "boolean",
+            "description": "The API key (qBittorrent 5.2 or later) is never returned. When one is\nset, Unseen uses it and ignores the username and password."
           },
           "hasPassword": {
             "type": "boolean",
@@ -3457,8 +3467,14 @@
       },
       "DownloadClientPatch": {
         "type": "object",
-        "description": "An empty string clears `username`, `password`, `remotePath` and\n`localPath`. An absent field keeps the stored value.",
+        "description": "An empty string clears `username`, `password`, `apiKey`, `remotePath` and\n`localPath`. An absent field keeps the stored value.",
         "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "category": {
             "type": [
               "string",
@@ -4121,6 +4137,13 @@
           "url"
         ],
         "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stored encrypted and never returned. qBittorrent 5.2 or later."
+          },
           "category": {
             "type": "string"
           },

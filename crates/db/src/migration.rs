@@ -15,6 +15,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0005AuditLog),
             Box::new(M0006Indexers),
             Box::new(M0007DownloadClients),
+            Box::new(M0008DownloadClientApiKey),
         ]
     }
 }
@@ -392,6 +393,29 @@ impl MigrationTrait for M0007DownloadClients {
         manager
             .get_connection()
             .execute_unprepared(M0007_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0008DownloadClientApiKey;
+
+impl MigrationName for M0008DownloadClientApiKey {
+    fn name(&self) -> &str {
+        "m0008_download_client_api_key"
+    }
+}
+
+/// The API key of qBittorrent 5.2 or later, as an alternative to the user
+/// name and password. Encrypted like the password (ADR 0011).
+const M0008_UP: &str = "ALTER TABLE download_clients ADD COLUMN api_key text;";
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0008DownloadClientApiKey {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0008_UP)
             .await?;
         Ok(())
     }
