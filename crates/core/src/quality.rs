@@ -225,6 +225,13 @@ impl SizeLimits {
         Ok(())
     }
 
+    /// The preferred size in bytes for a movie of `runtime_minutes`. `None`
+    /// when there is no preferred size or no runtime.
+    pub fn preferred_bytes(&self, runtime_minutes: Option<u32>) -> Option<f64> {
+        let minutes = runtime_minutes.filter(|minutes| *minutes > 0)?;
+        Some(self.preferred? * f64::from(minutes) * MEGABYTE)
+    }
+
     /// Compares the size of a release, in bytes, with the limits for a movie
     /// of `runtime_minutes`. A movie without a runtime passes: there is
     /// nothing to scale the limits with.
