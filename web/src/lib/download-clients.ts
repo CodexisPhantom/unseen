@@ -8,6 +8,8 @@ export interface Draft {
   username: string;
   /** Empty keeps the stored password when editing. */
   password: string;
+  /** Empty keeps the stored API key when editing. */
+  apiKey: string;
   category: string;
   remotePath: string;
   localPath: string;
@@ -21,6 +23,7 @@ export function draftOf(client: DownloadClient | null): Draft {
     url: client?.url ?? '',
     username: client?.username ?? '',
     password: '',
+    apiKey: '',
     category: client?.category ?? 'radarr',
     remotePath: client?.remotePath ?? '',
     localPath: client?.localPath ?? '',
@@ -38,7 +41,8 @@ export function draftProblem(draft: Draft): string {
 /**
  * The request body. A new client leaves empty optional fields out. An edit
  * sends them as empty strings, which clear the stored value, and leaves the
- * password out when it is empty, which keeps the stored password.
+ * password and the API key out when they are empty, which keeps the stored
+ * ones.
  */
 export function requestBody(draft: Draft, editing: boolean) {
   const text = (value: string) => {
@@ -50,6 +54,7 @@ export function requestBody(draft: Draft, editing: boolean) {
     url: draft.url.trim(),
     username: text(draft.username),
     password: draft.password ? draft.password : undefined,
+    apiKey: draft.apiKey ? draft.apiKey : undefined,
     category: draft.category.trim(),
     remotePath: text(draft.remotePath),
     localPath: text(draft.localPath),

@@ -1,5 +1,6 @@
 //! Download clients (docs/04-database.md, docs/08-integrations.md). The
-//! password is write-only: no response and no audit entry carries it.
+//! password and the API key are write-only: no response and no audit entry
+//! carries them.
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -9,7 +10,7 @@ use db::secret::{Secret, decrypt, encrypt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::http::check_url_text;
-use unseen_core::qbittorrent::{QbClient, QbError};
+use unseen_core::qbittorrent::{QbAuth, QbClient, QbError};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -36,6 +37,11 @@ pub struct DownloadClient {
     has_password: bool,
     /// A password is stored but cannot be decrypted: enter it again.
     password_must_be_reentered: bool,
+    /// The API key (qBittorrent 5.2 or later) is never returned. When one is
+    /// set, Unseen uses it and ignores the username and password.
+    has_api_key: bool,
+    /// An API key is stored but cannot be decrypted: enter it again.
+    api_key_must_be_reentered: bool,
     /// The qBittorrent category of the torrents Unseen adds.
     category: String,
     /// Remote path mapping: a path as the client sees it ...
@@ -71,6 +77,8 @@ pub struct NewDownloadClient {
     username: Option<String>,
     /// Stored encrypted and never returned.
     password: Option<String>,
+    /// Stored encrypted and never returned. qBittorrent 5.2 or later.
+    api_key: Option<String>,
     #[serde(default = "default_category")]
     category: String,
     remote_path: Option<String>,
@@ -81,7 +89,7 @@ pub struct NewDownloadClient {
     tags: Vec<i32>,
 }
 
-/// An empty string clears `username`, `password`, `remotePath` and
+/// An empty string clears `username`, `password`, `apiKey`, `remotePath` and
 /// `localPath`. An absent field keeps the stored value.
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -90,6 +98,7 @@ pub struct DownloadClientPatch {
     url: Option<String>,
     username: Option<String>,
     password: Option<String>,
+    api_key: Option<String>,
     category: Option<String>,
     remote_path: Option<String>,
     local_path: Option<String>,
@@ -122,18 +131,22 @@ fn client_error(error: ClientError) -> Problem {
 
 fn response(state: &AppState, stored: Stored) -> DownloadClient {
     let model = stored.model;
-    let readable = model
-        .password
-        .as_deref()
-        .map(|password| decrypt(&state.secrets, password).is_ok());
+    let readable = |stored: &Option<String>| {
+        stored
+            .as_deref()
+            .map(|stored| decrypt(&state.secrets, stored).is_ok())
+    };
+    let (password, api_key) = (readable(&model.password), readable(&model.api_key));
     DownloadClient {
         id: model.id,
         name: model.name,
         kind: model.kind,
         url: model.url,
         username: model.username,
-        has_password: readable == Some(true),
-        password_must_be_reentered: readable == Some(false),
+        has_password: password == Some(true),
+        password_must_be_reentered: password == Some(false),
+        has_api_key: api_key == Some(true),
+        api_key_must_be_reentered: api_key == Some(false),
         category: model.category,
         remote_path: model.remote_path,
         local_path: model.local_path,
@@ -157,8 +170,13 @@ fn text(value: Option<String>) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// The rules for a whole client; `password` is already encrypted.
-fn checked(new: NewDownloadClient, password: Option<String>) -> Result<Values, Problem> {
+/// The rules for a whole client; `password` and `api_key` are already
+/// encrypted.
+fn checked(
+    new: NewDownloadClient,
+    password: Option<String>,
+    api_key: Option<String>,
+) -> Result<Values, Problem> {
     let name = new.name.trim().to_owned();
     if name.is_empty() {
         return Err(Problem::validation("name", "must not be empty"));
@@ -187,6 +205,7 @@ fn checked(new: NewDownloadClient, password: Option<String>) -> Result<Values, P
         url,
         username: text(new.username),
         password,
+        api_key,
         category,
         remote_path,
         local_path,
@@ -195,9 +214,9 @@ fn checked(new: NewDownloadClient, password: Option<String>) -> Result<Values, P
     })
 }
 
-fn encrypted(state: &AppState, password: &str) -> Option<String> {
-    let password = password.trim();
-    (!password.is_empty()).then(|| encrypt(&state.secrets, &Secret::new(password)))
+fn encrypted(state: &AppState, secret: &str) -> Option<String> {
+    let secret = secret.trim();
+    (!secret.is_empty()).then(|| encrypt(&state.secrets, &Secret::new(secret)))
 }
 
 /// Every download client, ordered by name.
@@ -225,7 +244,7 @@ pub async fn list_clients(
     ))
 }
 
-/// Adds a download client. The password is stored encrypted.
+/// Adds a download client. The password and the API key are stored encrypted.
 #[utoipa::path(
     post,
     path = "/api/v1/download-clients",
@@ -248,7 +267,11 @@ pub async fn create_client(
         .password
         .as_deref()
         .and_then(|password| encrypted(&state, password));
-    let created = db::download_clients::create(&state.db, checked(body, password)?)
+    let api_key = body
+        .api_key
+        .as_deref()
+        .and_then(|key| encrypted(&state, key));
+    let created = db::download_clients::create(&state.db, checked(body, password, api_key)?)
         .await
         .map_err(client_error)?;
     let event = Event::new("download_client.created")
@@ -258,8 +281,8 @@ pub async fn create_client(
     Ok((StatusCode::CREATED, Json(response(&state, created))))
 }
 
-/// Changes a download client. A request without `password` keeps the stored
-/// password; an empty one removes it.
+/// Changes a download client. A request without `password` or `apiKey` keeps
+/// the stored value; an empty one removes it.
 #[utoipa::path(
     patch,
     path = "/api/v1/download-clients/{id}",
@@ -288,19 +311,25 @@ pub async fn update_client(
         Some(password) => encrypted(&state, password),
         None => current.model.password.clone(),
     };
+    let api_key_changed = body.api_key.is_some();
+    let api_key = match &body.api_key {
+        Some(key) => encrypted(&state, key),
+        None => current.model.api_key.clone(),
+    };
     let merged = NewDownloadClient {
         name: body.name.unwrap_or_else(|| before.name.clone()),
         kind: before.kind.clone(),
         url: body.url.unwrap_or_else(|| before.url.clone()),
         username: body.username.or_else(|| before.username.clone()),
         password: None,
+        api_key: None,
         category: body.category.unwrap_or_else(|| before.category.clone()),
         remote_path: body.remote_path.or_else(|| before.remote_path.clone()),
         local_path: body.local_path.or_else(|| before.local_path.clone()),
         enabled: body.enabled.unwrap_or(before.enabled),
         tags: body.tags.unwrap_or_else(|| before.tags.clone()),
     };
-    let updated = db::download_clients::update(&state.db, id, checked(merged, password)?)
+    let updated = db::download_clients::update(&state.db, id, checked(merged, password, api_key)?)
         .await
         .map_err(client_error)?;
     let after = response(&state, updated);
@@ -315,6 +344,9 @@ pub async fn update_client(
         .field("tags", &before.tags, &after.tags);
     if password_changed {
         changes = changes.secret("password");
+    }
+    if api_key_changed {
+        changes = changes.secret("apiKey");
     }
     let event = Event::new("download_client.updated")
         .target("download_client", id)
@@ -358,6 +390,10 @@ fn test_error(error: QbError) -> Problem {
             "client_credentials_rejected",
             "The download client refused the username or password",
         ),
+        QbError::ApiKey => (
+            "client_api_key_rejected",
+            "The download client refused the API key",
+        ),
         QbError::Banned => (
             "client_banned",
             "The download client banned this address after failed logins",
@@ -372,7 +408,8 @@ fn test_error(error: QbError) -> Problem {
     problem
 }
 
-/// Logs in to the saved download client and reports its version.
+/// Authenticates to the saved download client (with its API key when it has
+/// one, else with the username and password) and reports its version.
 #[utoipa::path(
     post,
     path = "/api/v1/download-clients/{id}/test",
@@ -382,7 +419,7 @@ fn test_error(error: QbError) -> Problem {
         (status = 200, description = "The login works", body = TestResult),
         (status = 403, description = "Permission denied", body = Problem),
         (status = 404, description = "No such download client", body = Problem),
-        (status = 409, description = "The stored password cannot be read", body = Problem),
+        (status = 409, description = "The stored password or API key cannot be read", body = Problem),
         (status = 502, description = "The client refused the login or did not answer", body = Problem),
     )
 )]
@@ -392,24 +429,36 @@ pub async fn test_client(
     Path(id): Path<i32>,
 ) -> Result<Json<TestResult>, Problem> {
     let model = load(&state, id).await?.model;
-    let password = match &model.password {
-        None => String::new(),
-        Some(stored) => decrypt(&state.secrets, stored)
-            .map_err(|_| {
-                Problem::conflict(
-                    "client_password_unreadable",
-                    "The stored password cannot be read; enter it again",
-                )
-            })?
-            .expose()
-            .to_owned(),
+    let unreadable = |code: &str, title: &str| Problem::conflict(code, title);
+    let auth = match (&model.api_key, &model.password) {
+        (Some(stored), _) => QbAuth::ApiKey(
+            decrypt(&state.secrets, stored)
+                .map_err(|_| {
+                    unreadable(
+                        "client_api_key_unreadable",
+                        "The stored API key cannot be read; enter it again",
+                    )
+                })?
+                .expose()
+                .to_owned(),
+        ),
+        (None, password) => QbAuth::Password {
+            username: model.username.clone().unwrap_or_default(),
+            password: match password {
+                None => String::new(),
+                Some(stored) => decrypt(&state.secrets, stored)
+                    .map_err(|_| {
+                        unreadable(
+                            "client_password_unreadable",
+                            "The stored password cannot be read; enter it again",
+                        )
+                    })?
+                    .expose()
+                    .to_owned(),
+            },
+        },
     };
-    let client = QbClient::new(
-        state.http.clone(),
-        &model.url,
-        model.username.as_deref().unwrap_or_default(),
-        &password,
-    );
+    let client = QbClient::new(state.http.clone(), &model.url, auth);
     let version = client.test().await.map_err(test_error)?;
     Ok(Json(TestResult { version }))
 }

@@ -9,6 +9,8 @@ const client: DownloadClient = {
   username: 'admin',
   hasPassword: true,
   passwordMustBeReentered: false,
+  hasApiKey: false,
+  apiKeyMustBeReentered: false,
   category: 'movies',
   remotePath: null,
   localPath: null,
@@ -28,6 +30,7 @@ describe('draftOf', () => {
       url: 'http://qbittorrent:8080',
       username: 'admin',
       password: '',
+      apiKey: '',
       category: 'movies',
       remotePath: '',
       localPath: '',
@@ -49,6 +52,8 @@ describe('requestBody', () => {
     expect(body).toMatchObject({ username: '', remotePath: '', localPath: '' });
     expect(body.password).toBeUndefined();
     expect(requestBody({ ...draft, password: 'new' }, true).password).toBe('new');
+    expect(body.apiKey).toBeUndefined();
+    expect(requestBody({ ...draft, apiKey: 'qbt_new' }, true).apiKey).toBe('qbt_new');
   });
 });
 

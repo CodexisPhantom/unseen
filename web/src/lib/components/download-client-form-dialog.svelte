@@ -103,6 +103,24 @@
 				</p>
 			{/if}
 			<div class="grid gap-2">
+				<Label for="client-api-key">API key</Label>
+				<Input
+					id="client-api-key"
+					type="password"
+					autocomplete="off"
+					placeholder={client?.hasApiKey ? 'Leave empty to keep it' : 'qbt_…'}
+					class="font-mono"
+					bind:value={draft.apiKey}
+				/>
+				<p class="text-xs text-muted-foreground">
+					qBittorrent 5.2 or later: Options, Web UI, API key. When a key is set, Unseen uses it
+					and ignores the username and password.
+				</p>
+			</div>
+			{#if client?.apiKeyMustBeReentered}
+				<p class="text-sm text-destructive">The stored API key cannot be read. Enter it again.</p>
+			{/if}
+			<div class="grid gap-2">
 				<Label for="client-category">Category</Label>
 				<Input id="client-category" required bind:value={draft.category} />
 				<p class="text-xs text-muted-foreground">

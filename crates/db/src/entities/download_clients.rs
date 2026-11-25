@@ -11,6 +11,8 @@ pub struct Model {
     pub username: Option<String>,
     /// Encrypted (`v1:...`), never plain text.
     pub password: Option<String>,
+    /// Encrypted (`v1:...`), never plain text.
+    pub api_key: Option<String>,
     pub category: String,
     pub remote_path: Option<String>,
     pub local_path: Option<String>,

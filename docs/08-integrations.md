@@ -63,7 +63,7 @@ Same as Torznab with NZB enclosures and `newznab:attr`. Details in M9.
 | | |
 |---|---|
 | Endpoints (WebUI API v2) | `POST /api/v2/auth/login`, `GET /api/v2/app/version`, `POST /api/v2/torrents/add`, `GET /api/v2/torrents/info?category=`, `GET /api/v2/torrents/properties`, `POST /api/v2/torrents/delete`, `POST /api/v2/torrents/createCategory`, `GET /api/v2/app/preferences` |
-| Auth | Cookie session from username and password; log in again on 403 |
+| Auth | API key (qBittorrent 5.2 or later): `Authorization: Bearer qbt_...` on every request, no login. Otherwise a cookie session from username and password; log in again on 403. When a client has a key, the key wins |
 | Rate limits | None; poll every 5 s while downloads are active, 60 s when idle |
 | Failure | See retries in [06-state-machines.md](06-state-machines.md) |
 | Mock | JSON fixtures; one integration test may use a real qBittorrent container (not in default CI) |
