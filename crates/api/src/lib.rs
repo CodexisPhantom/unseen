@@ -20,6 +20,7 @@ mod quality_definitions;
 mod roles;
 mod root_folders;
 pub mod setup;
+mod subtitles;
 mod tags;
 mod tmdb;
 mod users;
@@ -153,6 +154,38 @@ pub fn routes() -> ApiRouter {
         .require(Permission::LibraryDelete, routes!(movies::remove_profile))
         .require(Permission::LibraryRead, routes!(movies::list_files))
         .require(Permission::LibraryDelete, routes!(movies::delete_file))
+        .require(
+            Permission::LibraryRead,
+            routes!(subtitles::list_language_profiles),
+        )
+        .require(
+            Permission::SubtitlesManage,
+            routes!(subtitles::create_language_profile),
+        )
+        .require(
+            Permission::SubtitlesManage,
+            routes!(
+                subtitles::update_language_profile,
+                subtitles::delete_language_profile
+            ),
+        )
+        .require(
+            Permission::LibraryRead,
+            routes!(subtitles::list_movie_subtitles),
+        )
+        .require(
+            Permission::SubtitlesManage,
+            routes!(subtitles::set_movie_language_profile),
+        )
+        .require(
+            Permission::SubtitlesManage,
+            routes!(subtitles::scan_subtitles),
+        )
+        .require(Permission::LibraryRead, routes!(subtitles::get_settings))
+        .require(
+            Permission::SubtitlesManage,
+            routes!(subtitles::update_settings),
+        )
         .require(Permission::LibraryRead, routes!(tags::list_tags))
         .require(
             Permission::LibraryEdit,

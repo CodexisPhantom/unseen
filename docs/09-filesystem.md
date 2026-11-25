@@ -171,6 +171,12 @@ Subtitle names are `<video base name>.<language>[.<kind>].<extension>`:
   and keep their language and kind. They are deleted with the video.
 - Several movie profiles of one movie have separate video names, so each
   video has its own subtitle files, one set per file.
+- Adopting a library folder and `POST /movies/{id}/subtitles/scan` record the
+  subtitle files in the folder of each video file, found by the name rule
+  above (a `Subs` folder is not read). A scan adds new files and forgets
+  files that are gone. It never changes a subtitle that has a provider, and
+  it changes nothing on disk. When two files have the same language and kind
+  (`.en.srt` and `.en.ass`), `.srt` is kept.
 
 Other extra files (`.nfo`, images, samples) are not imported: Unseen does
 not manage them and they would be left behind on upgrades.

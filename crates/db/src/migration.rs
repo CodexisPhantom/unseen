@@ -17,6 +17,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0007DownloadClients),
             Box::new(M0008DownloadClientApiKey),
             Box::new(M0009QualityDefinitions),
+            Box::new(M0010Subtitles),
         ]
     }
 }
@@ -482,6 +483,57 @@ impl MigrationTrait for M0009QualityDefinitions {
         manager
             .get_connection()
             .execute_unprepared(M0009_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0010Subtitles;
+
+impl MigrationName for M0010Subtitles {
+    fn name(&self) -> &str {
+        "m0010_subtitles"
+    }
+}
+
+/// Subtitle tables (docs/04-database.md, "Subtitle tables (M10)"). A movie
+/// has at most one language profile; a profile that a movie uses cannot be
+/// deleted. A file has at most one subtitle per language and kind.
+const M0010_UP: &str = r#"
+CREATE TABLE language_profiles (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    name text NOT NULL UNIQUE,
+    items json NOT NULL,
+    cutoff integer,
+    created_at text NOT NULL,
+    updated_at text NOT NULL
+);
+
+ALTER TABLE movies ADD COLUMN language_profile_id integer
+    REFERENCES language_profiles (id) ON DELETE RESTRICT;
+CREATE INDEX movies_language_profile_id_idx ON movies (language_profile_id);
+
+CREATE TABLE subtitles (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_file_id integer NOT NULL REFERENCES movie_files (id) ON DELETE CASCADE,
+    language text NOT NULL,
+    kind text NOT NULL CHECK (kind IN ('normal', 'hi', 'forced')),
+    relative_path text NOT NULL,
+    provider text,
+    provider_id text,
+    score integer,
+    added_at text NOT NULL,
+    UNIQUE (movie_file_id, language, kind)
+);
+CREATE INDEX subtitles_movie_file_id_idx ON subtitles (movie_file_id);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0010Subtitles {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0010_UP)
             .await?;
         Ok(())
     }

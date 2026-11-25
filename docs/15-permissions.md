@@ -27,7 +27,7 @@ Fixed in code as a Rust enum in `crates/core`. Format `resource:action`.
 | `queue:read` | See downloads and their progress |
 | `queue:manage` | Remove, retry or blocklist downloads |
 | `import:run` | Adopt a library folder; run an import from Radarr/Sonarr |
-| `subtitles:manage` | Search, download and delete subtitles (M10) |
+| `subtitles:manage` | Create, edit and delete language profiles; set the language profile of a movie and the default profile; scan for, search, download and delete subtitles (M10) |
 | `indexers:read` | See indexers without secrets |
 | `indexers:manage` | Create, edit, delete and test indexers |
 | `clients:read` | See download clients without secrets |
@@ -134,6 +134,8 @@ The generated OpenAPI document is authoritative. This table is the plan.
 | `GET /audit-log` | `system:audit` |
 | `/api-keys` (other users' keys) | `apikeys:manage` |
 | `GET /movies`, `/movies/{id}`, `/movies/{id}/files`, `/collections`, `/tags` | `library:read` |
+| `GET /language-profiles`, `/movies/{id}/subtitles`, `/settings/subtitles` | `library:read` |
+| `POST /language-profiles`, `PUT/DELETE /language-profiles/{id}`, `PUT /movies/{id}/language-profile`, `POST /movies/{id}/subtitles/scan`, `PUT /settings/subtitles` | `subtitles:manage` |
 | `GET /movies/lookup`, `POST /movies`, `POST /movies/{id}/profiles` | `library:add` |
 | `PATCH /movies/{id}`, `PATCH /collections/{id}`, `POST/PATCH/DELETE /tags` | `library:edit` |
 | `DELETE /movies/{id}`, `DELETE /movies/{id}/profiles/{pid}`, `DELETE /movies/{id}/files/{fid}` | `library:delete` |

@@ -25,6 +25,7 @@ pub mod roles;
 pub mod root_folders;
 pub mod secret;
 pub mod settings;
+pub mod subtitles;
 pub mod tags;
 pub mod testing;
 pub mod users;
@@ -93,6 +94,7 @@ mod tests {
             "api_keys",
             "indexer_tags",
             "indexers",
+            "language_profiles",
             "movie_files",
             "movie_profiles",
             "movie_tags",
@@ -102,6 +104,7 @@ mod tests {
             "roles",
             "root_folders",
             "session",
+            "subtitles",
             "tags",
             "settings",
             "user",

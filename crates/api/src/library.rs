@@ -551,6 +551,9 @@ pub async fn adopt(
                         "folderName": item.folder_name,
                     }));
                 record(&state, &actor, &ip, event).await;
+                // Subtitle files next to the videos are recorded too. A
+                // failure is logged; the movie is adopted either way.
+                let _ = crate::subtitles::scan_movie(&state, &movie.model).await;
                 adopted.push(Adopted {
                     folder_name: item.folder_name,
                     movie_id: movie.model.id,
