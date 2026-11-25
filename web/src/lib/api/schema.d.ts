@@ -208,6 +208,26 @@ export interface paths {
         patch: operations["update_indexer"];
         trace?: never;
     };
+    "/api/v1/indexers/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reads the capabilities of the saved indexer and asks it for one item, so
+         *     a wrong API key is found even when `caps` is open.
+         */
+        post: operations["test_indexer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/adopt": {
         parameters: {
             query?: never;
@@ -1327,6 +1347,11 @@ export interface components {
             /** @description Lower case letters, digits and `-`. Upper case is lowered. */
             label: string;
         };
+        TestCategory: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
         TestResult: {
             /** @description The qBittorrent version, for example `v4.6.2`. */
             version: string;
@@ -2063,6 +2088,65 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    test_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The indexer answers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The stored API key cannot be read */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The indexer refused the key or did not answer */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -903,6 +903,80 @@
         "x-permission": "indexers:manage"
       }
     },
+    "/api/v1/indexers/{id}/test": {
+      "post": {
+        "tags": [
+          "indexers"
+        ],
+        "summary": "Reads the capabilities of the saved indexer and asks it for one item, so\na wrong API key is found even when `caps` is open.",
+        "operationId": "test_indexer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Indexer id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The indexer answers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such indexer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The stored API key cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The indexer refused the key or did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "indexers:manage"
+      }
+    },
     "/api/v1/library/adopt": {
       "post": {
         "tags": [
@@ -1899,8 +1973,8 @@
             }
           }
         },
-        "x-permission": "authenticated",
-        "x-owner-only": true
+        "x-owner-only": true,
+        "x-permission": "authenticated"
       }
     },
     "/api/v1/permissions": {
@@ -5215,6 +5289,23 @@
           "label": {
             "type": "string",
             "description": "Lower case letters, digits and `-`. Upper case is lowered."
+          }
+        }
+      },
+      "TestCategory": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
           }
         }
       },

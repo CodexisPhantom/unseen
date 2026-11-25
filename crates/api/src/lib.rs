@@ -174,7 +174,11 @@ pub fn routes() -> ApiRouter {
         .require(Permission::IndexersRead, routes!(indexers::get_indexer))
         .require(
             Permission::IndexersManage,
-            routes!(indexers::update_indexer, indexers::delete_indexer),
+            routes!(
+                indexers::update_indexer,
+                indexers::delete_indexer,
+                indexers::test_indexer
+            ),
         )
         .require(
             Permission::ClientsRead,
