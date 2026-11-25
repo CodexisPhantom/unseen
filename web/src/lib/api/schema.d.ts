@@ -629,6 +629,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/proxy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The proxy settings, without the credentials. */
+        get: operations["get_settings"];
+        /** Changes the proxy. The URL is stored encrypted. */
+        put: operations["update_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/proxy/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sends one request through the saved proxy, to check that it works. */
+        post: operations["test_proxy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/tmdb": {
         parameters: {
             query?: never;
@@ -1213,6 +1248,44 @@ export interface components {
             qualityIds: number[];
             /** @enum {string} */
             type: "group";
+        };
+        ProxySettings: {
+            /**
+             * @description The proxy address without credentials, for example
+             *     `socks5h://proxy.example:1080`.
+             */
+            address?: string | null;
+            /** @description Requests to local addresses skip the proxy. */
+            bypassLocal: boolean;
+            /** @description The address carries a user name or a password. They are never returned. */
+            hasCredentials: boolean;
+            /** @description A proxy is set. */
+            hasUrl: boolean;
+            /** @description Fields set by an environment variable (`UNSEEN_SETTING_...`). */
+            overridden: string[];
+            /** @description A URL is stored but cannot be decrypted: enter it again. */
+            urlMustBeReentered: boolean;
+        };
+        ProxySettingsPatch: {
+            /** @description Absent keeps the stored value. */
+            bypassLocal?: boolean | null;
+            /**
+             * @description `http://`, `https://`, `socks5://` or `socks5h://`, with optional
+             *     `user:password@`. Absent keeps the stored URL; an empty string removes
+             *     the proxy.
+             */
+            url?: string | null;
+        };
+        ProxyTest: {
+            /** @description The address to request through the proxy. Absent: a public page. */
+            url?: string | null;
+        };
+        ProxyTestResult: {
+            /**
+             * Format: int32
+             * @description The HTTP status the target answered with, through the proxy.
+             */
+            status: number;
         };
         QualityProfile: {
             createdAt: string;
@@ -3532,6 +3605,146 @@ export interface operations {
             };
             /** @description A movie lives in the root folder */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxySettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProxySettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description The settings after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxySettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The environment sets this setting */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    test_proxy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProxyTest"];
+            };
+        };
+        responses: {
+            /** @description The proxy carried the request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyTestResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No proxy is set, or it cannot be used */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request through the proxy failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
