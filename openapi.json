@@ -503,6 +503,111 @@
         "x-permission": "authenticated"
       }
     },
+    "/api/v1/movies": {
+      "get": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Every movie, by sort title.",
+        "operationId": "list_movies",
+        "responses": {
+          "200": {
+            "description": "The library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Movie"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      },
+      "post": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Adds a movie by TMDB id. Unseen fetches the metadata and names the movie\nfolder with the default template `{Movie Title} ({Release Year})`.",
+        "operationId": "create_movie",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMovie"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movie"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The movie is already added (`movie_exists`), its folder name is taken (`folder_taken`) or the TMDB key is not set (`tmdb_not_configured`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "TMDB failed or refused the key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:add"
+      }
+    },
     "/api/v1/movies/lookup": {
       "get": {
         "tags": [
@@ -579,6 +684,451 @@
         "x-permission": "library:add"
       }
     },
+    "/api/v1/movies/{id}": {
+      "get": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "One movie.",
+        "operationId": "get_movie",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movie"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      },
+      "delete": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Removes a movie from the library. With `deleteFiles=true` the movie's\nfolder is deleted from disk too; by default the folder stays untouched.",
+        "operationId": "delete_movie",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "deleteFiles",
+            "in": "query",
+            "description": "Also delete the movie's folder on disk. Default `false`.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:delete"
+      },
+      "patch": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Changes the monitored state, the minimum availability, the tags or the\nprimary profile of a movie.",
+        "operationId": "update_movie",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoviePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The changed movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movie"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:edit"
+      }
+    },
+    "/api/v1/movies/{id}/files": {
+      "get": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "The files of a movie, managed and unmanaged.",
+        "operationId": "list_files",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MovieFile"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      }
+    },
+    "/api/v1/movies/{id}/files/{fid}": {
+      "delete": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Deletes a file of a movie from disk and from the library.",
+        "operationId": "delete_file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "fid",
+            "in": "path",
+            "description": "File id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie or file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:delete"
+      }
+    },
+    "/api/v1/movies/{id}/profiles": {
+      "post": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Attaches one more quality profile to a movie. It is not primary.",
+        "operationId": "add_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMovieProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The movie with the new profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movie"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The movie has this profile already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No such quality profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:add"
+      }
+    },
+    "/api/v1/movies/{id}/profiles/{pid}": {
+      "delete": {
+        "tags": [
+          "movies"
+        ],
+        "summary": "Detaches a quality profile. Its file stays as an unmanaged file. The\nprimary profile cannot be removed while another exists.",
+        "operationId": "remove_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pid",
+            "in": "path",
+            "description": "Profile attachment id (`profiles[].id`)",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie or profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The profile is primary (`primary_profile`) or the last one (`last_profile`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:delete"
+      }
+    },
     "/api/v1/owner/transfer": {
       "post": {
         "tags": [
@@ -641,8 +1191,8 @@
             }
           }
         },
-        "x-permission": "authenticated",
-        "x-owner-only": true
+        "x-owner-only": true,
+        "x-permission": "authenticated"
       }
     },
     "/api/v1/permissions": {
@@ -1515,6 +2065,240 @@
         "x-permission": "public"
       }
     },
+    "/api/v1/tags": {
+      "get": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Every tag, ordered by label.",
+        "operationId": "list_tags",
+        "responses": {
+          "200": {
+            "description": "The tags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Tag"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      },
+      "post": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Creates a tag.",
+        "operationId": "create_tag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new tag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The label is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:edit"
+      }
+    },
+    "/api/v1/tags/{id}": {
+      "delete": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Deletes a tag that no movie carries.",
+        "operationId": "delete_tag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tag id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such tag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A movie carries the tag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:edit"
+      },
+      "patch": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Renames a tag.",
+        "operationId": "update_tag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tag id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed tag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such tag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The label is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:edit"
+      }
+    },
     "/api/v1/users": {
       "get": {
         "tags": [
@@ -2150,6 +2934,197 @@
           }
         }
       },
+      "Movie": {
+        "type": "object",
+        "required": [
+          "id",
+          "tmdbId",
+          "title",
+          "sortTitle",
+          "year",
+          "status",
+          "rootFolderId",
+          "folderName",
+          "monitored",
+          "minimumAvailability",
+          "tags",
+          "profiles",
+          "addedAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "addedAt": {
+            "type": "string"
+          },
+          "digitalRelease": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "folderName": {
+            "type": "string",
+            "description": "The movie's folder inside the root folder."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "imdbId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inCinemas": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minimumAvailability": {
+            "type": "string",
+            "description": "`announced`, `inCinemas` or `released`."
+          },
+          "monitored": {
+            "type": "boolean"
+          },
+          "originalTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "physicalRelease": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "posterPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path on TMDB's image host; the browser loads the image."
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MovieProfile"
+            },
+            "description": "The primary profile first."
+          },
+          "rootFolderId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runtime": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minutes."
+          },
+          "sortTitle": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`tba`, `announced`, `released` or `deleted`."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MovieFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "relativePath",
+          "size",
+          "qualityId",
+          "managed",
+          "addedAt"
+        ],
+        "properties": {
+          "addedAt": {
+            "type": "string"
+          },
+          "edition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "movieProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The profile this file belongs to. Absent for an unmanaged file."
+          },
+          "qualityId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "relativePath": {
+            "type": "string",
+            "description": "Relative to the movie's folder."
+          },
+          "releaseGroup": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sceneName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes."
+          }
+        }
+      },
       "MovieLookup": {
         "type": "object",
         "required": [
@@ -2202,6 +3177,72 @@
           }
         }
       },
+      "MoviePatch": {
+        "type": "object",
+        "properties": {
+          "minimumAvailability": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "monitored": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "primaryProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Makes this profile attachment (`profiles[].id`) the primary one."
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Replaces the whole tag set."
+          }
+        }
+      },
+      "MovieProfile": {
+        "type": "object",
+        "required": [
+          "id",
+          "qualityProfileId",
+          "isPrimary"
+        ],
+        "properties": {
+          "fileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The managed file of this profile, if it has one."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The id of this attachment, as `DELETE /movies/{id}/profiles/{pid}`\nand `primaryProfileId` use it. Not the quality profile id."
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "qualityProfileId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "NewApiKey": {
         "type": "object",
         "required": [
@@ -2217,6 +3258,57 @@
             "items": {
               "$ref": "#/components/schemas/Permission"
             }
+          }
+        }
+      },
+      "NewMovie": {
+        "type": "object",
+        "required": [
+          "tmdbId",
+          "rootFolderId",
+          "qualityProfileIds"
+        ],
+        "properties": {
+          "minimumAvailability": {
+            "type": "string"
+          },
+          "monitored": {
+            "type": "boolean"
+          },
+          "qualityProfileIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "One or more quality profiles. The first is the primary profile."
+          },
+          "rootFolderId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "NewMovieProfile": {
+        "type": "object",
+        "required": [
+          "qualityProfileId"
+        ],
+        "properties": {
+          "qualityProfileId": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -2744,6 +3836,34 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "TagBody": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Lower case letters, digits and `-`. Upper case is lowered."
           }
         }
       },
