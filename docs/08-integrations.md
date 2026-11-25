@@ -74,7 +74,7 @@ Same as Torznab with NZB enclosures and `newznab:attr`. Details in M9.
 
 | | |
 |---|---|
-| Endpoints (WebUI API v2) | `POST /api/v2/auth/login`, `GET /api/v2/app/version`, `POST /api/v2/torrents/add`, `GET /api/v2/torrents/info?category=`, `GET /api/v2/torrents/properties`, `POST /api/v2/torrents/delete`, `POST /api/v2/torrents/createCategory`, `GET /api/v2/app/preferences` |
+| Endpoints (WebUI API v2) | `POST /api/v2/auth/login`, `GET /api/v2/app/version`, `POST /api/v2/torrents/add`, `GET /api/v2/torrents/info?category=`, `GET /api/v2/torrents/properties`, `POST /api/v2/torrents/delete`, `GET /api/v2/torrents/categories`, `POST /api/v2/torrents/createCategory`, `GET /api/v2/app/preferences` |
 | Auth | API key (qBittorrent 5.2 or later): `Authorization: Bearer qbt_...` on every request, no login. Otherwise a cookie session from username and password; log in again on 403. When a client has a key, the key wins |
 | Rate limits | None; poll every 5 s while downloads are active, 60 s when idle |
 | Failure | See retries in [06-state-machines.md](06-state-machines.md) |
@@ -82,6 +82,22 @@ Same as Torznab with NZB enclosures and `newznab:attr`. Details in M9.
 
 Torrents are identified by info hash. The category is how Unseen finds its
 own torrents.
+
+Rules of the client in `core` (`qbittorrent.rs`):
+
+- Every torrent call takes the category of the download client and refuses an
+  empty one, because an empty category filter means the torrents that have no
+  category. A torrent in another category, or in none, is never listed. A
+  delete or a properties call for its hash does nothing: the hashes sent to
+  qBittorrent are the ones found in our category, never the caller's text.
+- Add takes a magnet link or an http(s) torrent URL, sets the category and
+  nothing else. The save path is left to qBittorrent, and Unseen reads
+  `content_path` from the torrent list. The category is created when
+  `torrents/categories` does not have it, without a save path. A magnet link
+  gives its info hash at once; a torrent URL does not, because qBittorrent
+  fetches it, so the caller finds that torrent by listing the category.
+- The session cookie is kept between calls. A 403 on a call logs in again once
+  and repeats the call; a second 403 is `Credentials`. An API key never logs in.
 
 ## SABnzbd (M9)
 
@@ -129,9 +145,37 @@ second provider needs no new scoring code.
 | Failure | A failed search leaves the subtitle wanted and records the error on the task. A bad API key or login disables the provider and shows an error in settings until it is changed. |
 | Mock | JSON fixtures: search results, a login answer, a download answer, a quota-exhausted answer |
 
-Open question for #106: confirm the request fields and the quota numbers
-against the provider's current documentation, which could not be read when
-this design was written. The behaviour above does not depend on the numbers.
+Implementation notes (`opensubtitles.rs`, trait in `subtitle_provider.rs`):
+
+- A search sends `tmdb_id`, else `imdb_id`, else `query` and `year`, plus
+  `moviehash`, `languages` and `type=movie`. The kinds wanted become
+  `hearing_impaired` and `foreign_parts_only` (`only` or `exclude`; the
+  default `include` is not sent). Parameters are sorted by name, as the
+  provider asks for its cache. Only the first page (50 results) is read. A
+  query with no id, title or hash makes no call.
+- A candidate's id is the `file_id` of its first file, which is what
+  `POST /download` takes. A result with no file or no language is dropped.
+  The kind is `forced` when `foreign_parts_only`, else `hi` when
+  `hearing_impaired`, else `normal`.
+- Search needs only the `Api-Key`. The login runs on the first download;
+  the token is kept, and one HTTP 401 on a download makes the client log in
+  again once. A missing username or password is `Unauthorized` without a call.
+- The quota is kept from the `remaining` and `reset_time_utc` fields of each
+  download answer. `quota()` returns it so the caller can store it
+  (`subtitles.opensubtitles.quota`) and give it back with `with_quota()`.
+  With none left, `download` returns `QuotaExhausted` without a request until
+  the reset time. HTTP 406 is the provider's "download count exceeded". A 429
+  on a download that the retries (three, honoring `Retry-After`) did not
+  clear is treated the same way. When an answer gives no reset time, the
+  client assumes one hour.
+- The answer to `POST /download` holds a `link` to the file. The client
+  fetches it through the outbound check, without the key or the token.
+- The `base_url` that `/login` returns (for VIP accounts) is ignored; the
+  configured base URL is used.
+- The fixtures in `fixtures/opensubtitles/` are written by hand from the
+  public API documentation as known when this was written. The documentation
+  site could not be read and no real account was used. Check the field names
+  against a real answer before the first release.
 
 ### Which subtitle is chosen
 
