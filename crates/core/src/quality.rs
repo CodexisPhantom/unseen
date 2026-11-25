@@ -169,9 +169,136 @@ impl Quality {
     }
 }
 
+const MEGABYTE: f64 = 1024.0 * 1024.0;
+
+/// Size limits of one quality, in megabytes per minute of runtime, as in
+/// Radarr's quality definitions (docs/07-release-scoring.md).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SizeLimits {
+    pub min: f64,
+    /// The size to prefer when two releases tie. `None`: no preference.
+    pub preferred: Option<f64>,
+    /// `None`: no limit.
+    pub max: Option<f64>,
+}
+
+/// How a release size compares with the limits of its quality.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SizeCheck {
+    Within,
+    TooSmall,
+    TooLarge,
+}
+
+/// Why a set of limits is refused: the field and a message for the user.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LimitsError {
+    pub field: &'static str,
+    pub message: &'static str,
+}
+
+impl SizeLimits {
+    /// The limits must be finite numbers with `min` at least 0, `max` above 0
+    /// and not below `min`, and `preferred` between `min` and `max`.
+    pub fn validate(&self) -> Result<(), LimitsError> {
+        let error = |field, message| Err(LimitsError { field, message });
+        let finite = |value: f64| value.is_finite();
+        if !finite(self.min) || self.min < 0.0 {
+            return error("minSize", "must be 0 or more");
+        }
+        if let Some(max) = self.max {
+            if !finite(max) || max <= 0.0 {
+                return error("maxSize", "must be more than 0, or empty for no limit");
+            }
+            if max < self.min {
+                return error("maxSize", "must not be below the minimum");
+            }
+        }
+        if let Some(preferred) = self.preferred {
+            if !finite(preferred) || preferred < self.min {
+                return error("preferredSize", "must not be below the minimum");
+            }
+            if self.max.is_some_and(|max| preferred > max) {
+                return error("preferredSize", "must not be above the maximum");
+            }
+        }
+        Ok(())
+    }
+
+    /// Compares the size of a release, in bytes, with the limits for a movie
+    /// of `runtime_minutes`. A movie without a runtime passes: there is
+    /// nothing to scale the limits with.
+    pub fn check(&self, size_bytes: u64, runtime_minutes: Option<u32>) -> SizeCheck {
+        let Some(minutes) = runtime_minutes.filter(|minutes| *minutes > 0) else {
+            return SizeCheck::Within;
+        };
+        let size = size_bytes as f64;
+        let scale = f64::from(minutes) * MEGABYTE;
+        if size < self.min * scale {
+            SizeCheck::TooSmall
+        } else if self.max.is_some_and(|max| size > max * scale) {
+            SizeCheck::TooLarge
+        } else {
+            SizeCheck::Within
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Modifier as M, Quality, Source as S};
+    use super::{LimitsError, Modifier as M, Quality, SizeCheck, SizeLimits, Source as S};
+
+    const MB: u64 = 1024 * 1024;
+
+    fn limits(min: f64, preferred: Option<f64>, max: Option<f64>) -> SizeLimits {
+        SizeLimits {
+            min,
+            preferred,
+            max,
+        }
+    }
+
+    #[test]
+    fn a_size_is_checked_against_the_limits_scaled_by_the_runtime() {
+        // 10 to 100 MB per minute, 100 minutes: 1000 MB to 10000 MB.
+        let hd = limits(10.0, Some(50.0), Some(100.0));
+        assert_eq!(hd.check(999 * MB, Some(100)), SizeCheck::TooSmall);
+        assert_eq!(hd.check(1000 * MB, Some(100)), SizeCheck::Within);
+        assert_eq!(hd.check(10_000 * MB, Some(100)), SizeCheck::Within);
+        assert_eq!(hd.check(10_001 * MB, Some(100)), SizeCheck::TooLarge);
+    }
+
+    #[test]
+    fn a_movie_without_a_runtime_passes() {
+        let hd = limits(10.0, None, Some(100.0));
+        assert_eq!(hd.check(1, None), SizeCheck::Within);
+        assert_eq!(hd.check(u64::MAX, None), SizeCheck::Within);
+        assert_eq!(hd.check(u64::MAX, Some(0)), SizeCheck::Within);
+    }
+
+    #[test]
+    fn no_maximum_is_unlimited_and_a_zero_minimum_accepts_any_small_size() {
+        let open = limits(0.0, None, None);
+        assert_eq!(open.check(0, Some(120)), SizeCheck::Within);
+        assert_eq!(open.check(u64::MAX, Some(120)), SizeCheck::Within);
+    }
+
+    #[test]
+    fn limits_are_validated() {
+        let field =
+            |limits: SizeLimits| limits.validate().map_err(|LimitsError { field, .. }| field);
+        assert_eq!(field(limits(0.0, None, None)), Ok(()));
+        assert_eq!(field(limits(5.0, Some(5.0), Some(5.0))), Ok(()));
+        assert_eq!(field(limits(-1.0, None, None)), Err("minSize"));
+        assert_eq!(field(limits(f64::NAN, None, None)), Err("minSize"));
+        assert_eq!(field(limits(0.0, None, Some(0.0))), Err("maxSize"));
+        assert_eq!(field(limits(10.0, None, Some(9.0))), Err("maxSize"));
+        assert_eq!(field(limits(10.0, Some(9.0), None)), Err("preferredSize"));
+        assert_eq!(
+            field(limits(1.0, Some(11.0), Some(10.0))),
+            Err("preferredSize")
+        );
+    }
 
     /// Radarr's qualities, transcribed from `Quality.cs` (Radarr `develop`,
     /// commit e83f5e83): the constructor arguments of each quality, in the

@@ -508,6 +508,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/quality-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every quality with its size limits, lowest quality first. */
+        get: operations["list_definitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quality-definitions/{qualityId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Changes the limits of one quality. */
+        patch: operations["update_definition"];
+        trace?: never;
+    };
     "/api/v1/quality-profiles": {
         parameters: {
             query?: never;
@@ -1213,6 +1247,45 @@ export interface components {
             qualityIds: number[];
             /** @enum {string} */
             type: "group";
+        };
+        QualityDefinition: {
+            /**
+             * Format: double
+             * @description Megabytes per minute. Absent: no limit.
+             */
+            maxSize?: number | null;
+            /**
+             * Format: double
+             * @description Megabytes per minute of runtime.
+             */
+            minSize: number;
+            /** @description Radarr's name of the quality, for example `Bluray-1080p`. */
+            name: string;
+            /**
+             * Format: double
+             * @description Megabytes per minute. Absent: no preference.
+             */
+            preferredSize?: number | null;
+            /**
+             * Format: int32
+             * @description Radarr's id of the quality.
+             */
+            qualityId: number;
+            /** @description The name shown to users. Starts equal to `name`. */
+            title: string;
+        };
+        /**
+         * @description A field that is absent keeps the stored value; `null` clears the two
+         *     optional sizes.
+         */
+        QualityDefinitionPatch: {
+            /** Format: double */
+            maxSize?: number | null;
+            /** Format: double */
+            minSize?: number | null;
+            /** Format: double */
+            preferredSize?: number | null;
+            title?: string | null;
         };
         QualityProfile: {
             createdAt: string;
@@ -2978,6 +3051,89 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_definitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The definitions, in the default quality order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityDefinition"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Radarr's id of the quality */
+                qualityId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityDefinitionPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed definition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityDefinition"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such quality */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

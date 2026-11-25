@@ -19,6 +19,7 @@ pub mod indexers;
 mod migration;
 pub mod movies;
 pub mod profiles;
+pub mod quality_definitions;
 pub mod roles;
 pub mod root_folders;
 pub mod secret;

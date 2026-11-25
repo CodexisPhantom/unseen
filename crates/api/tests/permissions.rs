@@ -403,6 +403,16 @@ fn app_router_passes_route_coverage() {
             profiles(Method::PATCH, "/api/v1/tags/{id}", Permission::LibraryEdit),
             profiles(
                 Method::GET,
+                "/api/v1/quality-definitions",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::PATCH,
+                "/api/v1/quality-definitions/{qualityId}",
+                Permission::ProfilesManage
+            ),
+            profiles(
+                Method::GET,
                 "/api/v1/settings/tmdb",
                 Permission::SettingsRead
             ),

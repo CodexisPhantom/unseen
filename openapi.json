@@ -2012,6 +2012,115 @@
         "x-permission": "authenticated"
       }
     },
+    "/api/v1/quality-definitions": {
+      "get": {
+        "tags": [
+          "quality-definitions"
+        ],
+        "summary": "Every quality with its size limits, lowest quality first.",
+        "operationId": "list_definitions",
+        "responses": {
+          "200": {
+            "description": "The definitions, in the default quality order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QualityDefinition"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
+      }
+    },
+    "/api/v1/quality-definitions/{qualityId}": {
+      "patch": {
+        "tags": [
+          "quality-definitions"
+        ],
+        "summary": "Changes the limits of one quality.",
+        "operationId": "update_definition",
+        "parameters": [
+          {
+            "name": "qualityId",
+            "in": "path",
+            "description": "Radarr's id of the quality",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualityDefinitionPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The changed definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityDefinition"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such quality",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      }
+    },
     "/api/v1/quality-profiles": {
       "get": {
         "tags": [
@@ -4864,6 +4973,84 @@
           }
         ],
         "description": "One entry of the ordered list, lowest quality first."
+      },
+      "QualityDefinition": {
+        "type": "object",
+        "required": [
+          "qualityId",
+          "name",
+          "title",
+          "minSize"
+        ],
+        "properties": {
+          "maxSize": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Megabytes per minute. Absent: no limit."
+          },
+          "minSize": {
+            "type": "number",
+            "format": "double",
+            "description": "Megabytes per minute of runtime."
+          },
+          "name": {
+            "type": "string",
+            "description": "Radarr's name of the quality, for example `Bluray-1080p`."
+          },
+          "preferredSize": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Megabytes per minute. Absent: no preference."
+          },
+          "qualityId": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Radarr's id of the quality."
+          },
+          "title": {
+            "type": "string",
+            "description": "The name shown to users. Starts equal to `name`."
+          }
+        }
+      },
+      "QualityDefinitionPatch": {
+        "type": "object",
+        "description": "A field that is absent keeps the stored value; `null` clears the two\noptional sizes.",
+        "properties": {
+          "maxSize": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "minSize": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "preferredSize": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "QualityProfile": {
         "type": "object",
