@@ -1178,12 +1178,246 @@
         "x-permission": "indexers:manage"
       }
     },
+    "/api/v1/language-profiles": {
+      "get": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Every language profile, ordered by name.",
+        "operationId": "list_language_profiles",
+        "responses": {
+          "200": {
+            "description": "The profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LanguageProfile"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      },
+      "post": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Creates a language profile. The items are the wanted subtitles in order;\nthe cutoff is the index of one of them.",
+        "operationId": "create_language_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewLanguageProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageProfile"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "subtitles:manage"
+      }
+    },
+    "/api/v1/language-profiles/{id}": {
+      "put": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Replaces a language profile. The result must satisfy the same rules as a\nnew profile.",
+        "operationId": "update_language_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewLanguageProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The changed profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageProfile"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "subtitles:manage"
+      },
+      "delete": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Deletes a language profile that no movie uses. When it is the default\nprofile, the default is cleared.",
+        "operationId": "delete_language_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A movie uses the profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "subtitles:manage"
+      }
+    },
     "/api/v1/library/adopt": {
       "post": {
         "tags": [
           "library"
         ],
-        "summary": "Adopts the confirmed folders: each becomes a movie that keeps its folder\nname and file names. The largest video file belongs to the primary\nprofile; other video files are stored as unmanaged files. The quality of\nevery file is `Unknown` until the parser backfill. A folder that cannot\nbe adopted is reported and the others still are.",
+        "summary": "Adopts the confirmed folders: each becomes a movie that keeps its folder\nname and file names. The largest video file belongs to the primary\nprofile; other video files are stored as unmanaged files. The quality of\neach file is read from its file name, then from the folder name, and is\n`Unknown` when neither says. A folder that cannot be adopted is reported\nand the others still are.",
         "operationId": "adopt",
         "requestBody": {
           "content": {
@@ -1961,6 +2195,80 @@
         "x-permission": "library:delete"
       }
     },
+    "/api/v1/movies/{id}/language-profile": {
+      "put": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Sets or clears the language profile of a movie.",
+        "operationId": "set_movie_language_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MovieLanguageProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The movie's subtitles after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovieSubtitles"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No such language profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "subtitles:manage"
+      }
+    },
     "/api/v1/movies/{id}/profiles": {
       "post": {
         "tags": [
@@ -2110,6 +2418,114 @@
           }
         },
         "x-permission": "library:delete"
+      }
+    },
+    "/api/v1/movies/{id}/subtitles": {
+      "get": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "The movie's language profile and the subtitle files of all its video\nfiles.",
+        "operationId": "list_movie_subtitles",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subtitles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovieSubtitles"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      }
+    },
+    "/api/v1/movies/{id}/subtitles/scan": {
+      "post": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Looks for subtitle files next to the video files of a movie, and records\nthem. A subtitle whose file is gone is forgotten; one that came from a\nprovider is left alone. Nothing on disk changes.",
+        "operationId": "scan_subtitles",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subtitles after the scan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovieSubtitles"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "subtitles:manage"
       }
     },
     "/api/v1/owner/transfer": {
@@ -3309,6 +3725,88 @@
           }
         },
         "x-permission": "settings:manage"
+      }
+    },
+    "/api/v1/settings/subtitles": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "The subtitle settings.",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "The settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtitleSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "library:read"
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Changes the subtitle settings. `null` clears the default profile.",
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubtitleSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The settings after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtitleSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "subtitles:manage"
       }
     },
     "/api/v1/settings/tmdb": {
@@ -4873,6 +5371,63 @@
           }
         }
       },
+      "LanguageItem": {
+        "type": "object",
+        "description": "One wanted subtitle.",
+        "required": [
+          "language",
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SubtitleKind"
+          },
+          "language": {
+            "type": "string",
+            "description": "A lower case ISO 639-1 code, with an upper case region where it\nmatters: `en`, `pt-BR`."
+          }
+        }
+      },
+      "LanguageProfile": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "items",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "cutoff": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Index into `items`: once that item and every item before it exist,\nUnseen stops looking. Absent: look for every item."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LanguageItem"
+            },
+            "description": "In order of preference."
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
       "Me": {
         "type": "object",
         "required": [
@@ -5188,6 +5743,19 @@
           }
         }
       },
+      "MovieLanguageProfile": {
+        "type": "object",
+        "properties": {
+          "languageProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "`null` clears the profile: no subtitles are wanted."
+          }
+        }
+      },
       "MovieLookup": {
         "type": "object",
         "required": [
@@ -5303,6 +5871,28 @@
           "qualityProfileId": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "MovieSubtitles": {
+        "type": "object",
+        "required": [
+          "subtitles"
+        ],
+        "properties": {
+          "languageProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The movie's language profile. Absent: no subtitles are wanted."
+          },
+          "subtitles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subtitle"
+            }
           }
         }
       },
@@ -5556,6 +6146,31 @@
           },
           "useProxy": {
             "type": "boolean"
+          }
+        }
+      },
+      "NewLanguageProfile": {
+        "type": "object",
+        "required": [
+          "name",
+          "items"
+        ],
+        "properties": {
+          "cutoff": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LanguageItem"
+            }
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -6414,6 +7029,78 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "Subtitle": {
+        "type": "object",
+        "description": "A subtitle file of a movie file.",
+        "required": [
+          "id",
+          "movieFileId",
+          "language",
+          "kind",
+          "relativePath",
+          "addedAt"
+        ],
+        "properties": {
+          "addedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "`en`, `pt-BR`, or `und` when the file name has no language."
+          },
+          "movieFileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`opensubtitles` for a downloaded subtitle. Absent for a file that was\nfound next to the video."
+          },
+          "relativePath": {
+            "type": "string",
+            "description": "Relative to the movie's folder."
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "SubtitleKind": {
+        "type": "string",
+        "description": "What a subtitle is for.",
+        "enum": [
+          "normal",
+          "hi",
+          "forced"
+        ]
+      },
+      "SubtitleSettings": {
+        "type": "object",
+        "properties": {
+          "defaultProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The language profile of a new movie. Absent: new movies want no\nsubtitles."
           }
         }
       },
