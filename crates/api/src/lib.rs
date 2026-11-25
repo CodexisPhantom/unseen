@@ -6,6 +6,7 @@ pub mod audit;
 pub mod auth;
 pub mod error;
 mod health;
+mod indexers;
 mod lookup;
 mod me;
 mod owner;
@@ -145,6 +146,16 @@ pub fn routes() -> ApiRouter {
             routes!(root_folders::delete_root_folder),
         )
         .require(Permission::SettingsManage, routes!(root_folders::browse))
+        .require(Permission::IndexersRead, routes!(indexers::list_indexers))
+        .require(
+            Permission::IndexersManage,
+            routes!(indexers::create_indexer),
+        )
+        .require(Permission::IndexersRead, routes!(indexers::get_indexer))
+        .require(
+            Permission::IndexersManage,
+            routes!(indexers::update_indexer, indexers::delete_indexer),
+        )
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.

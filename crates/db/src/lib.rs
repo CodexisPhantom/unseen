@@ -14,6 +14,7 @@ pub mod access;
 pub mod api_keys;
 pub mod audit;
 pub mod entities;
+pub mod indexers;
 mod migration;
 pub mod movies;
 pub mod profiles;
@@ -84,6 +85,8 @@ mod tests {
             "api_key_permissions",
             "audit_log",
             "api_keys",
+            "indexer_tags",
+            "indexers",
             "movie_files",
             "movie_profiles",
             "movie_tags",

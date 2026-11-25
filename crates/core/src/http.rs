@@ -62,6 +62,11 @@ pub fn check_url(url: &Url) -> Result<(), UrlError> {
     }
 }
 
+/// [`check_url`] for the text a user typed.
+pub fn check_url_text(text: &str) -> Result<(), UrlError> {
+    check_url(&Url::parse(text).map_err(|_| UrlError::Invalid)?)
+}
+
 /// Resolves a name with the system resolver and drops blocked addresses, so
 /// a DNS name cannot point at one. Nothing left means the connection fails.
 struct GuardedResolver;
