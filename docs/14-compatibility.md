@@ -181,6 +181,38 @@ recorded responses are pinned for the contract tests. One constant in
 the version then sees exactly the API it was told about. Unseen's own
 version is in `GET /api/v1/health`.
 
+### Pinned schema and DTOs
+
+The pinned OpenAPI document is Radarr `v7.0.3.10918` (commit `af772b0`,
+`src/Radarr.Api.V3/openapi.json`), stored as
+`fixtures/radarr/openapi-7.0.3.10918.json`. `RADARR_VERSION` in
+`arr-compat` is that version; a test fails if the file name and the constant
+differ. The DTOs are in `arr-compat::radarr::dto`, the mapping in
+`arr-compat::radarr::map`. `arr-compat` does not read the database, so the
+mapping takes plain `*View` structs that `api` fills from the `db` models.
+
+Rules the contract test (`crates/arr-compat/tests/schema.rs`) checks:
+
+- Every property of the schema is in the output, none is added. The upstream
+  document has no `required` lists; the test demands all properties anyway.
+- A value Unseen lacks is the default: empty string, zero, empty list,
+  `false`, `0001-01-01T00:00:00Z` for a date-time that cannot be null, and
+  `null` where the schema is `nullable` (for example `inCinemas`, `hasFile`).
+- Four objects are `null` instead of a made-up default: `movieFile` of a
+  movie without a file, `collection`, `movie` of a queue record without a
+  movie, and `quality` of a quality group. Radarr leaves them out; Unseen
+  sends `null` so that the key is present. The schema does not mark them
+  nullable; the test lists them.
+- Quality profile `language` uses Radarr's language ids (`any` is -1,
+  `original` is -2, `en` is 1; a code Unseen cannot place is 0, `Unknown`).
+- `minimumAvailability` on input: `tba` means `announced`, `deleted` is
+  rejected. Missing means `released`, as in Unseen's own API.
+- Input bodies are read leniently: unknown fields are ignored and every
+  field is optional until an operation needs it (`MovieRequest::into_add`
+  needs `tmdbId`, `qualityProfileId` and `rootFolderPath`; `into_update`
+  needs `id`). `movieIds` of `POST /command` is not in the upstream `Command`
+  schema and is read from its own struct.
+
 `qualityProfileId`, `hasFile` and `movieFile` describe the primary movie
 profile. Other profiles and unmanaged files are not visible through the
 compat API in V1.

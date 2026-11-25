@@ -506,14 +506,15 @@ async fn adopted_movies_keep_their_folder_name_and_files() {
         .unwrap();
     assert_eq!(main["managed"], true);
     assert_eq!(main["size"], 3000);
-    assert_eq!(main["qualityId"], 0);
+    // Radarr ids: Bluray-1080p is 7, Bluray-720p is 6.
+    assert_eq!(main["qualityId"], 7);
     assert_eq!(movie["profiles"][0]["fileId"], main["id"]);
     let other = files
         .iter()
         .find(|f| f["relativePath"] == "The Matrix (1999) Bluray-720p.mkv")
         .unwrap();
     assert_eq!(other["managed"], false);
-    assert_eq!(other["qualityId"], 0);
+    assert_eq!(other["qualityId"], 6);
 }
 
 #[tokio::test]

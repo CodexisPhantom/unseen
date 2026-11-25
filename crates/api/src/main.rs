@@ -23,6 +23,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = db::connect(&data_dir).await?;
     tracing::info!(data_dir = %data_dir.display(), "database ready");
 
+    // Files adopted before the parser existed have quality `Unknown`.
+    let backfill = db::backfill::run(&db).await?;
+    if backfill.updated > 0 {
+        tracing::info!(files = backfill.updated, "quality set on adopted files");
+    }
+    for path in &backfill.unparsed {
+        tracing::warn!(%path, "quality of adopted file not parsed, stays Unknown");
+    }
+
     let secret = api::auth::load_secret(std::env::var("UNSEEN_SECRET").ok(), &data_dir)?;
     let base_url = std::env::var("UNSEEN_BASE_URL").ok();
     let state = api::AppState::new(db, &secret, base_url.as_deref()).await?;

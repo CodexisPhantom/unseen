@@ -14,6 +14,7 @@ use db::movies::{Metadata, MovieError, NewFile, NewMovie as StoredNew};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::task::JoinSet;
+use unseen_core::backfill::file_quality;
 use unseen_core::library::{
     FolderGuess, confident_match, guess_folder, is_extras_folder, is_movie_video,
 };
@@ -31,8 +32,6 @@ use crate::tmdb::{client, provider_error};
 const PARALLEL: usize = 8;
 /// How deep below the movie folder a video file is looked for.
 const DEPTH: usize = 3;
-/// The quality of an adopted file until the parser backfill (`Unknown`).
-const UNKNOWN_QUALITY: i32 = 0;
 const AVAILABILITIES: [&str; 3] = ["announced", "inCinemas", "released"];
 
 fn failed(error: impl std::fmt::Display) -> Problem {
@@ -389,8 +388,9 @@ fn plain_folder(name: &str) -> bool {
 /// Adopts the confirmed folders: each becomes a movie that keeps its folder
 /// name and file names. The largest video file belongs to the primary
 /// profile; other video files are stored as unmanaged files. The quality of
-/// every file is `Unknown` until the parser backfill. A folder that cannot
-/// be adopted is reported and the others still are.
+/// each file is read from its file name, then from the folder name, and is
+/// `Unknown` when neither says. A folder that cannot be adopted is reported
+/// and the others still are.
 #[utoipa::path(
     post,
     path = "/api/v1/library/adopt",
@@ -524,7 +524,7 @@ pub async fn adopt(
             .map(|file| NewFile {
                 relative_path: file.relative_path.clone(),
                 size: i64::try_from(file.size).unwrap_or(i64::MAX),
-                quality_id: UNKNOWN_QUALITY,
+                quality_id: file_quality(&file.relative_path, &item.folder_name).id(),
             })
             .collect();
         let created = db::movies::create_with_files(

@@ -75,6 +75,15 @@ library). Decide in M4; until then those tokens render from the release name.
 3. The user reviews the matches and confirms.
 4. Unseen stores the movie with its existing folder name and relative file path.
 
+The quality of each adopted file comes from its names, not from the file: the
+release-name parser reads the file name first and then the movie folder name
+(`core::backfill::file_quality`). A name without a source, such as a
+resolution alone, gives `Unknown`. Adoption stores the result directly. At
+every start Unseen also parses the files that are still `Unknown`, which
+covers files adopted before this existed, and logs a warning with the path of
+each file it cannot parse. Files with a known quality are never changed.
+Probing the file with ffprobe is not part of this.
+
 Adoption never moves, renames or deletes anything. Renaming to the template
 is a separate, explicit action with a preview.
 

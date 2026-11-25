@@ -1,3 +1,4 @@
+pub mod backfill;
 pub mod http;
 pub mod library;
 pub mod metadata;
@@ -8,5 +9,6 @@ pub mod qbittorrent;
 pub mod quality;
 pub mod release;
 pub mod root_folder;
+pub mod scoring;
 pub mod tmdb;
 pub mod torznab;
