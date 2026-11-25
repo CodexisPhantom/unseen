@@ -663,6 +663,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/naming": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The naming settings. */
+        get: operations["get_naming"];
+        /** Changes the naming settings. A template with an unknown token is refused. */
+        put: operations["update_naming"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/naming/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Renders the example movie with the given settings, saved or not. */
+        post: operations["preview_naming"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/proxy": {
         parameters: {
             query?: never;
@@ -1170,6 +1205,52 @@ export interface components {
             isPrimary: boolean;
             /** Format: int32 */
             qualityProfileId: number;
+        };
+        NamingPreview: {
+            /** @description The file name of the example movie, without the extension. */
+            movieFileExample: string;
+            /** @description The folder of Radarr's example movie, `The Movie: Title` (2010). */
+            movieFolderExample: string;
+        };
+        /** @description The settings to preview: a field that is absent uses the stored value. */
+        NamingPreviewRequest: {
+            /** @description `delete`, `dash`, `spaceDash`, `spaceDashSpace` or `smart`. */
+            colonReplacement?: string | null;
+            movieFile?: string | null;
+            movieFolder?: string | null;
+            replaceIllegalCharacters?: boolean | null;
+        };
+        NamingSettings: {
+            /**
+             * @description How a colon is written: `delete`, `dash`, `spaceDash`,
+             *     `spaceDashSpace` or `smart`.
+             */
+            colonReplacement: string;
+            /** @description Template of the movie file name, without the extension. */
+            movieFile: string;
+            /**
+             * @description Template of the movie folder, for example
+             *     `{Movie Title} ({Release Year})`.
+             */
+            movieFolder: string;
+            /**
+             * @description Fields set by an environment variable (`UNSEEN_SETTING_...`). They are
+             *     read-only: a change is refused with 409 `setting_overridden`.
+             */
+            overridden: string[];
+            /** @description Off: an imported file keeps its original name. */
+            renameMovies: boolean;
+            /** @description Off: illegal characters are removed instead of replaced. */
+            replaceIllegalCharacters: boolean;
+        };
+        /** @description A field that is absent keeps the stored value. */
+        NamingSettingsPatch: {
+            /** @description `delete`, `dash`, `spaceDash`, `spaceDashSpace` or `smart`. */
+            colonReplacement?: string | null;
+            movieFile?: string | null;
+            movieFolder?: string | null;
+            renameMovies?: boolean | null;
+            replaceIllegalCharacters?: boolean | null;
         };
         NewApiKey: {
             name: string;
@@ -3761,6 +3842,128 @@ export interface operations {
             };
             /** @description A movie lives in the root folder */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_naming: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamingSettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_naming: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NamingSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description The settings after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamingSettings"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The environment sets this setting */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_naming: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NamingPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description The example names */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamingPreview"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A template has an unknown token */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

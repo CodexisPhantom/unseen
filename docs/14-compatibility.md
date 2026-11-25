@@ -11,6 +11,7 @@ Status: reviewed (2026-11-16). Scope decision: ADR 0008.
 | Adopt an existing library in place | Radarr | Sonarr (M8) |
 | Default naming equals upstream defaults | Yes | TV |
 | Template tokens accepted | See [09-filesystem.md](09-filesystem.md) | TV tokens |
+| Names rendered from a template | Same as Radarr, except `{Release Group}` without a group (`Unseen`, not `Radarr`), Windows-unsafe characters and device names (replaced on every platform), and the `:` token options (refused) | TV |
 | Hardlink behaviour | Same | Same |
 | qBittorrent category convention | Category per client, reused on import | Same |
 

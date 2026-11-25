@@ -11,7 +11,6 @@ use db::movies::{Metadata, Movie as Stored, MovieError, NewMovie as StoredNew, P
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::metadata::MetadataError;
-use unseen_core::naming;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
@@ -378,7 +377,8 @@ pub async fn create_movie(
     let metadata = Metadata::from_details(&details).ok_or_else(|| {
         Problem::validation("tmdbId", "has no release date on TMDB yet, so no year")
     })?;
-    let folder_name = naming::movie_folder_name(&metadata.title, metadata.year);
+    let collection = details.collection.as_ref().map(|c| c.name.as_str());
+    let folder_name = crate::naming_settings::movie_folder(&state, &metadata, collection).await?;
     let created = db::movies::create(
         &state.db,
         StoredNew {

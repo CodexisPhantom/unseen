@@ -2802,6 +2802,150 @@
         "x-permission": "settings:manage"
       }
     },
+    "/api/v1/settings/naming": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "The naming settings.",
+        "operationId": "get_naming",
+        "responses": {
+          "200": {
+            "description": "The settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamingSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:read"
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Changes the naming settings. A template with an unknown token is refused.",
+        "operationId": "update_naming",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamingSettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The settings after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamingSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The environment sets this setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      }
+    },
+    "/api/v1/settings/naming/preview": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Renders the example movie with the given settings, saved or not.",
+        "operationId": "preview_naming",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamingPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The example names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamingPreview"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A template has an unknown token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:read"
+      }
+    },
     "/api/v1/settings/proxy": {
       "get": {
         "tags": [
@@ -4713,6 +4857,131 @@
           "qualityProfileId": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "NamingPreview": {
+        "type": "object",
+        "required": [
+          "movieFolderExample",
+          "movieFileExample"
+        ],
+        "properties": {
+          "movieFileExample": {
+            "type": "string",
+            "description": "The file name of the example movie, without the extension."
+          },
+          "movieFolderExample": {
+            "type": "string",
+            "description": "The folder of Radarr's example movie, `The Movie: Title` (2010)."
+          }
+        }
+      },
+      "NamingPreviewRequest": {
+        "type": "object",
+        "description": "The settings to preview: a field that is absent uses the stored value.",
+        "properties": {
+          "colonReplacement": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`delete`, `dash`, `spaceDash`, `spaceDashSpace` or `smart`."
+          },
+          "movieFile": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "movieFolder": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replaceIllegalCharacters": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "NamingSettings": {
+        "type": "object",
+        "required": [
+          "movieFolder",
+          "movieFile",
+          "renameMovies",
+          "replaceIllegalCharacters",
+          "colonReplacement",
+          "overridden"
+        ],
+        "properties": {
+          "colonReplacement": {
+            "type": "string",
+            "description": "How a colon is written: `delete`, `dash`, `spaceDash`,\n`spaceDashSpace` or `smart`."
+          },
+          "movieFile": {
+            "type": "string",
+            "description": "Template of the movie file name, without the extension."
+          },
+          "movieFolder": {
+            "type": "string",
+            "description": "Template of the movie folder, for example\n`{Movie Title} ({Release Year})`."
+          },
+          "overridden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields set by an environment variable (`UNSEEN_SETTING_...`). They are\nread-only: a change is refused with 409 `setting_overridden`."
+          },
+          "renameMovies": {
+            "type": "boolean",
+            "description": "Off: an imported file keeps its original name."
+          },
+          "replaceIllegalCharacters": {
+            "type": "boolean",
+            "description": "Off: illegal characters are removed instead of replaced."
+          }
+        }
+      },
+      "NamingSettingsPatch": {
+        "type": "object",
+        "description": "A field that is absent keeps the stored value.",
+        "properties": {
+          "colonReplacement": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`delete`, `dash`, `spaceDash`, `spaceDashSpace` or `smart`."
+          },
+          "movieFile": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "movieFolder": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "renameMovies": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "replaceIllegalCharacters": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         }
       },
