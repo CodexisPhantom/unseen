@@ -168,6 +168,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/indexers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every indexer, ordered by name. */
+        get: operations["list_indexers"];
+        put?: never;
+        /** Adds an indexer. The key is stored encrypted. */
+        post: operations["create_indexer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/indexers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One indexer. */
+        get: operations["get_indexer"];
+        put?: never;
+        post?: never;
+        /** Deletes an indexer. */
+        delete: operations["delete_indexer"];
+        options?: never;
+        head?: never;
+        /** Changes an indexer. A request without `apiKey` keeps the stored key. */
+        patch: operations["update_indexer"];
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -633,6 +670,47 @@ export interface components {
             /** @description Version of the running binary. */
             version: string;
         };
+        Indexer: {
+            /** @description A key is stored but cannot be decrypted: enter it again. */
+            apiKeyMustBeReentered: boolean;
+            /** @description Torznab category ids to search, for example `2000` for movies. */
+            categories: number[];
+            createdAt: string;
+            enabled: boolean;
+            /** @description The key itself is never returned. */
+            hasApiKey: boolean;
+            /** Format: int32 */
+            id: number;
+            /** @description `torznab`. */
+            kind: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description 1 to 50. The lower number wins when two releases tie.
+             */
+            priority: number;
+            /**
+             * @description An indexer without tags serves every movie; one with tags serves the
+             *     movies that share a tag (docs/04-database.md).
+             */
+            tags: number[];
+            url: string;
+            /** @description Send the traffic through the configured proxy. */
+            useProxy: boolean;
+        };
+        IndexerPatch: {
+            /** @description Absent keeps the stored key. */
+            apiKey?: string | null;
+            categories?: number[] | null;
+            enabled?: boolean | null;
+            name?: string | null;
+            /** Format: int32 */
+            priority?: number | null;
+            /** @description Replaces the whole tag set. */
+            tags?: number[] | null;
+            url?: string | null;
+            useProxy?: boolean | null;
+        };
         Me: {
             /** @description The user holds the Owner role. */
             isOwner: boolean;
@@ -687,6 +765,19 @@ export interface components {
             tags?: number[];
             url: string;
             username?: string | null;
+        };
+        NewIndexer: {
+            /** @description Stored encrypted and never returned. */
+            apiKey: string;
+            categories?: number[];
+            enabled?: boolean;
+            kind?: string;
+            name: string;
+            /** Format: int32 */
+            priority?: number;
+            tags?: number[];
+            url: string;
+            useProxy?: boolean;
         };
         NewQualityProfile: {
             /** Format: int32 */
@@ -1360,6 +1451,229 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    list_indexers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The indexers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewIndexer"];
+            };
+        };
+        responses: {
+            /** @description The new indexer */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The indexer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_indexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Indexer id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed indexer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Indexer"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such indexer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

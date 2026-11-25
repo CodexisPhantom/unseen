@@ -13,6 +13,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0003ApiKeys),
             Box::new(M0004Movies),
             Box::new(M0005AuditLog),
+            Box::new(M0006Indexers),
             Box::new(M0007DownloadClients),
         ]
     }
@@ -300,6 +301,49 @@ impl MigrationTrait for M0005AuditLog {
         manager
             .get_connection()
             .execute_unprepared(M0005_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0006Indexers;
+
+impl MigrationName for M0006Indexers {
+    fn name(&self) -> &str {
+        "m0006_indexers"
+    }
+}
+
+/// Indexers and their tags (docs/04-database.md, "Integration tables").
+/// `api_key` holds the encrypted form (ADR 0011).
+const M0006_UP: &str = r#"
+CREATE TABLE indexers (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    name text NOT NULL UNIQUE,
+    kind text NOT NULL,
+    url text NOT NULL,
+    api_key text NOT NULL,
+    categories json NOT NULL,
+    priority integer NOT NULL DEFAULT 25,
+    use_proxy boolean NOT NULL DEFAULT TRUE,
+    enabled boolean NOT NULL,
+    created_at text NOT NULL
+);
+
+CREATE TABLE indexer_tags (
+    indexer_id integer NOT NULL REFERENCES indexers (id) ON DELETE CASCADE,
+    tag_id integer NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+    PRIMARY KEY (indexer_id, tag_id)
+);
+CREATE INDEX indexer_tags_tag_id_idx ON indexer_tags (tag_id);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0006Indexers {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0006_UP)
             .await?;
         Ok(())
     }

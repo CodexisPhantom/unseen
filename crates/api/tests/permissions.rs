@@ -392,6 +392,23 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/filesystem",
                 Permission::SettingsManage
             ),
+            profiles(Method::GET, "/api/v1/indexers", Permission::IndexersRead),
+            profiles(Method::POST, "/api/v1/indexers", Permission::IndexersManage),
+            profiles(
+                Method::GET,
+                "/api/v1/indexers/{id}",
+                Permission::IndexersRead
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/indexers/{id}",
+                Permission::IndexersManage
+            ),
+            profiles(
+                Method::PATCH,
+                "/api/v1/indexers/{id}",
+                Permission::IndexersManage
+            ),
             profiles(
                 Method::GET,
                 "/api/v1/download-clients",

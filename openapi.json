@@ -627,6 +627,282 @@
         "x-permission": "public"
       }
     },
+    "/api/v1/indexers": {
+      "get": {
+        "tags": [
+          "indexers"
+        ],
+        "summary": "Every indexer, ordered by name.",
+        "operationId": "list_indexers",
+        "responses": {
+          "200": {
+            "description": "The indexers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Indexer"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "indexers:read"
+      },
+      "post": {
+        "tags": [
+          "indexers"
+        ],
+        "summary": "Adds an indexer. The key is stored encrypted.",
+        "operationId": "create_indexer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewIndexer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new indexer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Indexer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "indexers:manage"
+      }
+    },
+    "/api/v1/indexers/{id}": {
+      "get": {
+        "tags": [
+          "indexers"
+        ],
+        "summary": "One indexer.",
+        "operationId": "get_indexer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Indexer id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The indexer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Indexer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such indexer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "indexers:read"
+      },
+      "delete": {
+        "tags": [
+          "indexers"
+        ],
+        "summary": "Deletes an indexer.",
+        "operationId": "delete_indexer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Indexer id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such indexer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "indexers:manage"
+      },
+      "patch": {
+        "tags": [
+          "indexers"
+        ],
+        "summary": "Changes an indexer. A request without `apiKey` keeps the stored key.",
+        "operationId": "update_indexer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Indexer id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexerPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The changed indexer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Indexer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such indexer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "indexers:manage"
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -2518,6 +2794,142 @@
           }
         }
       },
+      "Indexer": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "url",
+          "hasApiKey",
+          "apiKeyMustBeReentered",
+          "categories",
+          "priority",
+          "useProxy",
+          "enabled",
+          "tags",
+          "createdAt"
+        ],
+        "properties": {
+          "apiKeyMustBeReentered": {
+            "type": "boolean",
+            "description": "A key is stored but cannot be decrypted: enter it again."
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Torznab category ids to search, for example `2000` for movies."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "hasApiKey": {
+            "type": "boolean",
+            "description": "The key itself is never returned."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`torznab`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to 50. The lower number wins when two releases tie."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "An indexer without tags serves every movie; one with tags serves the\nmovies that share a tag (docs/04-database.md)."
+          },
+          "url": {
+            "type": "string"
+          },
+          "useProxy": {
+            "type": "boolean",
+            "description": "Send the traffic through the configured proxy."
+          }
+        }
+      },
+      "IndexerPatch": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absent keeps the stored key."
+          },
+          "categories": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Replaces the whole tag set."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "useProxy": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
       "Me": {
         "type": "object",
         "required": [
@@ -2714,6 +3126,53 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "NewIndexer": {
+        "type": "object",
+        "required": [
+          "name",
+          "url",
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "description": "Stored encrypted and never returned."
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "url": {
+            "type": "string"
+          },
+          "useProxy": {
+            "type": "boolean"
           }
         }
       },
