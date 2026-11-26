@@ -2,13 +2,34 @@ import type { components } from './api/schema.js';
 
 export type Indexer = components['schemas']['Indexer'];
 export type IndexerTestResult = components['schemas']['IndexerTestResult'];
+export type IndexerKind = 'torznab' | 'newznab';
+
+export const INDEXER_KINDS: readonly { value: IndexerKind; label: string }[] = [
+  { value: 'torznab', label: 'Torznab' },
+  { value: 'newznab', label: 'Newznab' }
+];
+
+export function isIndexerKind(value: string): value is IndexerKind {
+  return value === 'torznab' || value === 'newznab';
+}
+
+export function indexerKindLabel(kind: string): string {
+  if (kind === 'newznab') return 'Newznab';
+  if (kind === 'torznab') return 'Torznab';
+  return kind;
+}
+
+export function indexerUrlPlaceholder(kind: IndexerKind): string {
+  return kind === 'newznab' ? 'https://api.nzbgeek.info/api' : 'http://prowlarr:9696/1/api';
+}
 
 export interface Draft {
   name: string;
+  kind: IndexerKind;
   url: string;
   /** Empty keeps the stored API key when editing. */
   apiKey: string;
-  /** Torznab category ids, separated by commas or spaces. */
+  /** Torznab or Newznab category ids, separated by commas or spaces. */
   categories: string;
   priority: string;
   enabled: boolean;
@@ -18,6 +39,7 @@ export interface Draft {
 export function draftOf(indexer: Indexer | null): Draft {
   return {
     name: indexer?.name ?? '',
+    kind: indexer && isIndexerKind(indexer.kind) ? indexer.kind : 'torznab',
     url: indexer?.url ?? '',
     apiKey: '',
     categories: indexer?.categories.join(', ') ?? '2000',
@@ -35,6 +57,9 @@ export function parseCategories(text: string): number[] | undefined {
 
 /** Why the form cannot be saved, or an empty string. */
 export function draftProblem(draft: Draft, editing: boolean): string {
+  if (!isIndexerKind(draft.kind)) {
+    return 'Choose Torznab or Newznab.';
+  }
   if (parseCategories(draft.categories) === undefined) {
     return 'Categories are whole numbers separated by commas, for example 2000, 2040.';
   }
@@ -47,8 +72,8 @@ export function draftProblem(draft: Draft, editing: boolean): string {
 }
 
 /**
- * The request body. The API key is left out when it is empty, which keeps the
- * stored key on an edit. Call `draftProblem` first.
+ * The request body for an update. The API key is left out when it is empty,
+ * which keeps the stored key on an edit. Call `draftProblem` first.
  */
 export function requestBody(draft: Draft) {
   const apiKey = draft.apiKey.trim();
@@ -59,6 +84,15 @@ export function requestBody(draft: Draft) {
     categories: parseCategories(draft.categories) ?? [],
     priority: Number(draft.priority),
     enabled: draft.enabled
+  };
+}
+
+/** The request body for creating an indexer, including kind and API key. */
+export function createRequestBody(draft: Draft) {
+  return {
+    ...requestBody(draft),
+    kind: draft.kind,
+    apiKey: draft.apiKey.trim()
   };
 }
 

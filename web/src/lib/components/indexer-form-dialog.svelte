@@ -5,8 +5,20 @@
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
 	import { Switch } from '#lib/components/ui/switch/index.js';
-	import { draftOf, draftProblem, requestBody, type Draft, type Indexer } from '#lib/indexers.js';
+	import {
+		createRequestBody,
+		draftOf,
+		draftProblem,
+		INDEXER_KINDS,
+		indexerKindLabel,
+		indexerUrlPlaceholder,
+		isIndexerKind,
+		requestBody,
+		type Draft,
+		type Indexer
+	} from '#lib/indexers.js';
 
 	let {
 		open = $bindable(false),
@@ -36,7 +48,7 @@
 					})
 				: await api.POST('/api/v1/indexers', {
 						// `draftProblem` guarantees a key for a new indexer.
-						body: { ...requestBody(draft), apiKey: draft.apiKey.trim() }
+						body: createRequestBody(draft)
 					});
 			if (error) throw new Error(error.detail ?? error.title);
 		},
@@ -53,8 +65,8 @@
 		<Dialog.Header>
 			<Dialog.Title>{indexer ? `Edit ${indexer.name}` : 'New indexer'}</Dialog.Title>
 			<Dialog.Description>
-				A Torznab indexer, for example one from Prowlarr or Jackett. Save it, then use Test to
-				check the address and the key.
+				A Torznab (torrent) or Newznab (Usenet) indexer. Save it, then use Test to check the
+				address and the key.
 			</Dialog.Description>
 		</Dialog.Header>
 		<form
@@ -64,17 +76,42 @@
 				if (!problem) save.mutate();
 			}}
 		>
-			<div class="grid gap-2">
-				<Label for="indexer-name">Name</Label>
-				<Input id="indexer-name" required maxlength={64} bind:value={draft.name} />
+			<div class="grid gap-4 sm:grid-cols-2">
+				<div class="grid gap-2">
+					<Label for="indexer-name">Name</Label>
+					<Input id="indexer-name" required maxlength={64} bind:value={draft.name} />
+				</div>
+				<div class="grid gap-2">
+					<Label for="indexer-kind">Kind</Label>
+					{#if indexer}
+						<Input id="indexer-kind" value={indexerKindLabel(indexer.kind)} disabled />
+					{:else}
+						<Select.Root
+							type="single"
+							value={draft.kind}
+							onValueChange={(value) => {
+								if (isIndexerKind(value)) draft.kind = value;
+							}}
+						>
+							<Select.Trigger id="indexer-kind" class="w-full">
+								{indexerKindLabel(draft.kind)}
+							</Select.Trigger>
+							<Select.Content>
+								{#each INDEXER_KINDS as option (option.value)}
+									<Select.Item value={option.value} label={option.label} />
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					{/if}
+				</div>
 			</div>
 			<div class="grid gap-2">
-				<Label for="indexer-url">Torznab URL</Label>
+				<Label for="indexer-url">{indexerKindLabel(draft.kind)} URL</Label>
 				<Input
 					id="indexer-url"
 					required
 					type="url"
-					placeholder="http://prowlarr:9696/1/api"
+					placeholder={indexerUrlPlaceholder(draft.kind)}
 					bind:value={draft.url}
 				/>
 			</div>
@@ -107,7 +144,9 @@
 						class="font-mono"
 						bind:value={draft.categories}
 					/>
-					<p class="text-xs text-muted-foreground">Torznab ids. 2000 is movies.</p>
+					<p class="text-xs text-muted-foreground">
+						{indexerKindLabel(draft.kind)} ids. 2000 is movies.
+					</p>
 				</div>
 				<div class="grid gap-2">
 					<Label for="indexer-priority">Priority</Label>

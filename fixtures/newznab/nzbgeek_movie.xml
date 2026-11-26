@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:newznab="http://www.newznab.com/DTD/2010/feeds/attributes/">
+  <channel>
+    <atom:link href="https://api.nzbgeek.info/api?t=movie&amp;imdbid=0133093&amp;extended=1" rel="self" type="application/rss+xml" />
+    <title>NZBgeek</title>
+    <description>NZBgeek API Results</description>
+    <link>https://api.nzbgeek.info/</link>
+    <language>en-gb</language>
+    <newznab:response offset="0" total="3" />
+    <item>
+      <title>The.Matrix.1999.1080p.BluRay.x264-GRP</title>
+      <guid isPermaLink="true">https://nzbgeek.info/geekseek.php?guid=a1b2c3d4e5f60001</guid>
+      <link>https://api.nzbgeek.info/api?t=get&amp;id=a1b2c3d4e5f60001&amp;apikey=demo</link>
+      <comments>https://nzbgeek.info/geekseek.php?guid=a1b2c3d4e5f60001#comments</comments>
+      <pubDate>Sun, 22 Nov 2026 18:30:00 +0000</pubDate>
+      <category>Movies &gt; HD</category>
+      <description>The.Matrix.1999.1080p.BluRay.x264-GRP</description>
+      <enclosure url="https://api.nzbgeek.info/api?t=get&amp;id=a1b2c3d4e5f60001&amp;apikey=demo" length="8589934592" type="application/x-nzb" />
+      <newznab:attr name="category" value="2000" />
+      <newznab:attr name="category" value="2040" />
+      <newznab:attr name="size" value="8589934592" />
+      <newznab:attr name="files" value="92" />
+      <newznab:attr name="poster" value="uploader@usenet.example (MovieBot)" />
+      <newznab:attr name="grabs" value="184" />
+      <newznab:attr name="usenetdate" value="Sat, 21 Nov 2026 12:30:00 +0000" />
+      <newznab:attr name="group" value="alt.binaries.movies" />
+      <newznab:attr name="imdb" value="0133093" />
+      <newznab:attr name="tmdbid" value="603" />
+      <newznab:attr name="password" value="0" />
+    </item>
+    <item>
+      <title>The.Matrix.1999.2160p.UHD.BluRay.x265-LOCKED</title>
+      <guid isPermaLink="true">https://nzbgeek.info/geekseek.php?guid=a1b2c3d4e5f60002</guid>
+      <link>https://nzbgeek.info/details/a1b2c3d4e5f60002</link>
+      <pubDate>Thu, 19 Nov 2026 06:00:00 +0000</pubDate>
+      <category>Movies &gt; UHD</category>
+      <enclosure url="https://nzbgeek.info/covers/0133093.jpg" length="42000" type="image/jpeg" />
+      <enclosure url="https://api.nzbgeek.info/api?t=get&amp;id=a1b2c3d4e5f60002&amp;apikey=demo" length="21474836480" type="application/x-nzb" />
+      <newznab:attr name="category" value="2045" />
+      <newznab:attr name="grabs" value="7" />
+      <newznab:attr name="files" value="140" />
+      <newznab:attr name="group" value="alt.binaries.hdtv" />
+      <newznab:attr name="imdb" value="tt0133093" />
+      <newznab:attr name="tmdbid" value="0" />
+      <newznab:attr name="password" value="1" />
+    </item>
+    <item>
+      <title>Broken item without any NZB URL</title>
+      <guid>https://nzbgeek.info/geekseek.php?guid=broken</guid>
+      <newznab:attr name="size" value="1024" />
+    </item>
+  </channel>
+</rss>
