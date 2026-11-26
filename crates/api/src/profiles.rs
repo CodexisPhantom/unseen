@@ -1,10 +1,12 @@
 //! Quality profiles (docs/07-release-scoring.md, "Quality profile").
 
+use std::collections::BTreeSet;
+
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use db::entities::quality_profiles;
-use db::profiles::{ProfileError, Values};
+use db::profiles::{FormatScore, ProfileError, ProfileFormatScore as StoredFormatScore, Values};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::profile::{self, Item, Profile};
@@ -81,6 +83,33 @@ impl From<ProfileItem> for Item {
     }
 }
 
+/// One custom format and the score this profile assigns to it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileFormatScore {
+    custom_format_id: i32,
+    name: String,
+    score: i32,
+}
+
+impl From<StoredFormatScore> for ProfileFormatScore {
+    fn from(entry: StoredFormatScore) -> Self {
+        Self {
+            custom_format_id: entry.custom_format_id,
+            name: entry.name,
+            score: entry.score,
+        }
+    }
+}
+
+/// A score assignment sent when creating or updating a profile.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatScoreInput {
+    custom_format_id: i32,
+    score: i32,
+}
+
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct QualityProfile {
@@ -96,29 +125,31 @@ pub struct QualityProfile {
     min_format_score: i32,
     cutoff_format_score: i32,
     min_upgrade_format_score: i32,
+    /// Every custom format, ordered by name, with its score for this profile.
+    format_scores: Vec<ProfileFormatScore>,
     created_at: String,
     updated_at: String,
 }
 
-impl TryFrom<quality_profiles::Model> for QualityProfile {
-    type Error = serde_json::Error;
-
-    fn try_from(model: quality_profiles::Model) -> Result<Self, Self::Error> {
-        let items: Vec<Item> = serde_json::from_value(model.items)?;
-        Ok(Self {
-            id: model.id,
-            name: model.name,
-            upgrade_allowed: model.upgrade_allowed,
-            cutoff: model.cutoff_quality_id,
-            items: items.into_iter().map(Into::into).collect(),
-            language: model.language,
-            min_format_score: model.min_format_score,
-            cutoff_format_score: model.cutoff_format_score,
-            min_upgrade_format_score: model.min_upgrade_format_score,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
-        })
-    }
+fn into_response(
+    model: quality_profiles::Model,
+    format_scores: Vec<StoredFormatScore>,
+) -> Result<QualityProfile, Problem> {
+    let items: Vec<Item> = serde_json::from_value(model.items).map_err(failed)?;
+    Ok(QualityProfile {
+        id: model.id,
+        name: model.name,
+        upgrade_allowed: model.upgrade_allowed,
+        cutoff: model.cutoff_quality_id,
+        items: items.into_iter().map(Into::into).collect(),
+        language: model.language,
+        min_format_score: model.min_format_score,
+        cutoff_format_score: model.cutoff_format_score,
+        min_upgrade_format_score: model.min_upgrade_format_score,
+        format_scores: format_scores.into_iter().map(Into::into).collect(),
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    })
 }
 
 fn default_true() -> bool {
@@ -149,6 +180,8 @@ pub struct NewQualityProfile {
     cutoff_format_score: i32,
     #[serde(default = "default_min_upgrade")]
     min_upgrade_format_score: i32,
+    #[serde(default)]
+    format_scores: Vec<FormatScoreInput>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -162,6 +195,8 @@ pub struct QualityProfilePatch {
     min_format_score: Option<i32>,
     cutoff_format_score: Option<i32>,
     min_upgrade_format_score: Option<i32>,
+    /// Replaces all custom format scores on this profile when provided.
+    format_scores: Option<Vec<FormatScoreInput>>,
 }
 
 fn failed(error: impl std::fmt::Display) -> Problem {
@@ -179,12 +214,11 @@ fn profile_error(error: ProfileError) -> Problem {
             "profile_in_use",
             "A movie uses this quality profile; change the movie first",
         ),
+        ProfileError::UnknownCustomFormat => {
+            Problem::validation("formatScores", "must reference existing custom formats")
+        }
         ProfileError::Db(error) => failed(error),
     }
-}
-
-fn response(model: quality_profiles::Model) -> Result<QualityProfile, Problem> {
-    model.try_into().map_err(failed)
 }
 
 /// Checks the rules and turns the profile into what the database stores.
@@ -196,9 +230,25 @@ fn checked(mut profile: NewQualityProfile) -> Result<Values, Problem> {
         items: items.clone(),
         cutoff_quality_id: profile.cutoff,
         language: profile.language.clone(),
+        min_format_score: profile.min_format_score,
+        cutoff_format_score: profile.cutoff_format_score,
         min_upgrade_format_score: profile.min_upgrade_format_score,
     })
     .map_err(|(field, message)| Problem::validation(field, &message))?;
+    let mut seen = BTreeSet::new();
+    let mut format_scores = Vec::with_capacity(profile.format_scores.len());
+    for entry in profile.format_scores {
+        if !seen.insert(entry.custom_format_id) {
+            return Err(Problem::validation(
+                "formatScores",
+                "each custom format may appear at most once",
+            ));
+        }
+        format_scores.push(FormatScore {
+            custom_format_id: entry.custom_format_id,
+            score: entry.score,
+        });
+    }
     Ok(Values {
         name: profile.name,
         upgrade_allowed: profile.upgrade_allowed,
@@ -208,6 +258,7 @@ fn checked(mut profile: NewQualityProfile) -> Result<Values, Problem> {
         min_format_score: profile.min_format_score,
         cutoff_format_score: profile.cutoff_format_score,
         min_upgrade_format_score: profile.min_upgrade_format_score,
+        format_scores,
     })
 }
 
@@ -216,6 +267,16 @@ async fn load(state: &AppState, id: i32) -> Result<quality_profiles::Model, Prob
         .await
         .map_err(failed)?
         .ok_or_else(Problem::not_found)
+}
+
+async fn load_response(
+    state: &AppState,
+    model: quality_profiles::Model,
+) -> Result<QualityProfile, Problem> {
+    let scores = db::profiles::format_scores(&state.db, model.id)
+        .await
+        .map_err(failed)?;
+    into_response(model, scores)
 }
 
 /// Every quality profile, ordered by name.
@@ -233,9 +294,16 @@ pub async fn list_profiles(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<QualityProfile>>, Problem> {
     let profiles = db::profiles::list(&state.db).await.map_err(failed)?;
+    let ids: Vec<i32> = profiles.iter().map(|profile| profile.id).collect();
+    let mut scores_map = db::profiles::format_scores_for_profiles(&state.db, &ids)
+        .await
+        .map_err(failed)?;
     profiles
         .into_iter()
-        .map(response)
+        .map(|model| {
+            let scores = scores_map.remove(&model.id).unwrap_or_default();
+            into_response(model, scores)
+        })
         .collect::<Result<_, _>>()
         .map(Json)
 }
@@ -257,7 +325,8 @@ pub async fn get_profile(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<QualityProfile>, Problem> {
-    response(load(&state, id).await?).map(Json)
+    let model = load(&state, id).await?;
+    load_response(&state, model).await.map(Json)
 }
 
 /// Creates a quality profile. The cutoff must be an allowed quality or group
@@ -287,7 +356,10 @@ pub async fn create_profile(
         .target("quality_profile", created.id)
         .data(json!({ "name": created.name }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
-    Ok((StatusCode::CREATED, Json(response(created)?)))
+    Ok((
+        StatusCode::CREATED,
+        Json(load_response(&state, created).await?),
+    ))
 }
 
 /// Changes a quality profile. The result must satisfy the same rules as a
@@ -313,7 +385,8 @@ pub async fn update_profile(
     Path(id): Path<i32>,
     Json(body): Json<QualityProfilePatch>,
 ) -> Result<Json<QualityProfile>, Problem> {
-    let before = response(load(&state, id).await?)?;
+    let model = load(&state, id).await?;
+    let before = load_response(&state, model).await?;
     let merged = NewQualityProfile {
         name: body.name.unwrap_or_else(|| before.name.clone()),
         upgrade_allowed: body.upgrade_allowed.unwrap_or(before.upgrade_allowed),
@@ -327,11 +400,22 @@ pub async fn update_profile(
         min_upgrade_format_score: body
             .min_upgrade_format_score
             .unwrap_or(before.min_upgrade_format_score),
+        format_scores: body.format_scores.unwrap_or_else(|| {
+            before
+                .format_scores
+                .iter()
+                .filter(|entry| entry.score != 0)
+                .map(|entry| FormatScoreInput {
+                    custom_format_id: entry.custom_format_id,
+                    score: entry.score,
+                })
+                .collect()
+        }),
     };
     let updated = db::profiles::update(&state.db, id, checked(merged)?)
         .await
         .map_err(profile_error)?;
-    let after = response(updated)?;
+    let after = load_response(&state, updated).await?;
     let changed = Changes::new()
         .field("name", &before.name, &after.name)
         .field(
@@ -356,7 +440,8 @@ pub async fn update_profile(
             "minUpgradeFormatScore",
             before.min_upgrade_format_score,
             after.min_upgrade_format_score,
-        );
+        )
+        .field("formatScores", &before.format_scores, &after.format_scores);
     let event = Event::new("quality_profile.updated")
         .target("quality_profile", id)
         .data(changed.into_data());

@@ -22,6 +22,7 @@ function sampleItem(overrides: Partial<QueueItem> = {}): QueueItem {
 		downloadClientName: 'qBit',
 		releaseTitle: 'The.Matrix.1999.1080p.BluRay',
 		qualityId: 7,
+		customFormatScore: 0,
 		size: 10_000_000_000,
 		progress: 0.25,
 		speed: 1_048_576,

@@ -30,6 +30,20 @@ pub fn file_quality(relative_path: &str, folder_name: &str) -> Quality {
     }
 }
 
+/// Language codes (ISO 639-1 or `"multi"`) parsed from the file name, falling
+/// back to the movie folder name when the file name carries no language tag.
+#[must_use]
+pub fn file_languages(relative_path: &str, folder_name: &str) -> Vec<String> {
+    let file_name = relative_path.rsplit('/').next().unwrap_or(relative_path);
+    let from_file = release::parse(file_name).languages;
+    let langs = if from_file.is_empty() {
+        release::parse(folder_name).languages
+    } else {
+        from_file
+    };
+    langs.into_iter().map(|l| l.code().to_owned()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,5 +89,21 @@ mod tests {
             file_quality("Dune.2021.1080p.x264-GRP.mkv", "Dune (2021)"),
             Quality::Unknown
         );
+    }
+
+    #[test]
+    fn file_languages_reads_file_then_folder_name() {
+        assert_eq!(
+            file_languages(
+                "Amelie.2001.FRENCH.1080p.BluRay.x264-GRP.mkv",
+                "Amelie (2001)"
+            ),
+            vec!["fr"]
+        );
+        assert_eq!(
+            file_languages("movie.mkv", "Amelie.2001.MULTI.1080p.BluRay-GRP"),
+            vec!["multi"]
+        );
+        assert!(file_languages("The Matrix (1999).mkv", "The Matrix (1999)").is_empty());
     }
 }

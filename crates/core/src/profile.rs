@@ -53,6 +53,8 @@ pub struct Profile {
     pub items: Vec<Item>,
     pub cutoff_quality_id: i32,
     pub language: String,
+    pub min_format_score: i32,
+    pub cutoff_format_score: i32,
     pub min_upgrade_format_score: i32,
 }
 
@@ -283,6 +285,8 @@ mod tests {
             ],
             cutoff_quality_id: 1002,
             language: "any".into(),
+            min_format_score: 0,
+            cutoff_format_score: 0,
             min_upgrade_format_score: 1,
         }
     }
@@ -387,6 +391,8 @@ mod tests {
                 items: default.items.clone(),
                 cutoff_quality_id: default.cutoff_quality_id,
                 language: LANGUAGE_ANY.into(),
+                min_format_score: 0,
+                cutoff_format_score: 0,
                 min_upgrade_format_score: 1,
             };
             assert_eq!(validate(&profile), Ok(()), "{}", default.name);

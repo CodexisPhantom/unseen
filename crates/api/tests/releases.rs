@@ -5,7 +5,7 @@ use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{Method, Request, StatusCode, header};
 use better_auth::seaorm::sea_orm::{ActiveModelTrait, EntityTrait, Set};
-use db::entities::{indexers, movie_files, role_permissions, roles, user_roles};
+use db::entities::{custom_formats, indexers, movie_files, role_permissions, roles, user_roles};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -1475,4 +1475,192 @@ async fn searches_and_ranks_newznab_and_torznab_indexers_together() {
     );
     assert!(cached.magnet_url.is_none());
     assert!(cached.info_hash.is_none());
+}
+
+#[tokio::test]
+async fn custom_format_scores_rank_reject_and_enforce_cutoff_in_release_search() {
+    let tmdb = MockServer::start().await;
+    let fx = Fixture::new(&tmdb).await;
+
+    let now = db::now();
+    let hdr = custom_formats::ActiveModel {
+        name: Set("HDR".into()),
+        include_when_renaming: Set(false),
+        specifications: Set(json!([{
+            "name": "HDR",
+            "implementation": "ReleaseTitleSpecification",
+            "negate": false,
+            "required": true,
+            "fields": [{ "name": "value", "value": "\\bHDR\\b" }]
+        }])),
+        trash_id: Set(None),
+        trash_synced: Set(false),
+        created_at: Set(now.clone()),
+        updated_at: Set(now.clone()),
+        ..Default::default()
+    }
+    .insert(&fx.app.state.db)
+    .await
+    .unwrap();
+    let atmos = custom_formats::ActiveModel {
+        name: Set("Atmos".into()),
+        include_when_renaming: Set(false),
+        specifications: Set(json!([{
+            "name": "Atmos",
+            "implementation": "ReleaseTitleSpecification",
+            "negate": false,
+            "required": true,
+            "fields": [{ "name": "value", "value": "\\bAtmos\\b" }]
+        }])),
+        trash_id: Set(None),
+        trash_synced: Set(false),
+        created_at: Set(now.clone()),
+        updated_at: Set(now.clone()),
+        ..Default::default()
+    }
+    .insert(&fx.app.state.db)
+    .await
+    .unwrap();
+
+    // Configure profile: minFormatScore=100, cutoffFormatScore=500, minUpgradeFormatScore=100.
+    // HDR = 500, Atmos = 200.
+    let (status, profile) = fx
+        .app
+        .owner(
+            Method::POST,
+            "/api/v1/quality-profiles",
+            Some(json!({
+                "name": "CF Scored HD",
+                "upgradeAllowed": true,
+                "cutoff": 7,
+                "minFormatScore": 100,
+                "cutoffFormatScore": 500,
+                "minUpgradeFormatScore": 100,
+                "formatScores": [
+                    { "customFormatId": hdr.id, "score": 500 },
+                    { "customFormatId": atmos.id, "score": 200 }
+                ],
+                "items": [
+                    { "type": "quality", "qualityId": 3, "allowed": true },
+                    { "type": "quality", "qualityId": 7, "allowed": true }
+                ]
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{profile}");
+    let profile_id = profile["id"].as_i64().unwrap();
+
+    let movie = fx.add_matrix(&[profile_id]).await;
+    let movie_id = movie["id"].as_i64().unwrap();
+    let movie_profile_id = movie["profiles"][0]["id"].as_i64().unwrap();
+
+    let idx_server = MockServer::start().await;
+    mount_torznab(
+        &idx_server,
+        "cf-key",
+        torznab_feed(&[
+            MockItem {
+                title: "The.Matrix.1999.1080p.BluRay.x264-LOW",
+                guid: "cf-low",
+                size: 8000 * MIB,
+                seeders: 500,
+                peers: 550,
+                download_url: Some("http://cf.test/low"),
+                magnet_url: None,
+                info_hash: None,
+                pub_date: None,
+            },
+            MockItem {
+                title: "The.Matrix.1999.1080p.BluRay.Atmos.x264-MID",
+                guid: "cf-mid",
+                size: 8000 * MIB,
+                seeders: 200,
+                peers: 220,
+                download_url: Some("http://cf.test/mid"),
+                magnet_url: None,
+                info_hash: None,
+                pub_date: None,
+            },
+            MockItem {
+                title: "The.Matrix.1999.1080p.BluRay.HDR.Atmos.x264-HIGH",
+                guid: "cf-high",
+                size: 8000 * MIB,
+                seeders: 10,
+                peers: 15,
+                download_url: Some("http://cf.test/high"),
+                magnet_url: None,
+                info_hash: None,
+                pub_date: None,
+            },
+        ]),
+    )
+    .await;
+    fx.add_indexer(json!({
+        "name": "CFIdx",
+        "url": idx_server.uri(),
+        "apiKey": "cf-key",
+    }))
+    .await;
+
+    // 1. Without an existing file: HIGH (700) beats MID (200); LOW (0) is rejected for minFormatScore.
+    let (status, reply) = fx
+        .app
+        .owner(
+            Method::GET,
+            &format!("/api/v1/movies/{movie_id}/releases"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    let releases = reply["releases"].as_array().unwrap();
+    assert_eq!(releases.len(), 3);
+    assert_eq!(releases[0]["guid"], "cf-high");
+    assert_eq!(releases[0]["accepted"], true);
+    assert_eq!(releases[0]["score"]["customFormatScore"], 700);
+    assert_eq!(releases[1]["guid"], "cf-mid");
+    assert_eq!(releases[1]["accepted"], true);
+    assert_eq!(releases[1]["score"]["customFormatScore"], 200);
+    assert_eq!(releases[2]["guid"], "cf-low");
+    assert_eq!(releases[2]["accepted"], false);
+    assert_eq!(releases[2]["score"]["customFormatScore"], 0);
+    assert_eq!(releases[2]["rejections"][0]["code"], "min_format_score");
+
+    // Verify CachedRelease carries the computed custom format score for downloads.
+    let cached_high = fx
+        .app
+        .state
+        .search_cache
+        .get(releases[0]["id"].as_str().unwrap())
+        .expect("cached high");
+    assert_eq!(cached_high.custom_format_score, 700);
+
+    // 2. Attach an existing Bluray-1080p file with HDR (score 500 == cutoffFormatScore).
+    // Even HIGH (score 700) must NOT upgrade it because cutoffFormatScore is met.
+    movie_files::ActiveModel {
+        movie_id: Set(movie_id as i32),
+        relative_path: Set("The.Matrix.1999.1080p.BluRay.HDR.x264-EXIST.mkv".into()),
+        size: Set((8000 * MIB) as i64),
+        quality_id: Set(7),
+        scene_name: Set(Some("The.Matrix.1999.1080p.BluRay.HDR.x264-EXIST".into())),
+        movie_profile_id: Set(Some(movie_profile_id as i32)),
+        added_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&fx.app.state.db)
+    .await
+    .unwrap();
+
+    let (status, reply) = fx
+        .app
+        .owner(
+            Method::GET,
+            &format!("/api/v1/movies/{movie_id}/releases"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    let releases = reply["releases"].as_array().unwrap();
+    let high = releases.iter().find(|r| r["guid"] == "cf-high").unwrap();
+    assert_eq!(high["accepted"], false);
+    assert_eq!(high["rejections"][0]["code"], "cutoff_met");
 }

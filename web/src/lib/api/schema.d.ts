@@ -1368,6 +1368,13 @@ export interface components {
             /** @description The listed folder. Empty for the top level (the drives on Windows). */
             path: string;
         };
+        /** @description A score assignment sent when creating or updating a profile. */
+        FormatScoreInput: {
+            /** Format: int32 */
+            customFormatId: number;
+            /** Format: int32 */
+            score: number;
+        };
         Health: {
             database: components["schemas"]["DatabaseStatus"];
             /** @description Version of the running binary. */
@@ -1588,6 +1595,8 @@ export interface components {
             edition?: string | null;
             /** Format: int32 */
             id: number;
+            /** @description Lowercase ISO 639-1 language codes (or `"multi"`) stored on the file. */
+            languages: string[];
             managed: boolean;
             /**
              * Format: int32
@@ -1784,6 +1793,7 @@ export interface components {
             cutoff: number;
             /** Format: int32 */
             cutoffFormatScore?: number;
+            formatScores?: components["schemas"]["FormatScoreInput"][];
             items: components["schemas"]["ProfileItem"][];
             language?: string;
             /** Format: int32 */
@@ -1827,6 +1837,14 @@ export interface components {
             title: string;
             /** @description URI that identifies the problem kind. */
             type: string;
+        };
+        /** @description One custom format and the score this profile assigns to it. */
+        ProfileFormatScore: {
+            /** Format: int32 */
+            customFormatId: number;
+            name: string;
+            /** Format: int32 */
+            score: number;
         };
         /** @description One entry of the ordered list, lowest quality first. */
         ProfileItem: {
@@ -1930,6 +1948,8 @@ export interface components {
             cutoff: number;
             /** Format: int32 */
             cutoffFormatScore: number;
+            /** @description Every custom format, ordered by name, with its score for this profile. */
+            formatScores: components["schemas"]["ProfileFormatScore"][];
             /** Format: int32 */
             id: number;
             items: components["schemas"]["ProfileItem"][];
@@ -1949,6 +1969,8 @@ export interface components {
             cutoff?: number | null;
             /** Format: int32 */
             cutoffFormatScore?: number | null;
+            /** @description Replaces all custom format scores on this profile when provided. */
+            formatScores?: components["schemas"]["FormatScoreInput"][] | null;
             items?: components["schemas"]["ProfileItem"][] | null;
             language?: string | null;
             /** Format: int32 */
@@ -1959,6 +1981,8 @@ export interface components {
             upgradeAllowed?: boolean | null;
         };
         QueueItem: {
+            /** Format: int32 */
+            customFormatScore: number;
             /** Format: int32 */
             downloadClientId?: number | null;
             downloadClientName?: string | null;
@@ -2052,8 +2076,7 @@ export interface components {
         ReleaseScore: {
             /**
              * Format: int32
-             * @description Total custom format score for the profile (0 until custom formats are
-             *     evaluated).
+             * @description Total custom format score for the profile.
              */
             customFormatScore: number;
             /**

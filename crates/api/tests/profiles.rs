@@ -3,7 +3,7 @@ use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{Method, Request, StatusCode, header};
 use better_auth::seaorm::sea_orm::{ActiveModelTrait, Set};
-use db::entities::{movie_profiles, movies, root_folders};
+use db::entities::{custom_formats, movie_profiles, movies, root_folders};
 use db::entities::{role_permissions, roles, user_roles};
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -315,4 +315,113 @@ async fn read_and_manage_are_separate_permissions() {
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, _, _) = app.send(Method::GET, PATH, Some(&nobody), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn custom_format_scores_and_thresholds_round_trip_and_validate() {
+    let app = App::new().await;
+    let now = db::now();
+    let hdr = custom_formats::ActiveModel {
+        name: Set("HDR".into()),
+        include_when_renaming: Set(false),
+        specifications: Set(json!([])),
+        trash_id: Set(None),
+        trash_synced: Set(false),
+        created_at: Set(now.clone()),
+        updated_at: Set(now.clone()),
+        ..Default::default()
+    }
+    .insert(&app.state.db)
+    .await
+    .unwrap();
+    let x265 = custom_formats::ActiveModel {
+        name: Set("x265".into()),
+        include_when_renaming: Set(false),
+        specifications: Set(json!([])),
+        trash_id: Set(None),
+        trash_synced: Set(false),
+        created_at: Set(now.clone()),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&app.state.db)
+    .await
+    .unwrap();
+
+    // Create with thresholds and custom format scores.
+    let mut payload = body("Scored");
+    payload["minFormatScore"] = json!(50);
+    payload["cutoffFormatScore"] = json!(500);
+    payload["minUpgradeFormatScore"] = json!(25);
+    payload["formatScores"] = json!([
+        { "customFormatId": hdr.id, "score": 300 },
+        { "customFormatId": x265.id, "score": -100 }
+    ]);
+    let (status, created) = app.owner(Method::POST, PATH, Some(payload)).await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["minFormatScore"], 50);
+    assert_eq!(created["cutoffFormatScore"], 500);
+    assert_eq!(created["minUpgradeFormatScore"], 25);
+    assert_eq!(
+        created["formatScores"],
+        json!([
+            { "customFormatId": hdr.id, "name": "HDR", "score": 300 },
+            { "customFormatId": x265.id, "name": "x265", "score": -100 }
+        ])
+    );
+
+    let id = created["id"].as_i64().unwrap();
+    let path = format!("{PATH}/{id}");
+
+    // Patching another field keeps existing format scores intact.
+    let (status, patched) = app
+        .owner(Method::PATCH, &path, Some(json!({ "minFormatScore": 100 })))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{patched}");
+    assert_eq!(patched["minFormatScore"], 100);
+    assert_eq!(patched["formatScores"][0]["score"], 300);
+    assert_eq!(patched["formatScores"][1]["score"], -100);
+
+    // Patching formatScores replaces them; setting to 0 resets to default 0.
+    let (status, patched) = app
+        .owner(
+            Method::PATCH,
+            &path,
+            Some(json!({ "formatScores": [{ "customFormatId": hdr.id, "score": 150 }] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{patched}");
+    assert_eq!(
+        patched["formatScores"],
+        json!([
+            { "customFormatId": hdr.id, "name": "HDR", "score": 150 },
+            { "customFormatId": x265.id, "name": "x265", "score": 0 }
+        ])
+    );
+
+    // Unknown custom format id and duplicate ids are rejected with 422.
+    let (status, reply) = app
+        .owner(
+            Method::PATCH,
+            &path,
+            Some(json!({ "formatScores": [{ "customFormatId": 99999, "score": 10 }] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{reply}");
+    assert_eq!(reply["errors"][0]["field"], "formatScores");
+
+    let (status, reply) = app
+        .owner(
+            Method::PATCH,
+            &path,
+            Some(json!({
+                "formatScores": [
+                    { "customFormatId": hdr.id, "score": 10 },
+                    { "customFormatId": hdr.id, "score": 20 }
+                ]
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{reply}");
+    assert_eq!(reply["errors"][0]["field"], "formatScores");
 }

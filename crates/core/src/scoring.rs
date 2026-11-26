@@ -2,9 +2,7 @@
 //! `docs/07-release-scoring.md` ("Rejection rules", "Scoring", "Upgrade
 //! rules").
 //!
-//! Not in this module yet: the blocklist rule and custom formats (so the
-//! custom format score is 0 for every release and its rules and its place in
-//! the comparison do not apply).
+//! Not in this module yet: the blocklist rule.
 
 use std::cmp::{Ordering, Reverse};
 use std::collections::HashMap;
@@ -12,6 +10,7 @@ use std::fmt;
 
 use chrono::{DateTime, Utc};
 
+use crate::custom_format::{self, ScoredFormat, release_info_from_parsed, release_language_ids};
 use crate::newznab::NzbRelease;
 use crate::profile::{Item, LANGUAGE_ANY, LANGUAGE_ORIGINAL, Profile};
 use crate::quality::{Quality, SizeCheck, SizeLimits};
@@ -211,6 +210,8 @@ pub struct Existing {
     pub quality: Quality,
     /// Revision of the file: 1 for a first release, 2 for a proper or repack.
     pub version: u8,
+    /// Custom format score of the existing file under this profile.
+    pub custom_format_score: i32,
 }
 
 /// Everything a decision depends on besides the release itself.
@@ -221,6 +222,8 @@ pub struct Context<'a> {
     pub upgrade_allowed: bool,
     /// Size limits per quality. A quality without an entry has no limits.
     pub size_limits: &'a HashMap<Quality, SizeLimits>,
+    /// Custom formats and the scores this profile assigns to them.
+    pub custom_formats: &'a [ScoredFormat],
     pub existing: Option<Existing>,
     /// Effective protocol preference (use [`ProtocolPreference::resolve`] to
     /// combine a profile override with a global default).
@@ -256,6 +259,8 @@ pub enum Rejection {
     TooLarge,
     /// The language does not satisfy the language of the profile.
     Language,
+    /// The custom format score is below `minFormatScore`.
+    MinFormatScore,
     /// The movie has a file and the profile does not allow upgrades.
     UpgradesDisabled,
     /// The existing file meets the cutoff.
@@ -280,6 +285,7 @@ impl Rejection {
             Self::TooSmall => "size_too_small",
             Self::TooLarge => "size_too_large",
             Self::Language => "language_not_allowed",
+            Self::MinFormatScore => "min_format_score",
             Self::UpgradesDisabled => "upgrades_disabled",
             Self::CutoffMet => "cutoff_met",
             Self::NotAnUpgrade => "not_an_upgrade",
@@ -298,6 +304,7 @@ impl Rejection {
             Self::TooSmall => "Size is below the quality definition minimum",
             Self::TooLarge => "Size is above the quality definition maximum",
             Self::Language => "Language does not match the quality profile",
+            Self::MinFormatScore => "Custom format score is below the quality profile minimum",
             Self::UpgradesDisabled => "Movie already has a file and upgrades are disabled",
             Self::CutoffMet => "Existing file already meets the quality profile cutoff",
             Self::NotAnUpgrade => "Release is not an upgrade over the existing file",
@@ -325,6 +332,8 @@ pub struct Decision<'a> {
     /// Position of the quality in the profile, higher is better. `None` when
     /// the profile does not list the quality.
     rank: Option<usize>,
+    /// Total custom format score for the profile.
+    custom_format_score: i32,
     /// Whether this release's protocol is preferred by the context.
     preferred_protocol: bool,
     /// Age of the release in whole hours when a timestamp and `now` are known.
@@ -357,6 +366,12 @@ impl Decision<'_> {
     #[must_use]
     pub fn quality_rank(&self) -> Option<usize> {
         self.rank
+    }
+
+    /// Total custom format score for the profile.
+    #[must_use]
+    pub const fn custom_format_score(&self) -> i32 {
+        self.custom_format_score
     }
 
     /// Seeders bucketed on a log10 scale (`round(log10(seeders + 1))`).
@@ -487,8 +502,14 @@ fn language_ok(profile: &Profile, movie: &Movie, parsed: &ParsedRelease) -> bool
 }
 
 /// Whether the release replaces the existing file, as in the "Upgrade rules"
-/// of docs/07. Equal quality and revision is not an upgrade.
-fn is_upgrade(ctx: &Context, existing: Existing, rank: usize, version: u8) -> bool {
+/// of docs/07. Equal quality, score and revision is not an upgrade.
+fn is_upgrade(
+    ctx: &Context,
+    existing: Existing,
+    rank: usize,
+    custom_format_score: i32,
+    version: u8,
+) -> bool {
     if !ctx.upgrade_allowed {
         return false;
     }
@@ -499,7 +520,16 @@ fn is_upgrade(ctx: &Context, existing: Existing, rank: usize, version: u8) -> bo
     };
     match rank.cmp(&current) {
         Ordering::Greater => cutoff_rank(ctx.profile).is_none_or(|cutoff| current < cutoff),
-        Ordering::Equal => version > existing.version,
+        Ordering::Equal => {
+            let score_upgrade = existing.custom_format_score < ctx.profile.cutoff_format_score
+                && custom_format_score
+                    >= existing
+                        .custom_format_score
+                        .saturating_add(ctx.profile.min_upgrade_format_score);
+            let revision_upgrade =
+                custom_format_score == existing.custom_format_score && version > existing.version;
+            score_upgrade || revision_upgrade
+        }
         Ordering::Less => false,
     }
 }
@@ -515,6 +545,20 @@ pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a>
     let limits = ctx.size_limits.get(&quality);
     let age_hours = ctx.now.and_then(|now| release.age_hours(now));
     let age_days = age_hours.map(|hours| hours / 24);
+    let language_ids = release_language_ids(&parsed.languages, ctx.movie.original_language);
+    let size_bytes = release
+        .size()
+        .and_then(|size| i64::try_from(size).ok())
+        .unwrap_or(0);
+    let release_info = release_info_from_parsed(
+        release.title(),
+        &parsed,
+        &language_ids,
+        size_bytes,
+        &[],
+        ctx.movie.year.map(i32::from),
+    );
+    let custom_format_score = custom_format::score_release(ctx.custom_formats, &release_info);
     let mut rejections = Vec::new();
 
     if !same_movie(&ctx.movie, &parsed) {
@@ -534,16 +578,21 @@ pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a>
     if !language_ok(ctx.profile, &ctx.movie, &parsed) {
         rejections.push(Rejection::Language);
     }
+    if custom_format_score < ctx.profile.min_format_score {
+        rejections.push(Rejection::MinFormatScore);
+    }
     if let (Some(existing), Some(rank), true) = (ctx.existing, rank, allowed) {
         if !ctx.upgrade_allowed {
             rejections.push(Rejection::UpgradesDisabled);
-        } else if !is_upgrade(ctx, existing, rank, parsed.version) {
-            let met = find_item(ctx.profile, existing.quality)
+        } else if !is_upgrade(ctx, existing, rank, custom_format_score, parsed.version) {
+            let quality_met = find_item(ctx.profile, existing.quality)
                 .zip(cutoff_rank(ctx.profile))
                 .is_some_and(|((current, _), cutoff)| current >= cutoff);
-            // Below the cutoff a lower or equal quality is simply no gain;
-            // at the cutoff the file is already as good as the profile asks.
-            rejections.push(if met {
+            let format_met = existing.custom_format_score >= ctx.profile.cutoff_format_score;
+            // Below either cutoff a non-upgrading release is simply no gain;
+            // when both cutoffs are met the file is already as good as the
+            // profile asks.
+            rejections.push(if quality_met && format_met {
                 Rejection::CutoffMet
             } else {
                 Rejection::NotAnUpgrade
@@ -583,6 +632,7 @@ pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a>
         quality,
         rejections,
         rank,
+        custom_format_score,
         preferred_protocol: ctx.protocol_preference.prefers(protocol),
         age_hours,
         age_bucket,
@@ -621,9 +671,10 @@ impl Decision<'_> {
 }
 
 /// `Less` when `a` is the better release: accepted before rejected, then
-/// quality rank, revision, protocol preference, indexer priority, protocol
-/// health (seeders for torrents, age for Usenet) and size (docs/07,
-/// "Scoring"). The title and the guid end every tie, so the order is total.
+/// quality rank, custom format score, revision, protocol preference, indexer
+/// priority, protocol health (seeders for torrents, age for Usenet) and size
+/// (docs/07, "Scoring"). The title and the guid end every tie, so the order is
+/// total.
 fn compare(a: &Decision, b: &Decision) -> Ordering {
     let (ra, rb) = (a.candidate.release, b.candidate.release);
     let size = |x: &Decision, y: &Decision| match (x.preferred_distance, y.preferred_distance) {
@@ -637,6 +688,7 @@ fn compare(a: &Decision, b: &Decision) -> Ordering {
     b.accepted()
         .cmp(&a.accepted())
         .then(b.rank.cmp(&a.rank))
+        .then(b.custom_format_score.cmp(&a.custom_format_score))
         .then(b.parsed.version.cmp(&a.parsed.version))
         .then(b.preferred_protocol.cmp(&a.preferred_protocol))
         .then(

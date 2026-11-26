@@ -168,6 +168,8 @@ pub struct MovieFile {
     release_group: Option<String>,
     edition: Option<String>,
     scene_name: Option<String>,
+    /// Lowercase ISO 639-1 language codes (or `"multi"`) stored on the file.
+    languages: Vec<String>,
     /// The profile this file belongs to. Absent for an unmanaged file.
     movie_profile_id: Option<i32>,
     managed: bool,
@@ -176,6 +178,11 @@ pub struct MovieFile {
 
 impl From<movie_files::Model> for MovieFile {
     fn from(file: movie_files::Model) -> Self {
+        let languages = file
+            .languages
+            .as_ref()
+            .and_then(|value| serde_json::from_value::<Vec<String>>(value.clone()).ok())
+            .unwrap_or_default();
         Self {
             id: file.id,
             relative_path: file.relative_path,
@@ -184,6 +191,7 @@ impl From<movie_files::Model> for MovieFile {
             release_group: file.release_group,
             edition: file.edition,
             scene_name: file.scene_name,
+            languages,
             managed: file.movie_profile_id.is_some(),
             movie_profile_id: file.movie_profile_id,
             added_at: file.added_at,
