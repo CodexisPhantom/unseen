@@ -5484,7 +5484,8 @@
         "type": "object",
         "required": [
           "id",
-          "name"
+          "name",
+          "twoFactorEnabled"
         ],
         "properties": {
           "email": {
@@ -5498,6 +5499,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "twoFactorEnabled": {
+            "type": "boolean"
           }
         }
       },

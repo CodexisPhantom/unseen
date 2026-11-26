@@ -1361,6 +1361,7 @@ export interface components {
             email?: string | null;
             id: string;
             name: string;
+            twoFactorEnabled: boolean;
         };
         /** @description A movie of the collection that is not in the library. */
         MissingMovie: {
