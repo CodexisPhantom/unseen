@@ -101,7 +101,23 @@ Rules of the client in `core` (`qbittorrent.rs`):
 
 ## SABnzbd (M9)
 
-`/api?mode=addurl|queue|history|version&output=json&apikey=`. Details in M9.
+| | |
+|---|---|
+| Endpoints (`/api?output=json&apikey=`) | `mode=queue`, `mode=history`, `mode=addurl`, `mode=version` |
+| Auth | API key in the `apikey` query parameter on every call |
+| Rate limits | None; poll while downloads are active, 60 s when idle |
+| Failure | An HTTP 401 names the key; anything else is unavailable |
+| Mock | JSON fixtures per endpoint |
+
+- Add takes an http(s) NZB URL as `name` and the category as `cat`, with
+  `nzbname` only when a display name is given, and returns the first of
+  `nzo_ids`.
+- Queue and history take `cat` and keep only the slots of that category.
+- Delete finds our ids first and deletes queue ids with
+  `mode=queue&name=delete&value=&del_files=`, history ids with
+  `mode=history&name=delete&value=&archive=0&del_files=` (`archive=0` fully
+  removes the slot; the default archives). `del_files=1` when files go too.
+- A wrong key is HTTP 401.
 
 ## Subtitle providers
 

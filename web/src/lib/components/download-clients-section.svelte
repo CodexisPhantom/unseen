@@ -7,6 +7,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import type { DownloadClient } from '#lib/download-clients.js';
+	import { kindName } from '#lib/download-clients.js';
 	import { session } from '#lib/session.svelte.js';
 
 	const manage = $derived(session.can('clients:manage'));
@@ -34,7 +35,7 @@
 				params: { path: { id: client.id } }
 			});
 			results[client.id] = data
-				? { ok: true, text: `Connected, qBittorrent ${data.version}` }
+				? { ok: true, text: `Connected, ${kindName(client.kind)} ${data.version}` }
 				: { ok: false, text: error?.detail ?? error?.title ?? 'The test failed.' };
 		}
 	}));
@@ -64,7 +65,7 @@
 		{/if}
 	</div>
 	<p class="mt-1 text-sm text-muted-foreground">
-		Unseen sends releases to qBittorrent and follows them by category.
+		Unseen sends releases to qBittorrent or SABnzbd and follows them by category.
 	</p>
 
 	{#if failure}
@@ -141,7 +142,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Remove this download client?</AlertDialog.Title>
 			<AlertDialog.Description>
-				{removing?.name} is no longer used for new downloads. Torrents already in qBittorrent stay.
+				{removing?.name} is no longer used for new downloads. Downloads already in the client stay.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

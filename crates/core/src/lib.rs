@@ -10,6 +10,7 @@ pub mod qbittorrent;
 pub mod quality;
 pub mod release;
 pub mod root_folder;
+pub mod sabnzbd;
 pub mod scoring;
 pub mod subtitle;
 pub mod subtitle_provider;

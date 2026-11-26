@@ -4985,11 +4985,11 @@
         "properties": {
           "apiKeyMustBeReentered": {
             "type": "boolean",
-            "description": "An API key is stored but cannot be decrypted: enter it again."
+            "description": "An API key is stored but cannot be decrypted: enter it again. SABnzbd\nrequires one."
           },
           "category": {
             "type": "string",
-            "description": "The qBittorrent category of the torrents Unseen adds."
+            "description": "The category of the torrents or NZBs Unseen adds."
           },
           "createdAt": {
             "type": "string"
@@ -4999,7 +4999,7 @@
           },
           "hasApiKey": {
             "type": "boolean",
-            "description": "The API key (qBittorrent 5.2 or later) is never returned. When one is\nset, Unseen uses it and ignores the username and password."
+            "description": "The API key (qBittorrent 5.2 or later) is never returned. When one is\nset, Unseen uses it and ignores the username and password. SABnzbd\nrequires one."
           },
           "hasPassword": {
             "type": "boolean",
@@ -5011,7 +5011,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`qbittorrent`."
+            "description": "`qbittorrent` or `sabnzbd`."
           },
           "localPath": {
             "type": [
@@ -5044,7 +5044,7 @@
           },
           "url": {
             "type": "string",
-            "description": "The WebUI address, for example `http://qbittorrent:8080`."
+            "description": "The address, for example `http://qbittorrent:8080` or `http://sabnzbd:8080`."
           },
           "username": {
             "type": [
@@ -6051,7 +6051,7 @@
               "string",
               "null"
             ],
-            "description": "Stored encrypted and never returned. qBittorrent 5.2 or later."
+            "description": "Stored encrypted and never returned. qBittorrent 5.2 or later;\nrequired for SABnzbd."
           },
           "category": {
             "type": "string"
@@ -7140,7 +7140,7 @@
         "properties": {
           "version": {
             "type": "string",
-            "description": "The qBittorrent version, for example `v4.6.2`."
+            "description": "The client version, for example `v4.6.2` or `4.3.2`."
           }
         }
       },
