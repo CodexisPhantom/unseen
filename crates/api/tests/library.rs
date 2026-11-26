@@ -254,7 +254,9 @@ fn tree(root: &Path) {
     write(root, "Empty (2000)/readme.txt", 5);
 }
 
-/// Every path under `root` with size and modification time.
+/// Every path under `root` with size and modification time. A directory's
+/// modification time is not recorded: Windows updates it lazily after a child
+/// changes, so it is not evidence that a file changed.
 fn snapshot(root: &Path) -> Vec<(String, u64, std::time::SystemTime)> {
     fn walk(dir: &Path, root: &Path, out: &mut Vec<(String, u64, std::time::SystemTime)>) {
         for entry in fs::read_dir(dir).unwrap() {
@@ -266,7 +268,12 @@ fn snapshot(root: &Path) -> Vec<(String, u64, std::time::SystemTime)> {
                 .unwrap()
                 .display()
                 .to_string();
-            out.push((name, meta.len(), meta.modified().unwrap()));
+            let modified = if meta.is_dir() {
+                std::time::UNIX_EPOCH
+            } else {
+                meta.modified().unwrap()
+            };
+            out.push((name, meta.len(), modified));
             if meta.is_dir() {
                 walk(&entry.path(), root, out);
             }
