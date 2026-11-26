@@ -145,8 +145,7 @@ struct HistoryInner {
     slots: Vec<HistoryItem>,
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Deserialize)]
 struct VersionAnswer {
     version: String,
 }
@@ -213,8 +212,13 @@ impl SabClient {
             .await?;
         let json = self.api("the version call", &[("mode", "version")]).await?;
         let answer: VersionAnswer = serde_json::from_value(json).map_err(|_| {
-            SabError::Unavailable("the version call did not answer with JSON".to_owned())
+            SabError::Unavailable("the version call did not return a version".to_owned())
         })?;
+        if answer.version.trim().is_empty() {
+            return Err(SabError::Unavailable(
+                "the version call did not return a version".to_owned(),
+            ));
+        }
         Ok(answer.version)
     }
 
@@ -265,8 +269,6 @@ impl SabClient {
     /// The history slots of `category`, and no others.
     pub async fn history(&self, category: &str) -> Result<Vec<HistoryItem>, SabError> {
         check_category(category)?;
-        const PAGE_SIZE: usize = 100;
-
         let mut start = 0_usize;
         let mut slots = Vec::new();
         loop {
@@ -293,10 +295,10 @@ impl SabClient {
                     .filter(|slot| slot.category == category),
             );
 
-            // An empty or short page ends pagination even if the server reports
-            // an inconsistent total, and the offset always advances by data
-            // actually returned so a malformed response cannot loop forever.
-            if page_len < PAGE_SIZE || start.saturating_add(page_len) >= wrap.history.noofslots {
+            // Advance by data actually returned. A zero-length page or a
+            // reached total ends pagination; saturating arithmetic and the
+            // max-offset guard prevent malformed totals from looping forever.
+            if page_len == 0 || start.saturating_add(page_len) >= wrap.history.noofslots {
                 break;
             }
             start = start.saturating_add(page_len);
@@ -399,6 +401,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/api"))
             .and(query_param("mode", "queue"))
+            .and(query_param("apikey", "secret"))
             .respond_with(ResponseTemplate::new(200).set_body_string(QUEUE))
             .expect(1)
             .mount(&server)
@@ -406,6 +409,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/api"))
             .and(query_param("mode", "version"))
+            .and(query_param("apikey", "secret"))
             .respond_with(ResponseTemplate::new(200).set_body_string(VERSION))
             .expect(1)
             .mount(&server)
@@ -592,6 +596,65 @@ mod tests {
         assert_eq!(slots.len(), 150);
         assert_eq!(slots.first().unwrap().nzo_id, "history-0");
         assert_eq!(slots.last().unwrap().nzo_id, "history-149");
+    }
+
+    #[tokio::test]
+    async fn history_continues_after_a_short_page_when_more_slots_are_reported() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "history"))
+            .and(query_param("cat", "radarr"))
+            .and(query_param("limit", "100"))
+            .and(query_param("start", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(history_page(0, 2, 5)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "history"))
+            .and(query_param("cat", "radarr"))
+            .and(query_param("limit", "100"))
+            .and(query_param("start", "2"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(history_page(2, 3, 5)))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let slots = client(&server).history("radarr").await.unwrap();
+        assert_eq!(slots.len(), 5);
+        assert_eq!(slots.last().unwrap().nzo_id, "history-4");
+    }
+
+    #[tokio::test]
+    async fn test_rejects_missing_empty_and_whitespace_versions() {
+        for body in [
+            r#"{"status":true}"#,
+            r#"{"status":true,"version":""}"#,
+            r#"{"status":true,"version":" \t\n "}"#,
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/api"))
+                .and(query_param("mode", "queue"))
+                .respond_with(ResponseTemplate::new(200).set_body_string(QUEUE))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/api"))
+                .and(query_param("mode", "version"))
+                .respond_with(ResponseTemplate::new(200).set_body_string(body))
+                .mount(&server)
+                .await;
+
+            assert_eq!(
+                client(&server).test().await,
+                Err(SabError::Unavailable(
+                    "the version call did not return a version".to_owned()
+                ))
+            );
+        }
     }
 
     #[tokio::test]
