@@ -20,6 +20,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0010Subtitles),
             Box::new(M0011Collections),
             Box::new(M0012CustomFormats),
+            Box::new(M0013AuthTwoFactorPasskeys),
         ]
     }
 }
@@ -621,6 +622,68 @@ impl MigrationTrait for M0012CustomFormats {
         manager
             .get_connection()
             .execute_unprepared(M0012_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0013AuthTwoFactorPasskeys;
+
+impl MigrationName for M0013AuthTwoFactorPasskeys {
+    fn name(&self) -> &str {
+        "m0013_auth_two_factor_passkeys"
+    }
+}
+
+/// Two-factor and passkey storage (#112). Both tables are plugin-owned and
+/// come from the regenerated `auth_schema.rs`; this migration adds them to a
+/// database that `m0001_init` created before the plugins were enabled.
+///
+/// The guards let one migration serve both cases: a fresh database already
+/// gets the column and tables from `create_auth_tables`, while an existing one
+/// gets them here. Nothing collides when both run in the same startup.
+const M0013_UP: &str = r#"
+CREATE TABLE IF NOT EXISTS "twoFactor" (
+    id text NOT NULL PRIMARY KEY,
+    secret text NOT NULL,
+    "backupCodes" text NOT NULL,
+    "userId" text NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    verified integer,
+    "failedVerificationCount" integer,
+    "lockedUntil" date
+);
+CREATE INDEX IF NOT EXISTS twoFactor_secret_idx ON "twoFactor" (secret);
+CREATE INDEX IF NOT EXISTS twoFactor_userId_idx ON "twoFactor" ("userId");
+
+CREATE TABLE IF NOT EXISTS passkey (
+    id text NOT NULL PRIMARY KEY,
+    name text,
+    "publicKey" text NOT NULL,
+    "userId" text NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+    "credentialID" text NOT NULL,
+    counter integer NOT NULL,
+    "deviceType" text NOT NULL,
+    "backedUp" integer NOT NULL,
+    transports text,
+    "createdAt" date,
+    aaguid text
+);
+CREATE INDEX IF NOT EXISTS passkey_userId_idx ON passkey ("userId");
+CREATE INDEX IF NOT EXISTS passkey_credentialID_idx ON passkey ("credentialID");
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0013AuthTwoFactorPasskeys {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        if !manager.has_column("user", "twoFactorEnabled").await? {
+            manager
+                .get_connection()
+                .execute_unprepared(r#"ALTER TABLE "user" ADD COLUMN "twoFactorEnabled" integer;"#)
+                .await?;
+        }
+        manager
+            .get_connection()
+            .execute_unprepared(M0013_UP)
             .await?;
         Ok(())
     }

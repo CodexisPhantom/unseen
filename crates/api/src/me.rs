@@ -59,6 +59,8 @@ pub struct MeUser {
     id: String,
     name: String,
     email: Option<String>,
+    #[serde(rename = "twoFactorEnabled")]
+    pub two_factor_enabled: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -99,6 +101,7 @@ pub async fn me(caller: Caller, State(state): State<AppState>) -> Result<Json<Me
             id: found.id,
             name: found.name,
             email: found.email,
+            two_factor_enabled: found.two_factor_enabled.unwrap_or(false),
         },
         roles: roles
             .into_iter()

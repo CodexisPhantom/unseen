@@ -3,7 +3,7 @@ import { api } from './api/client.js';
 import { session, type Me } from './session.svelte.js';
 
 const me = (permissions: Me['permissions']): Me => ({
-	user: { id: 'u1', name: 'Member', email: 'member@example.com' },
+	user: { id: 'u1', name: 'Member', email: 'member@example.com', twoFactorEnabled: false },
 	roles: [],
 	isOwner: false,
 	permissions

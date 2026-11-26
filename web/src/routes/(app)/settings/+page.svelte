@@ -2,6 +2,7 @@
 	import DownloadClientsSection from '#lib/components/download-clients-section.svelte';
 	import ProxySection from '#lib/components/proxy-section.svelte';
 	import RootFoldersSection from '#lib/components/root-folders-section.svelte';
+	import SecuritySection from '#lib/components/security-section.svelte';
 	import { session } from '#lib/session.svelte.js';
 </script>
 
@@ -21,4 +22,5 @@
 	{#if session.can('clients:read')}
 		<DownloadClientsSection />
 	{/if}
+	<SecuritySection />
 </div>

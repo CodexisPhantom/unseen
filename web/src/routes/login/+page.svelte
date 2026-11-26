@@ -5,11 +5,14 @@
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
 	import { authClient } from '#lib/auth-client.js';
+	import { needsTwoFactorChallenge } from '#lib/auth-security.js';
 	import { safeRedirect, signInMessage } from '#lib/auth.js';
 	import Logo from '#lib/components/logo.svelte';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import * as Form from '#lib/components/ui/form/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
 
 	const schema = z.object({
 		email: z.email('Enter a valid email address'),
@@ -17,6 +20,53 @@
 	});
 
 	let failure = $state('');
+	let twoFactorRequired = $state(false);
+	let verificationCode = $state('');
+	let useRecoveryCode = $state(false);
+	let passkeyPending = $state(false);
+
+	async function continueSignedIn() {
+		// `redirectTo` is checked: only a path of this app leads on.
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		await goto(safeRedirect(page.url.searchParams.get('redirectTo')), { invalidateAll: true });
+	}
+
+	async function verifyTwoFactor() {
+		failure = '';
+		try {
+			const result = useRecoveryCode
+				? await authClient.twoFactor.verifyBackupCode({ code: verificationCode.trim() })
+				: await authClient.twoFactor.verifyTotp({ code: verificationCode.trim() });
+			if (result.error) {
+				failure = result.error.message || 'That code was not accepted. Check it and try again.';
+				return;
+			}
+			await continueSignedIn();
+		} catch {
+			failure = 'That code was not accepted. Check it and try again.';
+		}
+	}
+
+	async function signInWithPasskey() {
+		failure = '';
+		passkeyPending = true;
+		try {
+			const { data, error } = await authClient.signIn.passkey();
+			if (error) {
+				failure = error.message || 'Passkey sign-in failed. Try again or use your password.';
+				return;
+			}
+			if (!data) {
+				failure = 'Passkey sign-in did not complete. Try again or use your password.';
+				return;
+			}
+			await continueSignedIn();
+		} catch {
+			failure = 'Passkey sign-in failed. Try again or use your password.';
+		} finally {
+			passkeyPending = false;
+		}
+	}
 
 	const form = superForm(defaults(zod4(schema)), {
 		SPA: true,
@@ -24,14 +74,16 @@
 		async onUpdate({ form }) {
 			if (!form.valid) return;
 			failure = '';
-			const { error } = await authClient.signIn.email(form.data);
+			const { data, error } = await authClient.signIn.email(form.data);
+			if (needsTwoFactorChallenge(data)) {
+				twoFactorRequired = true;
+				return;
+			}
 			if (error) {
 				failure = signInMessage({ code: error.code, status: error.status });
 				return;
 			}
-			// `redirectTo` is checked: only a path of this app leads on.
-			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			await goto(safeRedirect(page.url.searchParams.get('redirectTo')), { invalidateAll: true });
+			await continueSignedIn();
 		}
 	});
 	const { form: formData, enhance, submitting } = form;
@@ -48,6 +100,48 @@
 			<Card.Title>Sign in to Unseen</Card.Title>
 		</Card.Header>
 		<Card.Content>
+			{#if twoFactorRequired}
+				<form
+					class="grid gap-4"
+					onsubmit={(event) => {
+						event.preventDefault();
+						verifyTwoFactor();
+					}}
+				>
+					<p class="text-sm text-muted-foreground">
+						Enter the current code from your authenticator app to finish signing in.
+					</p>
+					<div class="grid gap-2">
+						<Label for="two-factor-code">{useRecoveryCode ? 'Recovery code' : 'Authenticator code'}</Label>
+						<Input
+							id="two-factor-code"
+							autocomplete={useRecoveryCode ? 'off' : 'one-time-code'}
+							inputmode={useRecoveryCode ? 'text' : 'numeric'}
+							pattern={useRecoveryCode ? undefined : '[0-9]{6}'}
+							maxlength={useRecoveryCode ? 32 : 6}
+							required
+							bind:value={verificationCode}
+						/>
+					</div>
+					{#if failure}
+						<p role="alert" class="text-sm text-destructive">{failure}</p>
+					{/if}
+					<Button type="submit" disabled={!verificationCode.trim()}>
+						{useRecoveryCode ? 'Verify recovery code' : 'Verify code'}
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						onclick={() => {
+							useRecoveryCode = !useRecoveryCode;
+							verificationCode = '';
+							failure = '';
+						}}
+					>
+						{useRecoveryCode ? 'Use an authenticator code instead' : 'Use a recovery code instead'}
+					</Button>
+				</form>
+			{:else}
 			<form method="POST" use:enhance class="grid gap-4">
 				<Form.Field {form} name="email">
 					<Form.Control>
@@ -82,6 +176,15 @@
 				{/if}
 				<Form.Button disabled={$submitting}>Sign in</Form.Button>
 			</form>
+				<div class="flex items-center gap-3 text-xs text-muted-foreground">
+					<span class="h-px flex-1 bg-border"></span>
+					<span>or</span>
+					<span class="h-px flex-1 bg-border"></span>
+				</div>
+				<Button type="button" variant="outline" disabled={passkeyPending} onclick={signInWithPasskey}>
+					{passkeyPending ? 'Waiting for passkey…' : 'Sign in with a passkey'}
+				</Button>
+			{/if}
 		</Card.Content>
 	</Card.Root>
 </main>

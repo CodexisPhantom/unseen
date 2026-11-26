@@ -184,11 +184,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Server-sent event stream (`text/event-stream`). Each event is checked
-         *     against the caller's live permissions before it is sent.
-         */
-        get: operations["stream"];
+        /** `GET /api/v1/events`: the caller's permission-filtered event stream. */
+        get: operations["stream_events"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1268,22 +1265,26 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
         };
         DownloadClient: {
-            /** @description An API key is stored but cannot be decrypted: enter it again. */
+            /**
+             * @description An API key is stored but cannot be decrypted: enter it again. SABnzbd
+             *     requires one.
+             */
             apiKeyMustBeReentered: boolean;
-            /** @description The qBittorrent category of the torrents Unseen adds. */
+            /** @description The category of the torrents or NZBs Unseen adds. */
             category: string;
             createdAt: string;
             enabled: boolean;
             /**
              * @description The API key (qBittorrent 5.2 or later) is never returned. When one is
-             *     set, Unseen uses it and ignores the username and password.
+             *     set, Unseen uses it and ignores the username and password. SABnzbd
+             *     requires one.
              */
             hasApiKey: boolean;
             /** @description The password itself is never returned. */
             hasPassword: boolean;
             /** Format: int32 */
             id: number;
-            /** @description `qbittorrent`. */
+            /** @description `qbittorrent` or `sabnzbd`. */
             kind: string;
             /** @description ... and the same folder as Unseen sees it. */
             localPath?: string | null;
@@ -1297,7 +1298,7 @@ export interface components {
              *     movies that share a tag (docs/04-database.md).
              */
             tags: number[];
-            /** @description The WebUI address, for example `http://qbittorrent:8080`. */
+            /** @description The address, for example `http://qbittorrent:8080` or `http://sabnzbd:8080`. */
             url: string;
             username?: string | null;
         };
@@ -1487,6 +1488,7 @@ export interface components {
             email?: string | null;
             id: string;
             name: string;
+            twoFactorEnabled: boolean;
         };
         /** @description A movie of the collection that is not in the library. */
         MissingMovie: {
@@ -1688,7 +1690,10 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
         };
         NewDownloadClient: {
-            /** @description Stored encrypted and never returned. qBittorrent 5.2 or later. */
+            /**
+             * @description Stored encrypted and never returned. qBittorrent 5.2 or later;
+             *     required for SABnzbd.
+             */
             apiKey?: string | null;
             category?: string;
             enabled?: boolean;
@@ -2140,7 +2145,7 @@ export interface components {
             label: string;
         };
         TestResult: {
-            /** @description The qBittorrent version, for example `v4.6.2`. */
+            /** @description The client version, for example `v4.6.2` or `4.3.2`. */
             version: string;
         };
         TmdbSettings: {
@@ -2756,7 +2761,7 @@ export interface operations {
             };
         };
     };
-    stream: {
+    stream_events: {
         parameters: {
             query?: never;
             header?: never;

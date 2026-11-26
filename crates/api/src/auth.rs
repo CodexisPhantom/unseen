@@ -13,14 +13,16 @@ use better_auth::plugins::endpoint_context::EndpointContext;
 use better_auth::plugins::user_admission::{
     UserValidationAction, UserValidationData, UserValidationRejection, ValidateUserInfo,
 };
-use better_auth::plugins::{EmailPasswordPlugin, SessionManagementPlugin};
+use better_auth::plugins::{
+    EmailPasswordPlugin, PasskeyPlugin, SessionManagementPlugin, TwoFactorPlugin,
+};
 use better_auth::seaorm::sea_orm::{ConnectionTrait, DbErr, Statement};
 use better_auth::seaorm::{DatabaseHookUpdate, SeaOrmHookContext, SeaOrmHooks, SeaOrmStore};
 use better_auth::{
     Argon2PasswordHasher, AuthConfig, AuthError, AuthResult, BetterAuth, FieldMap, database_hooks,
 };
 use db::DatabaseConnection;
-use db::auth_schema::AppAuthSchema;
+use db::auth_schema::{AppAuthSchema, AppPluginSchema};
 use hkdf::Hkdf;
 use sha2::Sha256;
 
@@ -198,7 +200,17 @@ pub async fn build(
     }
 
     let policy = Policy::default();
-    let store = SeaOrmStore::<AppAuthSchema>::new(config.clone(), db).hook(policy.clone());
+    let store = SeaOrmStore::<AppAuthSchema>::new(config.clone(), db)
+        .hook(policy.clone())
+        .with_plugin_schema::<AppPluginSchema>();
+    let (rp_id, origin) = passkey_relying_party(base_url);
+    let passkey = match origin {
+        Some(origin) => PasskeyPlugin::new()
+            .rp_id(rp_id)
+            .rp_name("Unseen")
+            .origin(origin),
+        None => PasskeyPlugin::new().rp_id(rp_id).rp_name("Unseen"),
+    };
     let auth = BetterAuth::<AppAuthSchema>::new(config)
         .store(store)
         .validate_user_info(Arc::new(policy.clone()))
@@ -209,9 +221,22 @@ pub async fn build(
                 .password_hasher(Arc::new(Argon2PasswordHasher)),
         )
         .plugin(SessionManagementPlugin::new())
+        .plugin(TwoFactorPlugin::new())
+        .plugin(passkey)
         .build()
         .await?;
     Ok((Arc::new(auth), policy))
+}
+
+/// The WebAuthn relying party: the host of `UNSEEN_BASE_URL` and its origin.
+/// Without a base URL the library takes the RP ID from the auth config (and
+/// fails when that is unset) and accepts the request's `Origin` header.
+fn passkey_relying_party(base_url: Option<&str>) -> (String, Option<String>) {
+    let Some(url) = base_url.and_then(|url| url::Url::parse(url).ok()) else {
+        return (String::new(), None);
+    };
+    let rp_id = url.host_str().unwrap_or_default().to_owned();
+    (rp_id, Some(url.origin().ascii_serialization()))
 }
 
 /// The root secret: `UNSEEN_SECRET` when set, else the file `secret` in the

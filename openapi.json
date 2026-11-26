@@ -748,8 +748,8 @@
         "tags": [
           "events"
         ],
-        "summary": "Server-sent event stream (`text/event-stream`). Each event is checked\nagainst the caller's live permissions before it is sent.",
-        "operationId": "stream",
+        "summary": "`GET /api/v1/events`: the caller's permission-filtered event stream.",
+        "operationId": "stream_events",
         "responses": {
           "200": {
             "description": "Server-sent event stream",
@@ -5854,7 +5854,8 @@
         "type": "object",
         "required": [
           "id",
-          "name"
+          "name",
+          "twoFactorEnabled"
         ],
         "properties": {
           "email": {
@@ -5868,6 +5869,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "twoFactorEnabled": {
+            "type": "boolean"
           }
         }
       },

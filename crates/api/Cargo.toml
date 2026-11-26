@@ -30,9 +30,9 @@ tokio-util = { version = "0.7", features = ["io"] }
 tower.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
 utoipa.workspace = true
 utoipa-axum.workspace = true
-url.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
