@@ -141,6 +141,7 @@ struct HistoryWrap {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct HistoryInner {
+    noofslots: usize,
     slots: Vec<HistoryItem>,
 }
 
@@ -264,21 +265,46 @@ impl SabClient {
     /// The history slots of `category`, and no others.
     pub async fn history(&self, category: &str) -> Result<Vec<HistoryItem>, SabError> {
         check_category(category)?;
-        let json = self
-            .api(
-                "the history call",
-                &[("mode", "history"), ("cat", category)],
-            )
-            .await?;
-        let wrap: HistoryWrap = serde_json::from_value(json).map_err(|_| {
-            SabError::Unavailable("the history call did not answer with JSON".to_owned())
-        })?;
-        Ok(wrap
-            .history
-            .slots
-            .into_iter()
-            .filter(|slot| slot.category == category)
-            .collect())
+        const PAGE_SIZE: usize = 100;
+
+        let mut start = 0_usize;
+        let mut slots = Vec::new();
+        loop {
+            let start_param = start.to_string();
+            let json = self
+                .api(
+                    "the history call",
+                    &[
+                        ("mode", "history"),
+                        ("cat", category),
+                        ("limit", "100"),
+                        ("start", &start_param),
+                    ],
+                )
+                .await?;
+            let wrap: HistoryWrap = serde_json::from_value(json).map_err(|_| {
+                SabError::Unavailable("the history call did not answer with JSON".to_owned())
+            })?;
+            let page_len = wrap.history.slots.len();
+            slots.extend(
+                wrap.history
+                    .slots
+                    .into_iter()
+                    .filter(|slot| slot.category == category),
+            );
+
+            // An empty or short page ends pagination even if the server reports
+            // an inconsistent total, and the offset always advances by data
+            // actually returned so a malformed response cannot loop forever.
+            if page_len < PAGE_SIZE || start.saturating_add(page_len) >= wrap.history.noofslots {
+                break;
+            }
+            start = start.saturating_add(page_len);
+            if start == usize::MAX {
+                break;
+            }
+        }
+        Ok(slots)
     }
 
     /// Deletes the given ids that are in `category`, from the queue or the
@@ -520,6 +546,54 @@ mod tests {
         assert_eq!(slots[0].bytes, 4_294_967_296);
     }
 
+    fn history_page(start: usize, count: usize, noofslots: usize) -> String {
+        let slots: Vec<_> = (start..start + count)
+            .map(|index| {
+                serde_json::json!({
+                    "nzo_id": format!("history-{index}"),
+                    "name": format!("release-{index}"),
+                    "category": "radarr",
+                    "status": "Completed",
+                    "bytes": 42,
+                    "storage": "/downloads",
+                    "path": "/downloads",
+                    "fail_message": ""
+                })
+            })
+            .collect();
+        serde_json::json!({ "history": { "noofslots": noofslots, "slots": slots } }).to_string()
+    }
+
+    #[tokio::test]
+    async fn history_reads_every_page() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "history"))
+            .and(query_param("cat", "radarr"))
+            .and(query_param("limit", "100"))
+            .and(query_param("start", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(history_page(0, 100, 150)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "history"))
+            .and(query_param("cat", "radarr"))
+            .and(query_param("limit", "100"))
+            .and(query_param("start", "100"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(history_page(100, 50, 150)))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let slots = client(&server).history("radarr").await.unwrap();
+        assert_eq!(slots.len(), 150);
+        assert_eq!(slots.first().unwrap().nzo_id, "history-0");
+        assert_eq!(slots.last().unwrap().nzo_id, "history-149");
+    }
+
     #[tokio::test]
     async fn delete_touches_only_our_ids_and_reports_them() {
         let server = MockServer::start().await;
@@ -581,6 +655,51 @@ mod tests {
                 "SABnzbd_nzo_kyt1f0".to_owned(),
                 "SABnzbd_nzo_h3".to_owned()
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_finds_history_ids_on_later_pages() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "queue"))
+            .and(query_param("cat", "radarr"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(QUEUE))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "history"))
+            .and(query_param("cat", "radarr"))
+            .and(query_param("start", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(history_page(0, 100, 150)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "history"))
+            .and(query_param("cat", "radarr"))
+            .and(query_param("start", "100"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(history_page(100, 50, 150)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api"))
+            .and(query_param("mode", "history"))
+            .and(query_param("name", "delete"))
+            .and(query_param("value", "history-149"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"status": true}"#))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let ids = vec!["history-149".to_owned()];
+        assert_eq!(
+            client(&server).delete("radarr", &ids, false).await,
+            Ok(vec!["history-149".to_owned()])
         );
     }
 
