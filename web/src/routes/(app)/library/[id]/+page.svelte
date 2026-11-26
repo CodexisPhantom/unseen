@@ -71,10 +71,26 @@
 			return data;
 		}
 	}));
+	const collections = createQuery(() => ({
+		queryKey: ['collections'],
+		enabled: read && movie.data?.collectionId != null,
+		queryFn: async () => {
+			const { data, error } = await api.GET('/api/v1/collections');
+			if (!data) throw new Error(error?.detail ?? 'The collections could not be loaded.');
+			return data;
+		}
+	}));
 
 	let editOpen = $state(false);
 	let deleteOpen = $state(false);
 	let failure = $state('');
+
+	function collectionTitle(collectionId: number): string {
+		return (
+			collections.data?.find((collection) => collection.id === collectionId)?.title ??
+			'View collection'
+		);
+	}
 
 	function profileName(qualityProfileId: number): string {
 		return (
@@ -142,6 +158,17 @@
 					<dd><MonitoredSwitch movie={m} onerror={(message) => (failure = message)} /></dd>
 					<dt class="text-muted-foreground">Status</dt>
 					<dd class="capitalize">{m.status}</dd>
+					{#if m.collectionId != null}
+						<dt class="text-muted-foreground">Collection</dt>
+						<dd>
+							<a
+								class="underline underline-offset-4"
+								href={resolve('/(app)/collections/[id]', { id: String(m.collectionId) })}
+							>
+								{collectionTitle(m.collectionId)}
+							</a>
+						</dd>
+					{/if}
 					<dt class="text-muted-foreground">Minimum availability</dt>
 					<dd>{availabilityNames[m.minimumAvailability] ?? m.minimumAvailability}</dd>
 					<dt class="text-muted-foreground">Runtime</dt>
