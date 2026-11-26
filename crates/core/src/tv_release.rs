@@ -2024,7 +2024,7 @@ fn is_valid_hyphen_group(before: &str, group: &str) -> bool {
 }
 
 fn is_valid_bracket_group(group: &str) -> bool {
-    if group.is_empty()
+    !(group.is_empty()
         || group.bytes().all(|b| b.is_ascii_digit())
         || NOT_GROUP_WORD.is_match(group)
         || TV_RESOLUTION.is_match(group)
@@ -2035,11 +2035,7 @@ fn is_valid_bracket_group(group: &str) -> bool {
         || release::codec(group).is_some()
         || !release::audio(group).is_empty()
         || !release::hdr(group).is_empty()
-        || !release::languages(group).is_empty()
-    {
-        return false;
-    }
-    true
+        || !release::languages(group).is_empty())
 }
 
 fn strip_group_from_scan(scan: &str, group_token: &str) -> String {
