@@ -22,6 +22,7 @@ mod owner;
 mod profiles;
 mod proxy;
 mod quality_definitions;
+mod queue;
 pub mod radarr;
 mod radarr_movies;
 mod releases;
@@ -112,6 +113,45 @@ impl AppState {
         self.events.publish(crate::events::AppEvent {
             kind: "download.state".to_owned(),
             data: serde_json::json!({ "id": id, "state": state }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
+
+    /// Detailed download progress event (docs/05-api.md), visible to `queue:read` holders.
+    pub fn publish_download_progress_update(
+        &self,
+        id: i32,
+        progress: f64,
+        speed: i64,
+        eta: Option<i64>,
+        state: &str,
+    ) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.progress".to_owned(),
+            data: serde_json::json!({
+                "id": id,
+                "progress": progress,
+                "speed": speed,
+                "eta": eta,
+                "state": state,
+            }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
+
+    /// Download state transition event (docs/05-api.md), visible to `queue:read` holders.
+    pub fn publish_download_state_changed(&self, id: i32, old_state: &str, new_state: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.state".to_owned(),
+            data: serde_json::json!({
+                "id": id,
+                "oldState": old_state,
+                "newState": new_state,
+            }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
             target_user: None,
             target_api_key: None,
@@ -357,6 +397,8 @@ pub fn routes() -> ApiRouter {
                 download_clients::test_client
             ),
         )
+        .require(Permission::QueueRead, routes!(queue::list_queue))
+        .require(Permission::QueueManage, routes!(queue::remove_queue_item))
 }
 
 /// Every Radarr v3 compatibility route, registered once with its permission.

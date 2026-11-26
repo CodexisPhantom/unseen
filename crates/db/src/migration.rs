@@ -21,6 +21,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0011Collections),
             Box::new(M0012CustomFormats),
             Box::new(M0013AuthTwoFactorPasskeys),
+            Box::new(M0014DownloadsAndBlocklist),
         ]
     }
 }
@@ -684,6 +685,61 @@ impl MigrationTrait for M0013AuthTwoFactorPasskeys {
         manager
             .get_connection()
             .execute_unprepared(M0013_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0014DownloadsAndBlocklist;
+
+impl MigrationName for M0014DownloadsAndBlocklist {
+    fn name(&self) -> &str {
+        "m0014_downloads_and_blocklist"
+    }
+}
+
+/// Active and historical download tracking plus release blocklist
+/// (docs/04-database.md, "Search and download tables").
+const M0014_UP: &str = r#"
+CREATE TABLE downloads (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_id integer NOT NULL REFERENCES movies (id) ON DELETE CASCADE,
+    movie_profile_id integer REFERENCES movie_profiles (id) ON DELETE SET NULL,
+    indexer_id integer REFERENCES indexers (id) ON DELETE SET NULL,
+    download_client_id integer REFERENCES download_clients (id) ON DELETE SET NULL,
+    client_download_id text NOT NULL,
+    release_title text NOT NULL,
+    quality_id integer NOT NULL,
+    custom_format_score integer NOT NULL DEFAULT 0,
+    size integer NOT NULL,
+    state text NOT NULL,
+    error text,
+    attempts integer NOT NULL DEFAULT 0,
+    grabbed_at text NOT NULL,
+    completed_at text,
+    imported_at text,
+    UNIQUE (download_client_id, client_download_id)
+);
+CREATE INDEX downloads_state_idx ON downloads (state);
+CREATE INDEX downloads_movie_id_idx ON downloads (movie_id);
+
+CREATE TABLE blocklist (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_id integer NOT NULL REFERENCES movies (id) ON DELETE CASCADE,
+    release_title text NOT NULL,
+    indexer_id integer REFERENCES indexers (id) ON DELETE SET NULL,
+    reason text NOT NULL,
+    created_at text NOT NULL
+);
+CREATE INDEX blocklist_movie_id_idx ON blocklist (movie_id);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0014DownloadsAndBlocklist {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0014_UP)
             .await?;
         Ok(())
     }

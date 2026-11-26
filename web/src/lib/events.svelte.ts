@@ -1,4 +1,5 @@
 import type { QueryClient, QueryKey } from '@tanstack/svelte-query';
+import { patchQueueProgress, type QueueItem } from './queue.js';
 import { session } from './session.svelte.js';
 
 export const EVENTS_URL = '/api/v1/events';
@@ -8,9 +9,9 @@ export const MAX_BACKOFF_MS = 30_000;
 export interface DownloadProgressEvent {
 	id: number;
 	progress: number;
-	speed: number;
-	eta: number | null;
-	state: string;
+	speed?: number;
+	eta?: number | null;
+	state?: string;
 }
 
 export interface DownloadStateEvent {
@@ -107,6 +108,11 @@ class Events {
 		source.addEventListener('download.progress', (event) => {
 			const payload = parseJson<DownloadProgressEvent>((event as MessageEvent).data);
 			if (!payload) return;
+			if (typeof this.queryClient?.setQueryData === 'function') {
+				this.queryClient.setQueryData<QueueItem[]>(['queue'], (current) =>
+					current ? patchQueueProgress(current, payload) : current
+				);
+			}
 			void this.queryClient?.invalidateQueries({ queryKey: ['queue'] });
 		});
 
