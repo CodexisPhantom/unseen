@@ -42,6 +42,16 @@ impl ToSchema for PermissionName {
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct ScopedPermission {
+    #[schema(value_type = PermissionName)]
+    pub(crate) permission: &'static str,
+    /// `null` means all libraries; a list restricts the permission to those
+    /// libraries.
+    pub(crate) library_ids: Option<Vec<i32>>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Me {
     user: MeUser,
     /// Ordered by name.
@@ -52,6 +62,8 @@ pub struct Me {
     /// An Owner has the whole catalog.
     #[schema(value_type = Vec<PermissionName>)]
     permissions: Vec<&'static str>,
+    /// Effective permissions with their library scopes, in catalog order.
+    scoped_permissions: Vec<ScopedPermission>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -69,6 +81,9 @@ pub struct MeRole {
     pub(crate) id: i32,
     pub(crate) name: String,
     pub(crate) is_owner: bool,
+    /// `null` means all libraries; a list restricts the role assignment to
+    /// those libraries.
+    pub(crate) library_ids: Option<Vec<i32>>,
 }
 
 /// The signed-in user, their roles and effective permissions. Authenticated,
@@ -93,9 +108,17 @@ pub async fn me(caller: Caller, State(state): State<AppState>) -> Result<Json<Me
         .map_err(failed)?
         // The session outlived its user, which deletion prevents.
         .ok_or_else(Problem::unauthorized)?;
-    let roles = db::access::roles_of_user(&state.db, caller.user_id())
+    let roles = db::access::assigned_roles_of_user(&state.db, caller.user_id())
         .await
         .map_err(failed)?;
+    let scoped_permissions = caller
+        .permissions()
+        .scoped_iter()
+        .map(|(permission, scope)| ScopedPermission {
+            permission: permission.as_str(),
+            library_ids: scope.library_ids().map(|ids| ids.iter().copied().collect()),
+        })
+        .collect();
     Ok(Json(Me {
         user: MeUser {
             id: found.id,
@@ -105,10 +128,11 @@ pub async fn me(caller: Caller, State(state): State<AppState>) -> Result<Json<Me
         },
         roles: roles
             .into_iter()
-            .map(|role| MeRole {
-                id: role.id,
-                name: role.name,
-                is_owner: role.is_owner,
+            .map(|assigned| MeRole {
+                id: assigned.role.id,
+                name: assigned.role.name,
+                is_owner: assigned.role.is_owner,
+                library_ids: assigned.library_ids,
             })
             .collect(),
         is_owner: caller.is_owner(),
@@ -117,5 +141,6 @@ pub async fn me(caller: Caller, State(state): State<AppState>) -> Result<Json<Me
             .iter()
             .map(Permission::as_str)
             .collect(),
+        scoped_permissions,
     }))
 }

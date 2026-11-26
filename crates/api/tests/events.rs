@@ -292,6 +292,7 @@ impl App {
         user_roles::ActiveModel {
             user_id: Set(user_id.clone()),
             role_id: Set(role_id),
+            all_libraries: Set(true),
         }
         .insert(&self.state.db)
         .await

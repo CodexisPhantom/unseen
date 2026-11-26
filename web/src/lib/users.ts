@@ -45,3 +45,15 @@ export function canAssignRole(
 export function canChangeUser(target: { isOwner: boolean }, caller: { isOwner: boolean }): boolean {
 	return caller.isOwner || !target.isOwner;
 }
+
+/** Human-readable label for a library scope (`null` = all libraries). */
+export function formatLibraryScope(
+	libraryIds: readonly number[] | null | undefined,
+	libraries: readonly { id: number; name: string }[]
+): string | null {
+	if (libraryIds === null || libraryIds === undefined) return null;
+	if (libraryIds.length === 0) return 'no libraries';
+	return libraryIds
+		.map((id) => libraries.find((library) => library.id === id)?.name ?? `#${id}`)
+		.join(', ');
+}

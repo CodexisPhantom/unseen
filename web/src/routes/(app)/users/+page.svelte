@@ -8,7 +8,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import { session } from '#lib/session.svelte.js';
-	import { canChangeUser } from '#lib/users.js';
+	import { canChangeUser, formatLibraryScope } from '#lib/users.js';
 	import type { components } from '#lib/api/schema.js';
 
 	type User = components['schemas']['User'];
@@ -34,6 +34,14 @@
 		queryFn: async () => {
 			const { data, error } = await api.GET('/api/v1/permissions');
 			if (!data) throw new Error(error?.detail ?? 'The permissions could not be loaded.');
+			return data;
+		}
+	}));
+	const libraries = createQuery(() => ({
+		queryKey: ['assignable-libraries'],
+		queryFn: async () => {
+			const { data, error } = await api.GET('/api/v1/assignable-libraries');
+			if (!data) throw new Error(error?.detail ?? 'The libraries could not be loaded.');
 			return data;
 		}
 	}));
@@ -118,7 +126,12 @@
 					<Table.Cell>
 						<div class="flex flex-wrap gap-1">
 							{#each user.roles as role (role.id)}
-								<Badge variant={role.isOwner ? 'default' : 'secondary'}>{role.name}</Badge>
+								{@const scope = formatLibraryScope(role.libraryIds, libraries.data ?? [])}
+								<Badge variant={role.isOwner ? 'default' : 'secondary'}>
+									{role.name}{#if scope}
+										· {scope}
+									{/if}
+								</Badge>
 							{:else}
 								<span class="text-xs text-muted-foreground">None</span>
 							{/each}
@@ -164,6 +177,7 @@
 	user={editing}
 	roles={roles.data ?? []}
 	catalog={catalog.data ?? []}
+	libraries={libraries.data ?? []}
 />
 
 <TransferOwnershipDialog

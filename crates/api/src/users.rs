@@ -1,7 +1,7 @@
 //! Users: accounts, roles, direct grants (docs/15-permissions.md, "Owner
 //! role", "Direct grants" and "Escalation rules").
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use axum::Json;
 use axum::body::{Body, to_bytes};
@@ -11,20 +11,25 @@ use better_auth::integrations::axum::AxumIntegration;
 use better_auth::{Argon2PasswordHasher, PasswordHasher};
 use chrono::SecondsFormat;
 use db::roles::RoleDetail;
-use db::users::{UserDetail, UserError};
+use db::users::{
+    PermissionGrant as StoredPermissionGrant, RoleAssignment as StoredRoleAssignment, UserDetail,
+    UserError,
+};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::{Value, json};
 use tower::ServiceExt;
-use unseen_core::permission::{EffectivePermissions, Permission, can_modify_user};
+use unseen_core::permission::{
+    EffectivePermissions, LibraryScope, Permission, can_grant_scoped, can_modify_user,
+};
 use utoipa::ToSchema;
 
 use crate::AppState;
 use crate::access::{Caller, Require, UsersManage};
 use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
-use crate::me::{MeRole, PermissionName};
-use crate::roles::{escalation, known, names, parse_permissions};
+use crate::me::{MeRole, PermissionName, ScopedPermission};
+use crate::roles::{known, names, parse_permissions};
 
 const PASSWORD_MIN: usize = 10;
 const PASSWORD_MAX: usize = 128;
@@ -43,14 +48,29 @@ pub struct User {
     /// Direct grants only; the effective set also has the roles' permissions.
     #[schema(value_type = Vec<PermissionName>)]
     permissions: Vec<&'static str>,
+    /// Direct grants with their library scopes, in catalog order.
+    scoped_permissions: Vec<ScopedPermission>,
     created_at: String,
 }
 
 impl From<UserDetail> for User {
     fn from(detail: UserDetail) -> Self {
-        let permissions = known(&detail.permissions).map(Permission::as_str).collect();
+        let is_owner = is_owner(&detail);
+        let permissions: Vec<&'static str> =
+            known(&detail.permissions).map(Permission::as_str).collect();
+        let scoped_permissions = known(&detail.permissions)
+            .map(|permission| ScopedPermission {
+                permission: permission.as_str(),
+                library_ids: detail
+                    .permission_scopes
+                    .get(permission.as_str())
+                    .cloned()
+                    .flatten(),
+            })
+            .collect();
+        let role_scopes = detail.role_scopes;
         Self {
-            is_owner: is_owner(&detail),
+            is_owner,
             id: detail.user.id,
             name: detail.user.name,
             email: detail.user.email,
@@ -58,13 +78,18 @@ impl From<UserDetail> for User {
             roles: detail
                 .roles
                 .into_iter()
-                .map(|role| MeRole {
-                    id: role.id,
-                    name: role.name,
-                    is_owner: role.is_owner,
+                .map(|role| {
+                    let library_ids = role_scopes.get(&role.id).cloned().flatten();
+                    MeRole {
+                        id: role.id,
+                        name: role.name,
+                        is_owner: role.is_owner,
+                        library_ids,
+                    }
                 })
                 .collect(),
             permissions,
+            scoped_permissions,
             created_at: detail
                 .user
                 .created_at
@@ -75,12 +100,36 @@ impl From<UserDetail> for User {
 
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct RoleAssignment {
+    role_id: i32,
+    /// Absent or `null` means all libraries; a list restricts the role to those
+    /// libraries.
+    #[serde(default)]
+    library_ids: Option<Vec<i32>>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopedGrant {
+    #[schema(value_type = PermissionName)]
+    permission: String,
+    /// Absent or `null` means all libraries; a list restricts the grant to
+    /// those libraries.
+    #[serde(default)]
+    library_ids: Option<Vec<i32>>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct NewUser {
     name: String,
     email: String,
     password: String,
     #[serde(default)]
     role_ids: Vec<i32>,
+    /// Scoped role assignments. When provided, takes precedence over `roleIds`.
+    #[serde(default)]
+    role_assignments: Option<Vec<RoleAssignment>>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -92,15 +141,24 @@ pub struct UserPatch {
     password: Option<String>,
     /// Disabling signs the user out everywhere.
     disabled: Option<bool>,
-    /// Replaces the roles.
+    /// Replaces the roles (all libraries).
     role_ids: Option<Vec<i32>>,
+    /// Replaces the roles with explicit library scopes. Takes precedence over
+    /// `roleIds` when provided.
+    role_assignments: Option<Vec<RoleAssignment>>,
 }
 
 #[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DirectGrants {
-    /// Replaces the direct grants.
+    /// Replaces the direct grants (all libraries).
+    #[serde(default)]
     #[schema(value_type = Vec<PermissionName>)]
     permissions: Vec<String>,
+    /// Replaces the direct grants with explicit library scopes. Takes
+    /// precedence over `permissions` when provided.
+    #[serde(default)]
+    scoped_permissions: Option<Vec<ScopedGrant>>,
 }
 
 fn failed(error: impl std::fmt::Display) -> Problem {
@@ -159,25 +217,61 @@ async fn keep_last_owner(
     Ok(())
 }
 
-/// Roles whose assignment changes must be held in full by the editor, and
-/// only an Owner hands out or takes away the Owner role.
-fn check_role_changes(
+type RoleScopeMap = BTreeMap<i32, Option<BTreeSet<i32>>>;
+
+fn check_library_ids(
+    known_libraries: &BTreeSet<i32>,
+    ids: &Option<BTreeSet<i32>>,
+    field: &str,
+) -> Result<(), Problem> {
+    if let Some(ids) = ids {
+        for id in ids {
+            if !known_libraries.contains(id) {
+                return Err(Problem::validation(field, &format!("unknown library {id}")));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn scoped_escalation(
+    caller: &Caller,
+    permission: Permission,
+    scope: &LibraryScope,
+) -> Result<(), Problem> {
+    if can_grant_scoped(caller.permissions(), permission, scope) {
+        Ok(())
+    } else {
+        Err(Problem::forbidden(permission))
+    }
+}
+
+/// Roles whose assignment or library scope changes must be held in full (both
+/// permissions and library scopes) by the editor, and only an Owner hands out
+/// or takes away the Owner role. The Owner role cannot be scoped.
+fn check_role_assignment_changes(
     caller: &Caller,
     all: &[RoleDetail],
-    current: &BTreeSet<i32>,
-    wanted: &BTreeSet<i32>,
+    known_libraries: &BTreeSet<i32>,
+    current: &BTreeMap<i32, Option<BTreeSet<i32>>>,
+    wanted: &BTreeMap<i32, Option<BTreeSet<i32>>>,
+    field: &str,
 ) -> Result<(), Problem> {
-    for id in wanted {
-        if !all.iter().any(|role| role.role.id == *id) {
+    for (id, libs) in wanted {
+        let Some(role) = all.iter().find(|role| role.role.id == *id) else {
+            return Err(Problem::validation(field, &format!("unknown role {id}")));
+        };
+        if role.role.is_owner && libs.is_some() {
             return Err(Problem::validation(
-                "roleIds",
-                &format!("unknown role {id}"),
+                field,
+                "the Owner role applies to all libraries and cannot be scoped",
             ));
         }
+        check_library_ids(known_libraries, libs, field)?;
     }
     for role in all
         .iter()
-        .filter(|role| current.contains(&role.role.id) != wanted.contains(&role.role.id))
+        .filter(|role| current.get(&role.role.id) != wanted.get(&role.role.id))
     {
         if role.role.is_owner && !caller.is_owner() {
             return Err(Problem::refused(
@@ -185,9 +279,87 @@ fn check_role_changes(
                 "Only an Owner can give or take the Owner role",
             ));
         }
-        escalation(caller, known(&role.permissions))?;
+        for permission in known(&role.permissions) {
+            if let Some(old_libs) = current.get(&role.role.id) {
+                let scope = match old_libs {
+                    None => LibraryScope::All,
+                    Some(ids) => LibraryScope::Libraries(ids.clone()),
+                };
+                scoped_escalation(caller, permission, &scope)?;
+            }
+            if let Some(new_libs) = wanted.get(&role.role.id) {
+                let scope = match new_libs {
+                    None => LibraryScope::All,
+                    Some(ids) => LibraryScope::Libraries(ids.clone()),
+                };
+                scoped_escalation(caller, permission, &scope)?;
+            }
+        }
     }
     Ok(())
+}
+
+fn current_role_map(detail: &UserDetail) -> BTreeMap<i32, Option<BTreeSet<i32>>> {
+    detail
+        .roles
+        .iter()
+        .map(|role| {
+            let libs = detail
+                .role_scopes
+                .get(&role.id)
+                .cloned()
+                .flatten()
+                .map(|ids| ids.into_iter().collect());
+            (role.id, libs)
+        })
+        .collect()
+}
+
+fn to_stored_assignments(
+    wanted: &BTreeMap<i32, Option<BTreeSet<i32>>>,
+) -> Vec<StoredRoleAssignment> {
+    wanted
+        .iter()
+        .map(|(&role_id, library_ids)| StoredRoleAssignment {
+            role_id,
+            library_ids: library_ids.clone(),
+        })
+        .collect()
+}
+
+fn assignments_from_request(
+    role_assignments: Option<&[RoleAssignment]>,
+    role_ids: &[i32],
+) -> (BTreeMap<i32, Option<BTreeSet<i32>>>, &'static str) {
+    match role_assignments {
+        Some(entries) => {
+            let mut map: BTreeMap<i32, Option<BTreeSet<i32>>> = BTreeMap::new();
+            for entry in entries {
+                let scope = entry
+                    .library_ids
+                    .as_ref()
+                    .map(|ids| ids.iter().copied().collect::<BTreeSet<i32>>());
+                map.entry(entry.role_id)
+                    .and_modify(|existing| match (existing, &scope) {
+                        (None, _) => {}
+                        (slot, None) => *slot = None,
+                        (Some(a), Some(b)) => a.extend(b.iter().copied()),
+                    })
+                    .or_insert(scope);
+            }
+            (map, "roleAssignments")
+        }
+        None => (role_ids.iter().map(|&id| (id, None)).collect(), "roleIds"),
+    }
+}
+
+async fn known_library_ids(state: &AppState) -> Result<BTreeSet<i32>, Problem> {
+    Ok(db::libraries::list(&state.db)
+        .await
+        .map_err(failed)?
+        .into_iter()
+        .map(|detail| detail.library.id)
+        .collect())
 }
 
 fn valid_name(name: &str) -> Result<String, Problem> {
@@ -220,10 +392,6 @@ fn valid_password(password: &str) -> Result<(), Problem> {
 /// The names of a user's roles, ordered by name.
 fn role_names(detail: &UserDetail) -> Vec<&str> {
     detail.roles.iter().map(|role| role.name.as_str()).collect()
-}
-
-fn role_ids(detail: &UserDetail) -> BTreeSet<i32> {
-    detail.roles.iter().map(|role| role.id).collect()
 }
 
 /// Every user, ordered by name.
@@ -268,9 +436,18 @@ pub async fn create_user(
     let name = valid_name(&body.name)?;
     let email = valid_email(&body.email)?;
     valid_password(&body.password)?;
-    let wanted: BTreeSet<i32> = body.role_ids.iter().copied().collect();
+    let (wanted, field) =
+        assignments_from_request(body.role_assignments.as_deref(), &body.role_ids);
     let roles = db::roles::list(&state.db).await.map_err(failed)?;
-    check_role_changes(&caller, &roles, &BTreeSet::new(), &wanted)?;
+    let known_libs = known_library_ids(&state).await?;
+    check_role_assignment_changes(
+        &caller,
+        &roles,
+        &known_libs,
+        &BTreeMap::new(),
+        &wanted,
+        field,
+    )?;
 
     let _guard = state.policy.signup_lock().lock().await;
     let existing = db::users::list(&state.db).await.map_err(failed)?;
@@ -327,7 +504,7 @@ pub async fn create_user(
     db::users::delete_sessions(&state.db, id)
         .await
         .map_err(failed)?;
-    db::users::set_roles(&state.db, id, &wanted)
+    db::users::set_role_assignments(&state.db, id, &to_stored_assignments(&wanted))
         .await
         .map_err(failed)?;
     tracing::info!(user = id, "user created");
@@ -372,19 +549,24 @@ pub async fn update_user(
         valid_password(password)?;
     }
 
-    let current = role_ids(&target);
-    let wanted = body
-        .role_ids
-        .as_ref()
-        .map(|ids| ids.iter().copied().collect());
+    let current = current_role_map(&target);
+    let wanted_with_field: Option<(RoleScopeMap, &'static str)> =
+        if let Some(entries) = body.role_assignments.as_deref() {
+            Some(assignments_from_request(Some(entries), &[]))
+        } else {
+            body.role_ids
+                .as_deref()
+                .map(|ids| assignments_from_request(None, ids))
+        };
     let roles = db::roles::list(&state.db).await.map_err(failed)?;
-    if let Some(wanted) = &wanted {
-        check_role_changes(&caller, &roles, &current, wanted)?;
+    if let Some((wanted, field)) = &wanted_with_field {
+        let known_libs = known_library_ids(&state).await?;
+        check_role_assignment_changes(&caller, &roles, &known_libs, &current, wanted, field)?;
     }
-    let keeps_owner_role = wanted.as_ref().is_none_or(|wanted: &BTreeSet<i32>| {
+    let keeps_owner_role = wanted_with_field.as_ref().is_none_or(|(wanted, _)| {
         roles
             .iter()
-            .any(|role| role.role.is_owner && wanted.contains(&role.role.id))
+            .any(|role| role.role.is_owner && wanted.contains_key(&role.role.id))
     });
     let enabled_after = !body.disabled.unwrap_or(target.disabled);
     keep_last_owner(&state, &target, keeps_owner_role && enabled_after).await?;
@@ -394,8 +576,8 @@ pub async fn update_user(
             .await
             .map_err(user_error)?;
     }
-    if let Some(wanted) = &wanted {
-        db::users::set_roles(&state.db, &id, wanted)
+    if let Some((wanted, _)) = &wanted_with_field {
+        db::users::set_role_assignments(&state.db, &id, &to_stored_assignments(wanted))
             .await
             .map_err(failed)?;
     }
@@ -425,7 +607,7 @@ pub async fn update_user(
             .map_err(failed)?;
     }
     let updated = load(&state, &id).await?;
-    if role_ids(&target) != role_ids(&updated) {
+    if current != current_role_map(&updated) {
         state.publish_permissions_changed(&id);
     }
     let mut changed = Changes::new()
@@ -503,11 +685,82 @@ pub async fn set_user_permissions(
 ) -> Result<Json<User>, Problem> {
     let target = load(&state, &id).await?;
     may_modify(&caller, &target)?;
-    let wanted = parse_permissions(&body.permissions)?;
-    let current: BTreeSet<Permission> = known(&target.permissions).collect();
-    escalation(&caller, wanted.symmetric_difference(&current).copied())?;
-    let stored = wanted.iter().map(|p| p.as_str().to_owned()).collect();
-    db::users::set_permissions(&state.db, &id, &stored)
+    let known_libs = known_library_ids(&state).await?;
+    let wanted: BTreeMap<Permission, Option<BTreeSet<i32>>> =
+        if let Some(entries) = body.scoped_permissions {
+            let mut map: BTreeMap<Permission, Option<BTreeSet<i32>>> = BTreeMap::new();
+            for entry in entries {
+                let perm: Permission = entry.permission.parse().map_err(|_| {
+                    Problem::validation(
+                        "scopedPermissions",
+                        &format!("unknown permission `{}`", entry.permission),
+                    )
+                })?;
+                let libs = entry
+                    .library_ids
+                    .map(|ids| ids.into_iter().collect::<BTreeSet<i32>>());
+                check_library_ids(&known_libs, &libs, "scopedPermissions")?;
+                map.entry(perm)
+                    .and_modify(|existing| match (existing, &libs) {
+                        (None, _) => {}
+                        (slot, None) => *slot = None,
+                        (Some(a), Some(b)) => a.extend(b.iter().copied()),
+                    })
+                    .or_insert(libs);
+            }
+            map
+        } else {
+            parse_permissions(&body.permissions)?
+                .into_iter()
+                .map(|perm| (perm, None))
+                .collect()
+        };
+
+    let current: BTreeMap<Permission, Option<BTreeSet<i32>>> = known(&target.permissions)
+        .map(|perm| {
+            let libs = target
+                .permission_scopes
+                .get(perm.as_str())
+                .cloned()
+                .flatten()
+                .map(|ids| ids.into_iter().collect());
+            (perm, libs)
+        })
+        .collect();
+
+    for perm in current
+        .keys()
+        .chain(wanted.keys())
+        .copied()
+        .collect::<BTreeSet<_>>()
+    {
+        if current.get(&perm) == wanted.get(&perm) {
+            continue;
+        }
+        if let Some(old_libs) = current.get(&perm) {
+            let scope = match old_libs {
+                None => LibraryScope::All,
+                Some(ids) => LibraryScope::Libraries(ids.clone()),
+            };
+            scoped_escalation(&caller, perm, &scope)?;
+        }
+        if let Some(new_libs) = wanted.get(&perm) {
+            let scope = match new_libs {
+                None => LibraryScope::All,
+                Some(ids) => LibraryScope::Libraries(ids.clone()),
+            };
+            scoped_escalation(&caller, perm, &scope)?;
+        }
+    }
+
+    let stored: Vec<StoredPermissionGrant> = wanted
+        .iter()
+        .map(|(perm, library_ids)| StoredPermissionGrant {
+            permission: perm.as_str().to_owned(),
+            library_ids: library_ids.clone(),
+        })
+        .collect();
+    db::users::set_scoped_permissions(&state.db, &id, &stored)
         .await
         .map_err(failed)?;
     let updated = load(&state, &id).await?;

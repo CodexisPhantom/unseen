@@ -208,7 +208,7 @@ fn list_subdir_names(path: &Path) -> std::io::Result<Vec<String>> {
 
 /// `GET /sonarr/api/v3/rootfolder` (`settings:read`).
 async fn list_root_folders(
-    _: RequireApiKey<SettingsRead>,
+    caller: RequireApiKey<SettingsRead>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<RootFolderResource>>, CompatError> {
     let models = db::root_folders::list(&state.db)
@@ -216,6 +216,9 @@ async fn list_root_folders(
         .map_err(|err| failed("root_folders", err))?;
     let mut folders = Vec::with_capacity(models.len());
     for model in models {
+        if !caller.allows_in_library(Permission::SettingsRead, model.library_id) {
+            continue;
+        }
         let known = db::root_folders::movie_folder_names(&state.db, model.id)
             .await
             .map_err(|err| failed("root_folder_known_names", err))?;

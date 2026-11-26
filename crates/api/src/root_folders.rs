@@ -10,12 +10,13 @@ use db::entities::root_folders;
 use db::root_folders::RootFolderError;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use unseen_core::permission::Permission;
 use unseen_core::root_folder::{self, Overlap};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
-use crate::access::{Require, SettingsManage, SettingsRead};
-use crate::audit::{Actor, ClientIp, Event, record};
+use crate::access::{Caller, Require, SettingsManage, SettingsRead};
+use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 
 #[derive(Serialize, ToSchema)]
@@ -23,6 +24,7 @@ use crate::error::Problem;
 pub struct RootFolder {
     pub(crate) id: i32,
     pub(crate) path: String,
+    pub(crate) library_id: i32,
     /// False when the folder is missing or cannot be read right now.
     pub(crate) accessible: bool,
     /// Bytes available to Unseen on the filesystem of the folder. Absent when
@@ -39,6 +41,14 @@ pub struct NewRootFolder {
     /// An absolute path on the server. It must exist, be a directory that
     /// Unseen can write to, and not lie inside or contain another root folder.
     path: String,
+    /// Library to place this root folder in. Defaults to the default library.
+    library_id: Option<i32>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RootFolderPatch {
+    library_id: i32,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -99,6 +109,7 @@ fn describe(model: root_folders::Model, known: &[String]) -> RootFolder {
     let accessible = on_disk.is_ok();
     RootFolder {
         id: model.id,
+        library_id: model.library_id,
         accessible,
         free_space: if accessible {
             fs4::available_space(path).ok()
@@ -159,14 +170,21 @@ fn inspect(path: &Path) -> Result<PathBuf, &'static str> {
     std::fs::canonicalize(path).map_err(|_| "cannot be read")
 }
 
-/// Loads every root folder from the database and inspects it on disk off the
-/// async runtime.
-pub(crate) async fn load_all(state: &AppState) -> Result<Vec<RootFolder>, String> {
+/// Loads every root folder visible to `caller` under `permission` from the
+/// database and inspects it on disk off the async runtime.
+pub(crate) async fn load_all_for_caller(
+    state: &AppState,
+    caller: &Caller,
+    permission: Permission,
+) -> Result<Vec<RootFolder>, String> {
     let mut folders = Vec::new();
     for model in db::root_folders::list(&state.db)
         .await
         .map_err(|error| error.to_string())?
     {
+        if !caller.allows_in_library(permission, model.library_id) {
+            continue;
+        }
         let known = db::root_folders::movie_folder_names(&state.db, model.id)
             .await
             .map_err(|error| error.to_string())?;
@@ -182,7 +200,8 @@ pub(crate) async fn load_all(state: &AppState) -> Result<Vec<RootFolder>, String
     .map_err(|error| error.to_string())
 }
 
-/// Every root folder with its free space and unmapped folders.
+/// Every root folder visible to the caller, with its free space and unmapped
+/// folders.
 #[utoipa::path(
     get,
     path = "/api/v1/root-folders",
@@ -193,10 +212,13 @@ pub(crate) async fn load_all(state: &AppState) -> Result<Vec<RootFolder>, String
     )
 )]
 pub async fn list_root_folders(
-    _: Require<SettingsRead>,
+    caller: Require<SettingsRead>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<RootFolder>>, Problem> {
-    load_all(&state).await.map_err(failed).map(Json)
+    load_all_for_caller(&state, &caller, Permission::SettingsRead)
+        .await
+        .map_err(failed)
+        .map(Json)
 }
 
 /// Adds a root folder after checking the path on disk.
@@ -208,6 +230,7 @@ pub async fn list_root_folders(
     responses(
         (status = 201, description = "The new root folder", body = RootFolder),
         (status = 403, description = "Permission denied", body = Problem),
+        (status = 404, description = "No such library", body = Problem),
         (status = 409, description = "The folder is already a root folder", body = Problem),
         (status = 422, description = "The path is not usable", body = Problem),
     )
@@ -218,6 +241,34 @@ pub async fn create_root_folder(
     ip: ClientIp,
     Json(body): Json<NewRootFolder>,
 ) -> Result<(StatusCode, Json<RootFolder>), Problem> {
+    let library_id = match body.library_id {
+        Some(id) => {
+            if !caller.allows_in_library(Permission::SettingsManage, id) {
+                return Err(Problem::not_found());
+            }
+            if db::libraries::find(&state.db, id)
+                .await
+                .map_err(failed)?
+                .is_none()
+            {
+                return Err(Problem::validation(
+                    "libraryId",
+                    "must be the id of a library",
+                ));
+            }
+            id
+        }
+        None => {
+            let id = db::libraries::default_id(&state.db)
+                .await
+                .map_err(failed)?
+                .ok_or_else(|| Problem::validation("libraryId", "no library exists"))?;
+            if !caller.allows_in_library(Permission::SettingsManage, id) {
+                return Err(Problem::not_found());
+            }
+            id
+        }
+    };
     let path = clean(&body.path)?;
     let existing = db::root_folders::list(&state.db).await.map_err(failed)?;
     let checked = {
@@ -269,15 +320,73 @@ pub async fn create_root_folder(
     let shown = path
         .to_str()
         .ok_or_else(|| Problem::validation("path", "must be valid text"))?;
-    let created = db::root_folders::create(&state.db, shown.to_owned())
+    let created = db::root_folders::create_in_library(&state.db, shown.to_owned(), library_id)
         .await
         .map_err(root_folder_error)?;
     let event = Event::new("root_folder.created")
         .target("root_folder", created.id)
-        .data(json!({ "path": created.path }));
+        .data(json!({ "path": created.path, "libraryId": created.library_id }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
     let described = blocking(move || describe(created, &[])).await?;
     Ok((StatusCode::CREATED, Json(described)))
+}
+
+/// Moves a root folder to another library.
+#[utoipa::path(
+    patch,
+    path = "/api/v1/root-folders/{id}",
+    tag = "root-folders",
+    params(("id" = i32, Path, description = "Root folder id")),
+    request_body = RootFolderPatch,
+    responses(
+        (status = 200, description = "The updated root folder", body = RootFolder),
+        (status = 403, description = "Permission denied", body = Problem),
+        (status = 404, description = "No such root folder or library", body = Problem),
+        (status = 422, description = "Validation failed", body = Problem),
+    )
+)]
+pub async fn update_root_folder(
+    caller: Require<SettingsManage>,
+    State(state): State<AppState>,
+    ip: ClientIp,
+    UrlPath(id): UrlPath<i32>,
+    Json(body): Json<RootFolderPatch>,
+) -> Result<Json<RootFolder>, Problem> {
+    let current = db::root_folders::find(&state.db, id)
+        .await
+        .map_err(failed)?
+        .ok_or_else(Problem::not_found)?;
+    if !caller.allows_in_library(Permission::SettingsManage, current.library_id)
+        || !caller.allows_in_library(Permission::SettingsManage, body.library_id)
+    {
+        return Err(Problem::not_found());
+    }
+    if db::libraries::find(&state.db, body.library_id)
+        .await
+        .map_err(failed)?
+        .is_none()
+    {
+        return Err(Problem::validation(
+            "libraryId",
+            "must be the id of a library",
+        ));
+    }
+    let updated = db::root_folders::set_library(&state.db, id, body.library_id)
+        .await
+        .map_err(root_folder_error)?;
+    let known = db::root_folders::movie_folder_names(&state.db, id)
+        .await
+        .map_err(failed)?;
+    let event = Event::new("root_folder.updated")
+        .target("root_folder", id)
+        .data(
+            Changes::new()
+                .field("libraryId", current.library_id, updated.library_id)
+                .into_data(),
+        );
+    record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    let described = blocking(move || describe(updated, &known)).await?;
+    Ok(Json(described))
 }
 
 /// Deletes a root folder that no movie uses. The folder on disk stays.
@@ -303,6 +412,9 @@ pub async fn delete_root_folder(
         .await
         .map_err(failed)?
         .ok_or_else(Problem::not_found)?;
+    if !caller.allows_in_library(Permission::SettingsManage, current.library_id) {
+        return Err(Problem::not_found());
+    }
     db::root_folders::delete(&state.db, id)
         .await
         .map_err(root_folder_error)?;

@@ -129,11 +129,13 @@ async fn list_quality_profiles(
 }
 
 async fn list_root_folders(
+    caller: ApiKeyCaller,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<RootFolderResource>>, CompatError> {
-    let folders = crate::root_folders::load_all(&state)
-        .await
-        .map_err(failed)?;
+    let folders =
+        crate::root_folders::load_all_for_caller(&state, &caller, Permission::SettingsRead)
+            .await
+            .map_err(failed)?;
     let resources = folders
         .into_iter()
         .map(|folder| {

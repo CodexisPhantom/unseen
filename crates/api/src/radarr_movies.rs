@@ -2,7 +2,7 @@
 //! `GET /movie?tmdbId=`, `GET /movie/{id}`, `GET /movie/lookup?term=tmdb:{id}`)
 //! (docs/14-compatibility.md, section D).
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use arr_compat::radarr::dto::{
     LookupMovieResource, MediaInfoResource, MovieCollectionResource, MovieResource,
@@ -14,9 +14,10 @@ use axum::http::Method;
 use db::entities::movie_files;
 use db::movies::Movie as StoredMovie;
 use unseen_core::metadata::{LookupTerm, MetadataError, MovieDetails, parse_term};
+use unseen_core::permission::Permission;
 
 use crate::AppState;
-use crate::compat::CompatError;
+use crate::compat::{ApiKeyCaller, CompatError};
 use crate::tmdb;
 
 fn db_failed(error: impl std::fmt::Display) -> CompatError {
@@ -198,11 +199,33 @@ fn query_param<'a>(params: &'a HashMap<String, String>, name: &str) -> Option<&'
         .map(|(_, value)| value.as_str())
 }
 
+async fn allowed_folders_for_read(
+    state: &AppState,
+    caller: &ApiKeyCaller,
+) -> Result<Option<BTreeSet<i32>>, CompatError> {
+    if caller.has_all_libraries(Permission::LibraryRead) {
+        return Ok(None);
+    }
+    let map = db::libraries::root_folder_library_map(&state.db)
+        .await
+        .map_err(db_failed)?;
+    Ok(Some(
+        map.into_iter()
+            .filter(|&(_, library_id)| {
+                caller.allows_in_library(Permission::LibraryRead, library_id)
+            })
+            .map(|(folder_id, _)| folder_id)
+            .collect(),
+    ))
+}
+
 /// `GET /radarr/api/v3/movie` and `GET /radarr/api/v3/movie?tmdbId={tmdbId}`.
 pub async fn list_movies(
+    caller: ApiKeyCaller,
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<MovieResource>>, CompatError> {
+    let allowed = allowed_folders_for_read(&state, &caller).await?;
     let movies = match query_param(&params, "tmdbId").map(str::trim) {
         Some(raw) if !raw.is_empty() => {
             let tmdb_id = raw
@@ -219,6 +242,13 @@ pub async fn list_movies(
         }
         _ => db::movies::list(&state.db).await.map_err(db_failed)?,
     };
+    let movies: Vec<_> = match allowed {
+        None => movies,
+        Some(allowed) => movies
+            .into_iter()
+            .filter(|movie| allowed.contains(&movie.model.root_folder_id))
+            .collect(),
+    };
 
     let now = db::now();
     let views = load_movie_views(&state, &movies).await?;
@@ -231,6 +261,7 @@ pub async fn list_movies(
 
 /// `GET /radarr/api/v3/movie/{id}`.
 pub async fn get_movie(
+    caller: ApiKeyCaller,
     State(state): State<AppState>,
     Path(raw_id): Path<String>,
 ) -> Result<Json<MovieResource>, CompatError> {
@@ -244,6 +275,16 @@ pub async fn get_movie(
         .await
         .map_err(db_failed)?
         .ok_or_else(CompatError::not_found)?;
+    if !caller.has_all_libraries(Permission::LibraryRead) {
+        let library_id =
+            db::libraries::library_of_root_folder(&state.db, stored.model.root_folder_id)
+                .await
+                .map_err(db_failed)?
+                .ok_or_else(CompatError::not_found)?;
+        if !caller.allows_in_library(Permission::LibraryRead, library_id) {
+            return Err(CompatError::not_found());
+        }
+    }
     let now = db::now();
     let views = load_movie_views(&state, &[stored]).await?;
     let view = views.first().ok_or_else(CompatError::not_found)?;
@@ -252,6 +293,7 @@ pub async fn get_movie(
 
 /// `GET /radarr/api/v3/movie/lookup?term=tmdb:{id}`.
 pub async fn lookup_movie(
+    caller: ApiKeyCaller,
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<LookupMovieResource>>, CompatError> {
@@ -279,12 +321,24 @@ pub async fn lookup_movie(
         .await
         .map_err(db_failed)?
     {
-        let views = load_movie_views(&state, &[stored]).await?;
-        let resources = views
-            .iter()
-            .map(|view| lookup_movie_resource(view, &now))
-            .collect();
-        return Ok(Json(resources));
+        let visible = if caller.has_all_libraries(Permission::LibraryRead) {
+            true
+        } else {
+            db::libraries::library_of_root_folder(&state.db, stored.model.root_folder_id)
+                .await
+                .map_err(db_failed)?
+                .is_some_and(|library_id| {
+                    caller.allows_in_library(Permission::LibraryRead, library_id)
+                })
+        };
+        if visible {
+            let views = load_movie_views(&state, &[stored]).await?;
+            let resources = views
+                .iter()
+                .map(|view| lookup_movie_resource(view, &now))
+                .collect();
+            return Ok(Json(resources));
+        }
     }
 
     let provider = tmdb::client(&state).await.map_err(|problem| {

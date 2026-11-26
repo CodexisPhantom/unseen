@@ -8,6 +8,7 @@ pub struct Model {
     pub user_id: String,
     #[sea_orm(primary_key, auto_increment = false)]
     pub permission: String,
+    pub all_libraries: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

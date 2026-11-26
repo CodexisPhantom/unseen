@@ -8,12 +8,15 @@ use axum::http::StatusCode;
 use db::entities::download_clients;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use unseen_core::permission::Permission;
 use unseen_core::qbittorrent::Torrent;
 use unseen_core::sabnzbd::QueueItem as SabSlot;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
-use crate::access::{QueueManage, QueueRead, Require};
+use crate::access::{
+    QueueManage, QueueRead, Require, allowed_root_folders, ensure_root_folder_access,
+};
 use crate::audit::{Actor, ClientIp, Event, record};
 use crate::download_clients::{ConnectedClient, connect, qb_error, sab_error};
 use crate::error::Problem;
@@ -172,12 +175,20 @@ async fn fetch_client_statuses(
     )
 )]
 pub async fn list_queue(
-    _: Require<QueueRead>,
+    caller: Require<QueueRead>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<QueueItem>>, Problem> {
+    let allowed = allowed_root_folders(&state, &caller, Permission::QueueRead).await?;
     let rows = db::downloads::list_active(&state.db)
         .await
         .map_err(failed)?;
+    let rows: Vec<_> = match allowed {
+        None => rows,
+        Some(allowed) => rows
+            .into_iter()
+            .filter(|row| allowed.contains(&row.movie_root_folder_id))
+            .collect(),
+    };
 
     // Fetch live status once per distinct download client referenced by active rows.
     let mut clients: HashMap<i32, download_clients::Model> = HashMap::new();
@@ -284,6 +295,17 @@ pub async fn remove_queue_item(
     if db::downloads::is_final_state(&existing.state) {
         return Err(Problem::not_found());
     }
+    let movie = db::movies::find(&state.db, existing.movie_id)
+        .await
+        .map_err(failed)?
+        .ok_or_else(Problem::not_found)?;
+    let library_id = ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::QueueManage,
+        movie.model.root_folder_id,
+    )
+    .await?;
 
     if query.remove_from_client
         && let Some(client_id) = existing.download_client_id
@@ -322,7 +344,7 @@ pub async fn remove_queue_item(
         }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
 
-    state.publish_download_state_changed(id, &previous.state, "removed");
+    state.publish_download_state_changed_in_library(id, &previous.state, "removed", library_id);
 
     Ok(StatusCode::NO_CONTENT)
 }
