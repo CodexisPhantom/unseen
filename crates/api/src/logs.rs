@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -39,6 +39,7 @@ pub const DEFAULT_RETENTION_DAYS: u32 = 14;
 
 const DEFAULT_LIMIT: usize = 100;
 const MAX_LIMIT: usize = 500;
+const LOG_READ_CHUNK_SIZE: usize = 8192;
 const FILE_PREFIX: &str = "unseen-";
 const FILE_SUFFIX: &str = ".log";
 
@@ -492,6 +493,12 @@ pub fn list_log_files(logs_dir: &Path) -> io::Result<Vec<(NaiveDate, LogFileInfo
         Err(error) => return Err(error),
     };
 
+    let canonical_logs_dir = match std::fs::canonicalize(logs_dir) {
+        Ok(path) => path,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+
     let mut files = Vec::new();
     for entry in entries {
         let entry = entry?;
@@ -501,8 +508,13 @@ pub fn list_log_files(logs_dir: &Path) -> io::Result<Vec<(NaiveDate, LogFileInfo
         let Some(date) = parse_log_file_date(&name) else {
             continue;
         };
-        let metadata = entry.metadata()?;
+        let path = entry.path();
+        let metadata = std::fs::symlink_metadata(&path)?;
         if !metadata.is_file() {
+            continue;
+        }
+        let canonical_path = std::fs::canonicalize(&path)?;
+        if !canonical_path.starts_with(&canonical_logs_dir) {
             continue;
         }
         files.push((
@@ -521,7 +533,7 @@ pub fn list_log_files(logs_dir: &Path) -> io::Result<Vec<(NaiveDate, LogFileInfo
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Cursor {
     date: NaiveDate,
-    line_index: usize,
+    offset: u64,
 }
 
 impl Cursor {
@@ -531,12 +543,12 @@ impl Cursor {
             return None;
         }
         let date = NaiveDate::parse_from_str(date_part, "%Y-%m-%d").ok()?;
-        let line_index = line_part.parse::<usize>().ok()?;
-        Some(Self { date, line_index })
+        let offset = line_part.parse::<u64>().ok()?;
+        Some(Self { date, offset })
     }
 
     fn encode(self) -> String {
-        format!("{}:{}", self.date.format("%Y-%m-%d"), self.line_index)
+        format!("{}:{}", self.date.format("%Y-%m-%d"), self.offset)
     }
 }
 
@@ -604,38 +616,33 @@ fn read_logs(
             continue;
         }
 
-        let bytes = match std::fs::read(logs_dir.join(&info.name)) {
-            Ok(bytes) => bytes,
+        let path = match safe_log_file_path(logs_dir, &info.name) {
+            Ok(Some(path)) => path,
+            Ok(None) => continue,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error),
         };
-        let text = String::from_utf8_lossy(&bytes);
-        let lines: Vec<&str> = text.lines().collect();
-
+        let mut file = match File::open(path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        let file_len = file.metadata()?.len();
         let upper_bound = match before {
-            Some(cursor) if *file_date == cursor.date => cursor.line_index.min(lines.len()),
-            _ => lines.len(),
+            Some(cursor) if *file_date == cursor.date => cursor.offset.min(file_len),
+            _ => file_len,
         };
 
-        for idx in (0..upper_bound).rev() {
-            let line = lines[idx].trim();
-            if line.is_empty() {
-                continue;
-            }
-            let entry = parse_log_line(line);
-            if !matches_filters(&entry, min_severity, search_needle) {
-                continue;
-            }
-            if items.len() < limit {
-                items.push(entry);
-                last_cursor = Some(Cursor {
-                    date: *file_date,
-                    line_index: idx,
-                });
-            } else {
-                has_more = true;
-                break 'files;
-            }
+        let mut page = PageState {
+            min_severity,
+            search_needle,
+            limit,
+            items: &mut items,
+            last_cursor: &mut last_cursor,
+        };
+        if scan_file_backwards(&mut file, *file_date, upper_bound, file_len, &mut page)? {
+            has_more = true;
+            break 'files;
         }
     }
 
@@ -650,6 +657,132 @@ fn read_logs(
         next_before,
         files,
     })
+}
+
+struct PageState<'a> {
+    min_severity: Option<u8>,
+    search_needle: Option<&'a str>,
+    limit: usize,
+    items: &'a mut Vec<LogEntry>,
+    last_cursor: &'a mut Option<Cursor>,
+}
+
+fn safe_log_file_path(logs_dir: &Path, name: &str) -> io::Result<Option<PathBuf>> {
+    let path = logs_dir.join(name);
+    let metadata = match std::fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    if !metadata.file_type().is_file() {
+        return Ok(None);
+    }
+
+    let canonical_logs_dir = std::fs::canonicalize(logs_dir)?;
+    let canonical_path = std::fs::canonicalize(path)?;
+    if !canonical_path.starts_with(canonical_logs_dir) {
+        return Ok(None);
+    }
+    Ok(Some(canonical_path))
+}
+
+fn scan_file_backwards(
+    file: &mut File,
+    date: NaiveDate,
+    upper_bound: u64,
+    file_len: u64,
+    page: &mut PageState<'_>,
+) -> io::Result<bool> {
+    let mut position = upper_bound;
+    let mut trailing = Vec::new();
+    let mut chunk = vec![0; LOG_READ_CHUNK_SIZE];
+    let mut first_chunk = true;
+
+    while position > 0 {
+        let chunk_start = position.saturating_sub(LOG_READ_CHUNK_SIZE as u64);
+        let chunk_len = (position - chunk_start) as usize;
+        file.seek(SeekFrom::Start(chunk_start))?;
+        file.read_exact(&mut chunk[..chunk_len])?;
+
+        let mut combined = Vec::with_capacity(chunk_len + trailing.len());
+        combined.extend_from_slice(&chunk[..chunk_len]);
+        combined.extend_from_slice(&trailing);
+
+        let mut line_start = 0;
+        let mut lines = Vec::new();
+        for (line_end, byte) in combined.iter().enumerate() {
+            if *byte != b'\n' {
+                continue;
+            }
+            lines.push((line_start, line_end));
+            line_start = line_end + 1;
+        }
+
+        if first_chunk
+            && upper_bound == file_len
+            && line_start < combined.len()
+            && (!lines.is_empty() || chunk_start == 0)
+            && process_log_line(
+                &combined[line_start..],
+                chunk_start + line_start as u64,
+                date,
+                page,
+            )
+        {
+            return Ok(true);
+        }
+
+        for &(start, end) in lines.iter().rev().take(lines.len().saturating_sub(1)) {
+            if process_log_line(
+                &combined[start..end],
+                chunk_start + start as u64,
+                date,
+                page,
+            ) {
+                return Ok(true);
+            }
+        }
+
+        let tail_was_processed = first_chunk && upper_bound == file_len && lines.is_empty();
+        trailing.clear();
+        if let Some(&(_, end)) = lines.first() {
+            trailing.extend_from_slice(&combined[..end + 1]);
+        } else {
+            trailing.extend_from_slice(&combined);
+        }
+
+        if chunk_start == 0 {
+            if !trailing.is_empty()
+                && !tail_was_processed
+                && process_log_line(&trailing, 0, date, page)
+            {
+                return Ok(true);
+            }
+            break;
+        }
+        position = chunk_start;
+        first_chunk = false;
+    }
+
+    Ok(false)
+}
+
+fn process_log_line(bytes: &[u8], offset: u64, date: NaiveDate, page: &mut PageState<'_>) -> bool {
+    let line = String::from_utf8_lossy(bytes).trim().to_owned();
+    if line.is_empty() {
+        return false;
+    }
+    let entry = parse_log_line(&line);
+    if !matches_filters(&entry, page.min_severity, page.search_needle) {
+        return false;
+    }
+    if page.items.len() < page.limit {
+        page.items.push(entry);
+        *page.last_cursor = Some(Cursor { date, offset });
+        false
+    } else {
+        true
+    }
 }
 
 /// Recent log entries from daily log files, newest first, with level and text

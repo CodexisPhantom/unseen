@@ -490,6 +490,98 @@ async fn filters_and_pages_backwards_across_files() {
 }
 
 #[tokio::test]
+async fn pages_large_log_files_from_the_end_with_byte_offset_cursors() {
+    let app = App::new().await;
+    std::fs::create_dir_all(&app.logs_dir).unwrap();
+
+    let line_count = 30_000;
+    let mut content = String::with_capacity(line_count * 160);
+    for index in 0..line_count {
+        content.push_str(&entry_line(
+            "2026-11-26T10:00:00.000Z",
+            "info",
+            "api::large_log",
+            &format!("entry-{index:05}"),
+            json!({ "payload": "large-file paging test" }),
+        ));
+        content.push('\n');
+    }
+    std::fs::write(app.logs_dir.join("unseen-2026-11-26.log"), &content).unwrap();
+
+    let (status, first_page) = app.owner("/api/v1/logs?limit=3").await;
+    assert_eq!(status, StatusCode::OK);
+    let messages: Vec<&str> = first_page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["message"].as_str().unwrap())
+        .collect();
+    assert_eq!(messages, ["entry-29999", "entry-29998", "entry-29997"]);
+
+    let cursor = first_page["nextBefore"].as_str().unwrap();
+    let (_, cursor_offset) = cursor.split_once(':').unwrap();
+    let expected_line = entry_line(
+        "2026-11-26T10:00:00.000Z",
+        "info",
+        "api::large_log",
+        "entry-29997",
+        json!({ "payload": "large-file paging test" }),
+    );
+    assert_eq!(
+        cursor_offset.parse::<usize>().unwrap(),
+        content.rfind(&expected_line).unwrap()
+    );
+
+    let (status, second_page) = app
+        .owner(&format!("/api/v1/logs?limit=3&before={cursor}"))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let messages: Vec<&str> = second_page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["message"].as_str().unwrap())
+        .collect();
+    assert_eq!(messages, ["entry-29996", "entry-29995", "entry-29994"]);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn listing_and_paging_ignore_symlinks_outside_the_logs_directory() {
+    use std::os::unix::fs::symlink;
+
+    let app = App::new().await;
+    std::fs::create_dir_all(&app.logs_dir).unwrap();
+    let outside = app._dir.path().join("outside.log");
+    std::fs::write(
+        &outside,
+        entry_line(
+            "2026-11-26T10:00:00.000Z",
+            "error",
+            "api::secret",
+            "outside log secret",
+            json!({}),
+        ) + "\n",
+    )
+    .unwrap();
+    symlink(&outside, app.logs_dir.join("unseen-2026-11-26.log")).unwrap();
+
+    let (status, body) = app.owner("/api/v1/logs").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["items"].as_array().unwrap().is_empty());
+    assert!(body["files"].as_array().unwrap().is_empty());
+
+    let reply = app
+        .send_raw(
+            Method::GET,
+            "/api/v1/logs/files/unseen-2026-11-26.log",
+            Some(&app.owner),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn retention_setting_override_and_startup_pruning() {
     let mut app = App::new().await;
     std::fs::create_dir_all(&app.logs_dir).unwrap();
