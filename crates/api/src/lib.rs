@@ -24,6 +24,7 @@ mod proxy;
 mod quality_definitions;
 mod queue;
 pub mod radarr;
+mod radarr_movies;
 mod releases;
 mod roles;
 mod root_folders;

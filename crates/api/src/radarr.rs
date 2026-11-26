@@ -17,6 +17,7 @@ use unseen_core::profile::Item;
 use crate::AppState;
 use crate::audit::{Actor, ClientIp, Event, record};
 use crate::compat::{ApiKeyCaller, CompatError, CompatRouter, ValidationFailure};
+use crate::radarr_movies;
 use crate::tags::{LabelError, validate_label};
 
 /// Mount prefix for the Radarr v3 compatibility router.
@@ -46,6 +47,24 @@ pub fn routes() -> CompatRouter {
             Method::GET,
             "/rootfolder",
             list_root_folders,
+        )
+        .require(
+            Permission::LibraryRead,
+            Method::GET,
+            "/movie",
+            radarr_movies::list_movies,
+        )
+        .require(
+            Permission::LibraryRead,
+            Method::GET,
+            "/movie/lookup",
+            radarr_movies::lookup_movie,
+        )
+        .require(
+            Permission::LibraryRead,
+            Method::GET,
+            "/movie/{id}",
+            radarr_movies::get_movie,
         )
         .require(Permission::LibraryRead, Method::GET, "/tag", list_tags)
         .require(Permission::LibraryEdit, Method::POST, "/tag", create_tag)

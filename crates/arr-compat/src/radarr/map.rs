@@ -280,6 +280,10 @@ pub struct MovieView {
     pub quality_profile_id: i32,
     /// The file of the primary movie profile.
     pub file: Option<FileView>,
+    /// The collection the movie belongs to, if any.
+    pub collection: Option<MovieCollectionResource>,
+    /// Genres when known (for example from a TMDB lookup).
+    pub genres: Vec<String>,
 }
 
 fn clean_title(title: &str) -> String {
@@ -364,7 +368,11 @@ fn movie_file(movie: &MovieView, file: &FileView) -> MovieFileResource {
 /// A movie as Radarr's `MovieResource`. `now` is an ISO 8601 date or
 /// date-time; it decides `isAvailable`.
 pub fn movie_resource(movie: &MovieView, now: &str) -> MovieResource {
-    let path = join(&movie.root_folder_path, &movie.folder_name);
+    let path = if movie.root_folder_path.is_empty() {
+        String::new()
+    } else {
+        join(&movie.root_folder_path, &movie.folder_name)
+    };
     let poster = movie
         .poster_path
         .as_deref()
@@ -407,9 +415,11 @@ pub fn movie_resource(movie: &MovieView, now: &str) -> MovieResource {
         imdb_id: movie.imdb_id.clone().unwrap_or_default(),
         tmdb_id: movie.tmdb_id,
         title_slug: movie.tmdb_id.to_string(),
+        genres: movie.genres.clone(),
         tags: movie.tags.clone(),
         added: Timestamp::parse(&movie.added_at),
         movie_file: file.map(|file| movie_file(movie, file)),
+        collection: movie.collection.clone(),
         statistics: MovieStatisticsResource {
             movie_file_count: i32::from(file.is_some()),
             size_on_disk: file.map_or(0, |file| file.size),
@@ -424,6 +434,12 @@ pub fn movie_resource(movie: &MovieView, now: &str) -> MovieResource {
         },
         ..MovieResource::default()
     }
+}
+
+/// A movie for `GET /movie/lookup`. Library movies (`id > 0`) keep their `id`;
+/// external lookup results (`id == 0`) serialize without an `id` field.
+pub fn lookup_movie_resource(movie: &MovieView, now: &str) -> LookupMovieResource {
+    LookupMovieResource(movie_resource(movie, now))
 }
 
 /// The body of `POST /movie` and `PUT /movie`. A client sends the fields it
