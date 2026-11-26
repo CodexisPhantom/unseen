@@ -7,20 +7,21 @@
 //! merged results.
 
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
+use chrono::Utc;
 use db::entities::movie_files;
 use db::secret::decrypt;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
+use unseen_core::newznab::{MovieQuery as NewznabMovieQuery, NewznabClient, NzbRelease};
 use unseen_core::profile::{Item, Profile};
 use unseen_core::quality::{Quality, SizeLimits};
 use unseen_core::release;
-use unseen_core::scoring;
+use unseen_core::scoring::{self, ProtocolPreference, ReleaseRef};
 use unseen_core::search::CachedRelease;
-use unseen_core::torznab::{MovieQuery, Release as TorznabRelease, TorznabClient, TorznabError};
+use unseen_core::torznab::{MovieQuery, Release as TorznabRelease, TorznabClient};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
@@ -29,10 +30,9 @@ use crate::auth::hex;
 use crate::error::Problem;
 use crate::proxy::indexer_client;
 
-/// The only indexer kind in V1.
+/// Supported indexer kinds.
 const TORZNAB: &str = "torznab";
-/// Release download protocol reported for Torznab results.
-const TORRENT_PROTOCOL: &str = "torrent";
+const NEWZNAB: &str = "newznab";
 
 /// Query of `GET /api/v1/movies/{id}/releases`.
 #[derive(Debug, Deserialize, IntoParams)]
@@ -136,12 +136,26 @@ pub struct MovieReleases {
     pub indexer_errors: Vec<IndexerSearchError>,
 }
 
+enum FetchedPayload {
+    Torrent(TorznabRelease),
+    Usenet(NzbRelease),
+}
+
+impl FetchedPayload {
+    fn as_release_ref(&self) -> ReleaseRef<'_> {
+        match self {
+            Self::Torrent(r) => r.into(),
+            Self::Usenet(r) => r.into(),
+        }
+    }
+}
+
 struct FetchedRelease {
     indexer_id: i32,
     indexer_name: String,
     indexer_priority: i32,
     indexer_tags: Vec<i32>,
-    release: TorznabRelease,
+    payload: FetchedPayload,
 }
 
 struct IndexerOutcome {
@@ -150,7 +164,7 @@ struct IndexerOutcome {
     indexer_name: String,
     indexer_priority: i32,
     indexer_tags: Vec<i32>,
-    result: Result<Vec<TorznabRelease>, TorznabError>,
+    result: Result<Vec<FetchedPayload>, String>,
 }
 
 fn failed(error: impl std::fmt::Display) -> Problem {
@@ -276,13 +290,14 @@ pub async fn search_movie(
 
     for (order, indexer) in enabled_indexers.into_iter().enumerate() {
         let model = indexer.model;
-        if model.kind != TORZNAB {
+        let kind = model.kind.clone();
+        if !matches!(kind.as_str(), TORZNAB | NEWZNAB) {
             ordered_errors.push((
                 order,
                 IndexerSearchError {
                     indexer_id: model.id,
                     indexer_name: model.name,
-                    message: format!("unsupported indexer kind `{}`", model.kind),
+                    message: format!("unsupported indexer kind `{kind}`"),
                 },
             ));
             continue;
@@ -338,26 +353,53 @@ pub async fn search_movie(
             }
         };
 
-        let query = MovieQuery {
-            tmdb_id: Some(movie.model.tmdb_id),
-            imdb_id: movie.model.imdb_id.clone(),
-            title: movie.model.title.clone(),
-            year: Some(movie.model.year),
-            categories,
-        };
         let indexer_id = model.id;
         let indexer_name = model.name;
         let indexer_url = model.url;
         let indexer_priority = model.priority;
         let indexer_tags = indexer.tags;
+        let tmdb_id = Some(movie.model.tmdb_id);
+        let imdb_id = movie.model.imdb_id.clone();
+        let title = movie.model.title.clone();
+        let year = Some(movie.model.year);
 
         join_set.spawn(async move {
-            let client = TorznabClient::new(http, &indexer_url, api_key.expose());
-            let result = async {
-                let caps = client.caps().await?;
-                client.search_movie(&caps, &query).await
-            }
-            .await;
+            let result = match kind.as_str() {
+                NEWZNAB => {
+                    let query = NewznabMovieQuery {
+                        tmdb_id,
+                        imdb_id,
+                        title,
+                        year,
+                        categories,
+                    };
+                    let client = NewznabClient::new(http, &indexer_url, api_key.expose());
+                    async {
+                        let caps = client.caps().await?;
+                        client.search_movie(&caps, &query).await
+                    }
+                    .await
+                    .map(|items| items.into_iter().map(FetchedPayload::Usenet).collect())
+                    .map_err(|error| error.to_string())
+                }
+                _ => {
+                    let query = MovieQuery {
+                        tmdb_id,
+                        imdb_id,
+                        title,
+                        year,
+                        categories,
+                    };
+                    let client = TorznabClient::new(http, &indexer_url, api_key.expose());
+                    async {
+                        let caps = client.caps().await?;
+                        client.search_movie(&caps, &query).await
+                    }
+                    .await
+                    .map(|items| items.into_iter().map(FetchedPayload::Torrent).collect())
+                    .map_err(|error| error.to_string())
+                }
+            };
             IndexerOutcome {
                 order,
                 indexer_id,
@@ -376,21 +418,21 @@ pub async fn search_movie(
                 Ok(found) => {
                     let batch = found
                         .into_iter()
-                        .map(|release| FetchedRelease {
+                        .map(|payload| FetchedRelease {
                             indexer_id: outcome.indexer_id,
                             indexer_name: outcome.indexer_name.clone(),
                             indexer_priority: outcome.indexer_priority,
                             indexer_tags: outcome.indexer_tags.clone(),
-                            release,
+                            payload,
                         })
                         .collect();
                     fetched_batches.push((outcome.order, batch));
                 }
-                Err(error) => {
+                Err(message) => {
                     tracing::warn!(
                         indexer_id = outcome.indexer_id,
                         indexer = %outcome.indexer_name,
-                        %error,
+                        error = %message,
                         "indexer search failed"
                     );
                     ordered_errors.push((
@@ -398,7 +440,7 @@ pub async fn search_movie(
                         IndexerSearchError {
                             indexer_id: outcome.indexer_id,
                             indexer_name: outcome.indexer_name,
-                            message: error.to_string(),
+                            message,
                         },
                     ));
                 }
@@ -419,6 +461,7 @@ pub async fn search_movie(
     let indexer_errors: Vec<IndexerSearchError> =
         ordered_errors.into_iter().map(|(_, error)| error).collect();
 
+    let now = Utc::now();
     let scoring_ctx = scoring::Context {
         movie: scoring::Movie {
             title: &movie.model.title,
@@ -434,13 +477,16 @@ pub async fn search_movie(
         upgrade_allowed: quality_profile_model.upgrade_allowed,
         size_limits: &size_limits,
         existing,
+        protocol_preference: ProtocolPreference::None,
+        retention_days: None,
+        now: Some(now),
     };
 
     let ranked = scoring::rank_entries(
         &scoring_ctx,
         fetched.iter().map(|item| {
             let candidate = scoring::Candidate {
-                release: &item.release,
+                release: item.payload.as_release_ref(),
                 indexer_priority: item.indexer_priority,
                 indexer_tags: &item.indexer_tags,
             };
@@ -448,10 +494,7 @@ pub async fn search_movie(
         }),
     );
 
-    let now_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+    let now_secs = now.timestamp();
     let mut releases = Vec::with_capacity(ranked.len());
     let mut cache_entries = Vec::with_capacity(ranked.len());
 
@@ -459,14 +502,26 @@ pub async fn search_movie(
         let release_id = hex(&rand::random::<[u8; 16]>());
         let raw = decision.candidate.release;
         let accepted = decision.accepted();
-        let leechers = raw
-            .peers
-            .zip(raw.seeders)
-            .map(|(peers, seeders)| peers.saturating_sub(seeders));
-        let published_at = raw
-            .published
-            .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
-        let age_hours = raw.published.map(|dt| {
+        let protocol = decision.protocol().as_str().to_owned();
+        let (download_url, magnet_url, info_hash, seeders, leechers) = match raw {
+            ReleaseRef::Torrent(torrent) => {
+                let leechers = torrent
+                    .peers
+                    .zip(torrent.seeders)
+                    .map(|(peers, seeders)| peers.saturating_sub(seeders));
+                (
+                    torrent.download_url.clone(),
+                    torrent.magnet_url.clone(),
+                    torrent.info_hash.clone(),
+                    torrent.seeders,
+                    leechers,
+                )
+            }
+            ReleaseRef::Usenet(nzb) => (Some(nzb.download_url.clone()), None, None, None, None),
+        };
+        let published = raw.published();
+        let published_at = published.map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
+        let age_hours = published.map(|dt| {
             let elapsed = (now_secs - dt.timestamp()).max(0);
             elapsed as f64 / 3600.0
         });
@@ -503,33 +558,33 @@ pub async fn search_movie(
                 movie_profile_id: selected_profile.id,
                 indexer_id: fetched_item.indexer_id,
                 indexer_name: fetched_item.indexer_name.clone(),
-                guid: raw.guid.clone(),
-                title: raw.title.clone(),
-                download_url: raw.download_url.clone(),
-                magnet_url: raw.magnet_url.clone(),
-                info_hash: raw.info_hash.clone(),
-                size: raw.size,
+                guid: raw.guid().to_owned(),
+                title: raw.title().to_owned(),
+                download_url,
+                magnet_url,
+                info_hash,
+                size: raw.size(),
                 quality_id: decision.quality.id(),
                 custom_format_score: 0,
-                protocol: TORRENT_PROTOCOL.to_owned(),
+                protocol: protocol.clone(),
                 accepted,
             },
         ));
 
         releases.push(Release {
             id: release_id,
-            guid: raw.guid.clone(),
-            title: raw.title.clone(),
+            guid: raw.guid().to_owned(),
+            title: raw.title().to_owned(),
             indexer_id: fetched_item.indexer_id,
             indexer_name: fetched_item.indexer_name.clone(),
             quality_id: decision.quality.id(),
             quality_name: decision.quality.name().to_owned(),
-            size: raw.size,
-            seeders: raw.seeders,
+            size: raw.size(),
+            seeders,
             leechers,
             published_at,
             age_hours,
-            protocol: TORRENT_PROTOCOL.to_owned(),
+            protocol,
             languages,
             release_group: decision.parsed.release_group,
             edition: decision.parsed.edition,
