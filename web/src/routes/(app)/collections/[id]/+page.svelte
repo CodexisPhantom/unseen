@@ -21,6 +21,7 @@
 		sortMissingMovies,
 		toCollectionError,
 		type Collection,
+		type CollectionDetail,
 		type CollectionDraft,
 		type CollectionPatch
 	} from '#lib/collections.js';
@@ -221,6 +222,10 @@
 		},
 		onSuccess: async ({ updated, previousMovieCount, mode }) => {
 			failure = '';
+			const cached = queryClient.getQueryData<CollectionDetail>(['collection', id]);
+			if (cached) {
+				queryClient.setQueryData<CollectionDetail>(['collection', id], { ...cached, ...updated });
+			}
 			syncedId = updated.id;
 			syncedUpdatedAt = updated.updatedAt;
 			monitored = updated.monitored;
