@@ -70,6 +70,8 @@ pub struct AppState {
     /// Short-lived cache of manual search results, keyed by release id, so
     /// grab requests can look up a searched release without re-querying.
     pub search_cache: unseen_core::search::SearchCache,
+    /// RFC 3339 UTC timestamp when this process state was initialized.
+    pub started_at: String,
 }
 
 impl AppState {
@@ -155,6 +157,7 @@ impl AppState {
             settings_overrides: db::settings::Overrides::from_env(),
             logs_dir: std::env::temp_dir().join("unseen-logs-default"),
             search_cache: unseen_core::search::SearchCache::new(),
+            started_at: db::now(),
         })
     }
 
