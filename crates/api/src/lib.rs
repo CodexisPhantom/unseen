@@ -18,6 +18,7 @@ mod owner;
 mod profiles;
 mod proxy;
 mod quality_definitions;
+mod releases;
 mod roles;
 mod root_folders;
 pub mod setup;
@@ -54,6 +55,9 @@ pub struct AppState {
     /// Settings given as `UNSEEN_SETTING_<KEY>`: they win over the table and
     /// cannot be changed through the API (docs/10-configuration.md).
     pub settings_overrides: db::settings::Overrides,
+    /// Short-lived cache of manual search results, keyed by release id, so
+    /// grab requests can look up a searched release without re-querying.
+    pub search_cache: unseen_core::search::SearchCache,
 }
 
 impl AppState {
@@ -80,6 +84,7 @@ impl AppState {
                 .map_err(|error| AuthError::internal(format!("build http client: {error}")))?,
             tmdb_base_url: unseen_core::tmdb::DEFAULT_BASE_URL.to_owned(),
             settings_overrides: db::settings::Overrides::from_env(),
+            search_cache: unseen_core::search::SearchCache::new(),
         })
     }
 }
@@ -155,6 +160,7 @@ pub fn routes() -> ApiRouter {
         .require(Permission::LibraryDelete, routes!(movies::remove_profile))
         .require(Permission::LibraryRead, routes!(movies::list_files))
         .require(Permission::LibraryDelete, routes!(movies::delete_file))
+        .require(Permission::SearchRun, routes!(releases::search_movie))
         .require(
             Permission::LibraryRead,
             routes!(subtitles::list_language_profiles),

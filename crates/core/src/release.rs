@@ -98,6 +98,33 @@ pub enum Language {
     Multi,
 }
 
+impl Language {
+    /// Lowercase ISO 639-1 code, or `"multi"` for [`Language::Multi`].
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::English => "en",
+            Self::French => "fr",
+            Self::German => "de",
+            Self::Spanish => "es",
+            Self::Italian => "it",
+            Self::Dutch => "nl",
+            Self::Portuguese => "pt",
+            Self::Russian => "ru",
+            Self::Japanese => "ja",
+            Self::Korean => "ko",
+            Self::Chinese => "zh",
+            Self::Swedish => "sv",
+            Self::Norwegian => "no",
+            Self::Danish => "da",
+            Self::Finnish => "fi",
+            Self::Polish => "pl",
+            Self::Hindi => "hi",
+            Self::Multi => "multi",
+        }
+    }
+}
+
 /// Everything the parser reads from one release name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedRelease {

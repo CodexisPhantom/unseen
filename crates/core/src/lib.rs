@@ -11,6 +11,7 @@ pub mod quality;
 pub mod release;
 pub mod root_folder;
 pub mod scoring;
+pub mod search;
 pub mod subtitle;
 pub mod subtitle_provider;
 pub mod tmdb;

@@ -502,3 +502,62 @@ fn the_order_does_not_depend_on_the_input_order() {
     candidates.reverse();
     assert_eq!(order(&fixture, &candidates), expected);
 }
+
+#[test]
+fn rejection_codes_and_reasons_are_stable_and_distinct() {
+    let all = [
+        R::WrongMovie,
+        R::QualityNotAllowed,
+        R::TooSmall,
+        R::TooLarge,
+        R::Language,
+        R::UpgradesDisabled,
+        R::CutoffMet,
+        R::NotAnUpgrade,
+        R::IndexerTags,
+    ];
+    let mut codes = std::collections::BTreeSet::new();
+    for rejection in all {
+        assert!(codes.insert(rejection.code()), "duplicate code");
+        assert!(!rejection.reason().is_empty());
+        assert_eq!(rejection.to_string(), rejection.reason());
+    }
+    assert_eq!(codes.len(), all.len());
+}
+
+#[test]
+fn decision_exposes_ranking_factors_and_rank_entries_keeps_metadata() {
+    let fixture = Fixture::new();
+    let bluray = release("The.Matrix.1999.1080p.BluRay.x264-A", 5200, Some(42));
+    let web = release("The.Matrix.1999.1080p.WEB-DL.x264-B", 5000, Some(100));
+    let ranked = super::rank_entries(
+        &fixture.ctx(),
+        [
+            (
+                "indexer-web",
+                Candidate {
+                    release: &web,
+                    indexer_priority: 10,
+                    indexer_tags: &[],
+                },
+            ),
+            (
+                "indexer-bluray",
+                Candidate {
+                    release: &bluray,
+                    indexer_priority: 25,
+                    indexer_tags: &[],
+                },
+            ),
+        ],
+    );
+    assert_eq!(ranked.len(), 2);
+    assert_eq!(ranked[0].0, "indexer-bluray");
+    assert_eq!(ranked[0].1.quality_rank(), Some(2));
+    assert_eq!(ranked[0].1.seeder_score(), 2);
+    assert_eq!(ranked[0].1.preferred_distance(), Some(200 * MB));
+    assert_eq!(ranked[1].0, "indexer-web");
+    assert_eq!(ranked[1].1.quality_rank(), Some(1));
+    assert_eq!(ranked[1].1.seeder_score(), 2);
+    assert_eq!(ranked[1].1.preferred_distance(), Some(0));
+}
