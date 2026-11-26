@@ -12,6 +12,7 @@ pub mod events;
 mod health;
 mod indexers;
 mod library;
+pub mod logs;
 mod lookup;
 mod me;
 mod movies;
@@ -29,6 +30,8 @@ mod tags;
 mod tmdb;
 mod users;
 mod web;
+
+use std::path::PathBuf;
 
 use axum::Router;
 use axum::extract::FromRef;
@@ -60,6 +63,8 @@ pub struct AppState {
     /// Settings given as `UNSEEN_SETTING_<KEY>`: they win over the table and
     /// cannot be changed through the API (docs/10-configuration.md).
     pub settings_overrides: db::settings::Overrides,
+    /// Directory holding daily JSONL log files (`unseen-YYYY-MM-DD.log`).
+    pub logs_dir: PathBuf,
     /// Short-lived cache of manual search results, keyed by release id, so
     /// grab requests can look up a searched release without re-querying.
     pub search_cache: unseen_core::search::SearchCache,
@@ -146,8 +151,16 @@ impl AppState {
                 .map_err(|error| AuthError::internal(format!("build http client: {error}")))?,
             tmdb_base_url: unseen_core::tmdb::DEFAULT_BASE_URL.to_owned(),
             settings_overrides: db::settings::Overrides::from_env(),
+            logs_dir: std::env::temp_dir().join("unseen-logs-default"),
             search_cache: unseen_core::search::SearchCache::new(),
         })
+    }
+
+    /// Sets the directory used for reading and downloading daily log files.
+    #[must_use]
+    pub fn with_logs_dir(mut self, dir: PathBuf) -> Self {
+        self.logs_dir = dir;
+        self
     }
 }
 
@@ -201,6 +214,8 @@ pub fn routes() -> ApiRouter {
             routes!(users::set_user_permissions),
         )
         .require(Permission::SystemAudit, routes!(audit::list))
+        .require(Permission::SystemLogs, routes!(logs::list))
+        .require(Permission::SystemLogs, routes!(logs::download))
         .require(Permission::ProfilesRead, routes!(profiles::list_profiles))
         .require(
             Permission::ProfilesManage,
