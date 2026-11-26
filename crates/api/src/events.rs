@@ -11,6 +11,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::{self, Stream};
 use serde_json::Value;
 use tokio::sync::broadcast;
+use tokio::time::Instant;
 use unseen_core::permission::{EffectivePermissions, Permission};
 
 use crate::AppState;
@@ -67,6 +68,7 @@ struct FilterState {
     policy: Policy,
     user_id: String,
     api_key: Option<i32>,
+    session_id: Option<String>,
     permissions: Option<EffectivePermissions>,
 }
 
@@ -95,6 +97,21 @@ impl FilterState {
     async fn revoked(&self) -> bool {
         if self.policy.is_disabled(&self.user_id) {
             return true;
+        }
+        if let Some(id) = &self.session_id {
+            use better_auth::seaorm::sea_orm::EntityTrait;
+
+            match db::auth_schema::session::Entity::find_by_id(id)
+                .one(&self.db)
+                .await
+            {
+                Ok(Some(session)) if session.user_id == self.user_id => {}
+                Ok(_) => return true,
+                Err(error) => {
+                    tracing::error!(%error, session = %id, "failed to load SSE session");
+                    return true;
+                }
+            }
         }
         let Some(id) = self.api_key else {
             return false;
@@ -132,6 +149,7 @@ pub fn filtered(
     policy: Policy,
     user_id: String,
     api_key: Option<i32>,
+    session_id: Option<String>,
 ) -> impl Stream<Item = Result<Event, Infallible>> + use<> {
     let state = FilterState {
         rx: bus.subscribe(),
@@ -139,11 +157,25 @@ pub fn filtered(
         policy,
         user_id,
         api_key,
+        session_id,
         permissions: None,
     };
     stream::unfold(state, |mut state| async move {
+        let mut session_check = tokio::time::interval_at(
+            Instant::now() + Duration::from_secs(15),
+            Duration::from_secs(15),
+        );
         loop {
-            match state.rx.recv().await {
+            let received = tokio::select! {
+                _ = session_check.tick(), if state.session_id.is_some() => {
+                    if state.revoked().await {
+                        return None;
+                    }
+                    continue;
+                }
+                received = state.rx.recv() => received,
+            };
+            match received {
                 Ok(event) => {
                     if state.revoked().await {
                         return None;
@@ -223,6 +255,7 @@ pub async fn stream_events(
         state.policy.clone(),
         caller.user_id().to_owned(),
         caller.api_key(),
+        caller.session_id().map(str::to_owned),
     );
     let mut response = Sse::new(stream)
         .keep_alive(

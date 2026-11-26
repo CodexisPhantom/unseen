@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/svelte-query';
+import type { QueryClient, QueryKey } from '@tanstack/svelte-query';
 import { session } from './session.svelte.js';
 
 export const EVENTS_URL = '/api/v1/events';
@@ -20,7 +20,13 @@ export interface DownloadStateEvent {
 }
 
 export interface MovieUpdatedEvent {
-	movieId: number;
+	id: number;
+}
+
+export function movieUpdatedQueryKeys(payload: MovieUpdatedEvent): QueryKey[] {
+	const queryKeys: QueryKey[] = [['movies']];
+	if (typeof payload.id === 'number') queryKeys.push(['movie', payload.id]);
+	return queryKeys;
 }
 
 export interface TaskStatusEvent {
@@ -113,9 +119,8 @@ class Events {
 		source.addEventListener('movie.updated', (event) => {
 			const payload = parseJson<MovieUpdatedEvent>((event as MessageEvent).data);
 			if (!payload) return;
-			void this.queryClient?.invalidateQueries({ queryKey: ['movies'] });
-			if (typeof payload.movieId === 'number') {
-				void this.queryClient?.invalidateQueries({ queryKey: ['movie', payload.movieId] });
+			for (const queryKey of movieUpdatedQueryKeys(payload)) {
+				void this.queryClient?.invalidateQueries({ queryKey });
 			}
 		});
 

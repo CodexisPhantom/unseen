@@ -682,3 +682,24 @@ async fn api_key_narrowing_revocation_and_disabling_stop_events_on_open_stream()
     app.state.publish_movie_changed(2);
     session_stream.assert_no_event().await;
 }
+
+#[tokio::test]
+async fn changing_a_password_stops_events_on_the_revoked_session() {
+    let app = App::new().await;
+    let (user_id, cookie, _) = app
+        .member("session-revoked@example.com", &["library:read"])
+        .await;
+    let mut session_stream = app.subscribe(Auth::Cookie(&cookie)).await;
+
+    let (status, reply) = app
+        .owner(
+            Method::PATCH,
+            &format!("/api/v1/users/{user_id}"),
+            Some(json!({ "password": "replacement password" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+
+    app.state.publish_movie_changed(1);
+    session_stream.assert_no_event().await;
+}

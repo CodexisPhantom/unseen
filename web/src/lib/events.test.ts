@@ -1,6 +1,12 @@
 import type { QueryClient } from '@tanstack/svelte-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EVENTS_URL, INITIAL_BACKOFF_MS, MAX_BACKOFF_MS, events } from './events.svelte.js';
+import {
+	EVENTS_URL,
+	INITIAL_BACKOFF_MS,
+	MAX_BACKOFF_MS,
+	events,
+	movieUpdatedQueryKeys
+} from './events.svelte.js';
 import { session } from './session.svelte.js';
 
 type Listener = (event: MessageEvent<string>) => void;
@@ -117,7 +123,7 @@ describe('events', () => {
 		});
 		expect(invalidateQueries).toHaveBeenLastCalledWith({ queryKey: ['queue'] });
 
-		source.emitEvent('movie.updated', { movieId: 42 });
+		source.emitEvent('movie.updated', { id: 42 });
 		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['movies'] });
 		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['movie', 42] });
 
@@ -126,6 +132,10 @@ describe('events', () => {
 
 		source.emitEvent('permissions.changed', {});
 		expect(loadSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it('maps a movie update to its movie query key', () => {
+		expect(movieUpdatedQueryKeys({ id: 42 })).toEqual([['movies'], ['movie', 42]]);
 	});
 
 	it('ignores invalid event payloads without throwing', () => {
