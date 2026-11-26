@@ -5,6 +5,7 @@ import {
 	buildDefaultsPatch,
 	buildMonitorPatch,
 	collectionCountLabel,
+	collectionListCountLabel,
 	draftChanged,
 	draftOf,
 	isTmdbProblem,
@@ -132,6 +133,10 @@ describe('collectionCountLabel', () => {
 		expect(collectionCountLabel(0, null)).toBe('0 in library');
 		expect(collectionCountLabel(2, 1)).toBe('2 in library · 1 missing');
 		expect(collectionCountLabel(3, 0)).toBe('3 in library · 0 missing');
+	});
+
+	it('builds list summaries from the list payload count without needing collection details', () => {
+		expect(collectionListCountLabel({ movieCount: 3 })).toBe('3 in library');
 	});
 });
 

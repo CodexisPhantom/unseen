@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { createQueries, createQuery } from '@tanstack/svelte-query';
+	import { createQuery } from '@tanstack/svelte-query';
 	import { api } from '#lib/api/client.js';
 	import {
-		CollectionApiError,
-		collectionCountLabel,
+		collectionListCountLabel,
 		noCollectionFilters,
 		toCollectionError,
 		visibleCollections,
@@ -65,53 +64,6 @@
 		watcher.observe(end);
 		return () => watcher.disconnect();
 	});
-
-	// Load details for visible collections to show missing movie counts (cached per collection).
-	const details = createQueries(() => ({
-		queries: visible.map((collection) => ({
-			queryKey: ['collection', collection.id] as const,
-			enabled: read,
-			retry: false,
-			staleTime: 5 * 60_000,
-			queryFn: async () => {
-				const { data, error, response } = await api.GET('/api/v1/collections/{id}', {
-					params: { path: { id: collection.id } }
-				});
-				if (!data) {
-					throw toCollectionError(error, response.status, 'The collection details could not be loaded.');
-				}
-				return data;
-			}
-		}))
-	}));
-
-	const detailSummaries = $derived(
-		new Map(
-			details.flatMap((query) =>
-				query.data
-					? [
-							[
-								query.data.id,
-								{ inLibrary: query.data.movies.length, missing: query.data.missing.length }
-							] as const
-						]
-					: []
-			)
-		)
-	);
-
-	const detailError = $derived.by(() => {
-		for (const query of details) {
-			if (query.isError) return query.error;
-		}
-		return null;
-	});
-
-	const tmdbNotConfigured = $derived(
-		detailError instanceof CollectionApiError && detailError.code === 'tmdb_not_configured'
-	);
-
-	const detailErrorMessage = $derived(detailError?.message ?? '');
 
 	const sortNames: Record<CollectionSortKey, string> = {
 		title: 'Title',
@@ -184,15 +136,6 @@
 		</Button>
 	</div>
 
-	{#if detailErrorMessage}
-		<p role="alert" class="mt-4 text-sm text-muted-foreground">
-			Missing counts could not be loaded: {detailErrorMessage}
-			{#if tmdbNotConfigured && session.can('settings:read')}
-				<a class="underline" href={resolve('settings')}>Open Settings</a>.
-			{/if}
-		</p>
-	{/if}
-
 	{#if collections.isPending}
 		<p class="mt-4 text-muted-foreground">Loading…</p>
 	{:else if collections.isError}
@@ -213,7 +156,6 @@
 		>
 			{#each visible as collection (collection.id)}
 				{@const poster = posterUrl(collection.posterPath)}
-				{@const summary = detailSummaries.get(collection.id)}
 				<li class="card flex flex-col gap-2">
 					<a
 						href={resolve('/(app)/collections/[id]', { id: String(collection.id) })}
@@ -247,10 +189,7 @@
 						</a>
 						<div class="flex flex-wrap items-center justify-between gap-1">
 							<span class="text-xs text-muted-foreground">
-								{collectionCountLabel(
-									summary?.inLibrary ?? collection.movieCount,
-									summary?.missing ?? null
-								)}
+								{collectionListCountLabel(collection)}
 							</span>
 							<Badge variant={collection.monitored ? 'secondary' : 'outline'}>
 								{collection.monitored ? 'Monitored' : 'Unmonitored'}

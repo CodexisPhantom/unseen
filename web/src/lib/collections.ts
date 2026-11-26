@@ -120,6 +120,11 @@ export function collectionCountLabel(inLibrary: number, missing?: number | null)
 	return missing == null ? libraryText : `${libraryText} · ${missing} missing`;
 }
 
+/** The list response has an in-library count, but no TMDB-backed missing count. */
+export function collectionListCountLabel(collection: Pick<Collection, 'movieCount'>): string {
+	return collectionCountLabel(collection.movieCount);
+}
+
 /** Today's UTC date as `YYYY-MM-DD`. */
 export function todayIsoDate(now = new Date()): string {
 	return now.toISOString().slice(0, 10);
