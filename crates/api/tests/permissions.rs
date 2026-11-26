@@ -336,6 +336,16 @@ fn app_router_passes_route_coverage() {
                 path: "/api/v1/audit-log".to_owned(),
                 access: Some(Access::Permission(Permission::SystemAudit)),
             },
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/logs".to_owned(),
+                access: Some(Access::Permission(Permission::SystemLogs)),
+            },
+            RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/logs/files/{name}".to_owned(),
+                access: Some(Access::Permission(Permission::SystemLogs)),
+            },
             profiles(
                 Method::GET,
                 "/api/v1/quality-profiles",

@@ -1546,6 +1546,150 @@
         "x-permission": "import:run"
       }
     },
+    "/api/v1/logs": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Recent log entries from daily log files, newest first, with level and text\nfilters and backwards pagination.",
+        "operationId": "list_logs",
+        "parameters": [
+          {
+            "name": "level",
+            "in": "query",
+            "description": "Minimum severity level: `error`, `warn`, `info`, `debug`, or `trace`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive text filter matched against message, target, and fields.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Opaque pagination cursor returned as `nextBefore` from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of entries to return (1 to 500, default 100).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching log entries and available files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "system:logs"
+      }
+    },
+    "/api/v1/logs/files/{name}": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Downloads one daily log file (`unseen-YYYY-MM-DD.log`).",
+        "operationId": "download_log_file",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Daily log file name (`unseen-YYYY-MM-DD.log`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The daily log file contents",
+            "content": {
+              "text/plain; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid log file name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Log file not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "system:logs"
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -2590,8 +2734,8 @@
             }
           }
         },
-        "x-owner-only": true,
-        "x-permission": "authenticated"
+        "x-permission": "authenticated",
+        "x-owner-only": true
       }
     },
     "/api/v1/permissions": {
@@ -5425,6 +5569,105 @@
           },
           "updatedAt": {
             "type": "string"
+          }
+        }
+      },
+      "LogEntry": {
+        "type": "object",
+        "description": "One structured log entry written to a daily file and returned by the API.",
+        "required": [
+          "timestamp",
+          "level",
+          "target",
+          "message"
+        ],
+        "properties": {
+          "fields": {
+            "type": "object",
+            "description": "Structured fields attached to the event.",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "level": {
+            "type": "string",
+            "description": "Severity level: `error`, `warn`, `info`, `debug`, or `trace`."
+          },
+          "message": {
+            "type": "string",
+            "description": "Log message."
+          },
+          "target": {
+            "type": "string",
+            "description": "Tracing target (module path)."
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "UTC ISO 8601 timestamp with milliseconds."
+          }
+        }
+      },
+      "LogFileInfo": {
+        "type": "object",
+        "description": "Metadata for one daily log file in the logs directory.",
+        "required": [
+          "name",
+          "sizeBytes",
+          "date"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "UTC date covered by this file (`YYYY-MM-DD`)."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name (`unseen-YYYY-MM-DD.log`)."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size in bytes.",
+            "minimum": 0
+          }
+        }
+      },
+      "LogsResponse": {
+        "type": "object",
+        "description": "Response body of `GET /api/v1/logs`.",
+        "required": [
+          "items",
+          "files",
+          "retentionDays"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogFileInfo"
+            },
+            "description": "Available daily log files, newest first."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "description": "Matching log entries, newest first."
+          },
+          "nextBefore": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor to pass as `before` to load older entries; `null` at the oldest entry."
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Configured log retention window in days (`logs.retention_days`).",
+            "minimum": 0
           }
         }
       },

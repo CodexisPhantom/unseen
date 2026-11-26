@@ -16,8 +16,15 @@
 
 <h1 class="text-2xl font-semibold">System</h1>
 
-{#if session.can('system:audit')}
-	<p class="mt-2 text-sm"><a class="underline" href={resolve('system/audit')}>Audit log</a></p>
+{#if session.can('system:logs') || session.can('system:audit')}
+	<nav class="mt-2 flex flex-wrap gap-4 text-sm">
+		{#if session.can('system:logs')}
+			<a class="underline" href={resolve('system/logs')}>Logs</a>
+		{/if}
+		{#if session.can('system:audit')}
+			<a class="underline" href={resolve('system/audit')}>Audit log</a>
+		{/if}
+	</nav>
 {/if}
 
 {#if health.isPending}

@@ -361,6 +361,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recent log entries from daily log files, newest first, with level and text
+         *     filters and backwards pagination.
+         */
+        get: operations["list_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/logs/files/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Downloads one daily log file (`unseen-YYYY-MM-DD.log`). */
+        get: operations["download_log_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -1338,6 +1375,47 @@ export interface components {
             items: components["schemas"]["LanguageItem"][];
             name: string;
             updatedAt: string;
+        };
+        /** @description One structured log entry written to a daily file and returned by the API. */
+        LogEntry: {
+            /** @description Structured fields attached to the event. */
+            fields?: {
+                [key: string]: unknown;
+            };
+            /** @description Severity level: `error`, `warn`, `info`, `debug`, or `trace`. */
+            level: string;
+            /** @description Log message. */
+            message: string;
+            /** @description Tracing target (module path). */
+            target: string;
+            /** @description UTC ISO 8601 timestamp with milliseconds. */
+            timestamp: string;
+        };
+        /** @description Metadata for one daily log file in the logs directory. */
+        LogFileInfo: {
+            /** @description UTC date covered by this file (`YYYY-MM-DD`). */
+            date: string;
+            /** @description File name (`unseen-YYYY-MM-DD.log`). */
+            name: string;
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
+            sizeBytes: number;
+        };
+        /** @description Response body of `GET /api/v1/logs`. */
+        LogsResponse: {
+            /** @description Available daily log files, newest first. */
+            files: components["schemas"]["LogFileInfo"][];
+            /** @description Matching log entries, newest first. */
+            items: components["schemas"]["LogEntry"][];
+            /** @description Cursor to pass as `before` to load older entries; `null` at the oldest entry. */
+            nextBefore?: string | null;
+            /**
+             * Format: int32
+             * @description Configured log retention window in days (`logs.retention_days`).
+             */
+            retentionDays: number;
         };
         Me: {
             /** @description The user holds the Owner role. */
@@ -3167,6 +3245,103 @@ export interface operations {
             };
             /** @description TMDB failed or refused the key */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_logs: {
+        parameters: {
+            query?: {
+                /** @description Minimum severity level: `error`, `warn`, `info`, `debug`, or `trace`. */
+                level?: string;
+                /** @description Case-insensitive text filter matched against message, target, and fields. */
+                search?: string;
+                /** @description Opaque pagination cursor returned as `nextBefore` from a previous page. */
+                before?: string;
+                /** @description Number of entries to return (1 to 500, default 100). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching log entries and available files */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogsResponse"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    download_log_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Daily log file name (`unseen-YYYY-MM-DD.log`) */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The daily log file contents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain; charset=utf-8": string;
+                };
+            };
+            /** @description Invalid log file name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Log file not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
