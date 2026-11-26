@@ -132,10 +132,12 @@ caller's permissions at send time.
 | `download.state` | id, old state, new state | `queue:read` |
 | `movie.updated` | movie id | `library:read` |
 | `task.status` | task name, status | `system:tasks` |
-| `permissions.changed` | none; the client reloads `/me` | any authenticated user |
+| `permissions.changed` | user id; the client reloads `/me` | the affected user only |
 
-Reconnect uses `Last-Event-ID`. Open question: replay buffer size, or state
-resync by refetching.
+The stream has no replay buffer and ignores `Last-Event-ID`: a reconnect
+starts with new events only, and clients resync by refetching. A
+`keep-alive` comment every 15 seconds keeps an idle connection open through
+a reverse proxy.
 
 ## Versioning
 

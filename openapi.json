@@ -743,6 +743,38 @@
         "x-permission": "clients:manage"
       }
     },
+    "/api/v1/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Server-sent event stream (`text/event-stream`). Each event is checked\nagainst the caller's live permissions before it is sent.",
+        "operationId": "stream",
+        "responses": {
+          "200": {
+            "description": "Server-sent event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "authenticated"
+      }
+    },
     "/api/v1/filesystem": {
       "get": {
         "tags": [

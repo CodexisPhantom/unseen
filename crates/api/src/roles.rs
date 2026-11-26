@@ -151,6 +151,12 @@ async fn load(state: &AppState, id: i32) -> Result<RoleDetail, Problem> {
         .ok_or_else(Problem::not_found)
 }
 
+async fn users_with_role(state: &AppState, role_id: i32) -> Result<Vec<String>, Problem> {
+    db::access::users_of_role(&state.db, role_id)
+        .await
+        .map_err(failed)
+}
+
 /// The permission catalog, in catalog order. The list is public knowledge
 /// inside the app: the users page needs it for direct grants.
 #[utoipa::path(
@@ -286,6 +292,11 @@ pub async fn update_role(
     let updated = db::roles::update(&state.db, id, changes)
         .await
         .map_err(role_error)?;
+    if current.permissions != updated.permissions {
+        for user_id in users_with_role(&state, id).await? {
+            state.publish_permissions_changed(&user_id);
+        }
+    }
     let changed = Changes::new()
         .field("name", &current.role.name, &updated.role.name)
         .field(
@@ -338,7 +349,11 @@ pub async fn delete_role(
             "Users hold this role; confirm to delete it",
         ));
     }
+    let affected = users_with_role(&state, id).await?;
     db::roles::delete(&state.db, id).await.map_err(role_error)?;
+    for user_id in affected {
+        state.publish_permissions_changed(&user_id);
+    }
     let event = Event::new("role.deleted").target("role", id).data(json!({
         "name": current.role.name,
         "permissions": names(&current.permissions),
