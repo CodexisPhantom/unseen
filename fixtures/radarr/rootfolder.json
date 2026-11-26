@@ -1,0 +1,22 @@
+[
+  {
+    "path": "/movies",
+    "accessible": true,
+    "freeSpace": 1099511627776,
+    "unmappedFolders": [
+      {
+        "name": "Unmatched Movie (2020)",
+        "path": "/movies/Unmatched Movie (2020)",
+        "relativePath": "Unmatched Movie (2020)"
+      }
+    ],
+    "id": 1
+  },
+  {
+    "path": "/movies-4k",
+    "accessible": true,
+    "freeSpace": 549755813888,
+    "unmappedFolders": [],
+    "id": 2
+  }
+]

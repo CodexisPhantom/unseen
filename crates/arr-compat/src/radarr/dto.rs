@@ -4,10 +4,22 @@
 //!
 //! The exceptions are objects that stand for "nothing here": `movieFile` of a
 //! movie without a file, `collection`, `movie` of a queue record that has no
-//! movie, and `quality` of a quality group. Radarr leaves them out; Unseen
-//! sends `null` so that the key is present. The schema test lists them.
+//! movie, `quality` of a quality group, `message` of a provider without a
+//! notice, and `value` of an unset provider field. Radarr leaves them out;
+//! Unseen sends `null` so that the key is present. The schema test lists them.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Deserializes `null` as `T::default()`, so nullable upstream fields that
+/// Radarr emits as `null` parse into the same defaults as omitted keys while
+/// keeping serialisation unchanged.
+fn null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::deserialize(deserializer)?.unwrap_or_default())
+}
 
 /// A string enum with the wire names of the upstream schema. The first
 /// variant is the default.
@@ -172,6 +184,17 @@ wire_enum!(UpdateMechanism {
     Apt = "apt",
     Docker = "docker",
 });
+wire_enum!(PrivacyLevel {
+    Normal = "normal",
+    Password = "password",
+    ApiKey = "apiKey",
+    UserName = "userName",
+});
+wire_enum!(ProviderMessageType {
+    Info = "info",
+    Warning = "warning",
+    Error = "error",
+});
 
 /// An ISO 8601 date-time. Radarr's value for "no date" in a field that
 /// cannot be null is the .NET minimum, which is also the default here.
@@ -202,6 +225,7 @@ impl Default for Timestamp {
 #[serde(default, rename_all = "camelCase")]
 pub struct Language {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
 }
 
@@ -218,6 +242,7 @@ impl Default for Language {
 #[serde(default, rename_all = "camelCase")]
 pub struct Quality {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
     pub source: QualitySource,
     pub resolution: i32,
@@ -245,7 +270,9 @@ impl Default for Revision {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct QualityModel {
+    #[serde(deserialize_with = "null_as_default")]
     pub quality: Quality,
+    #[serde(deserialize_with = "null_as_default")]
     pub revision: Revision,
 }
 
@@ -255,7 +282,9 @@ pub struct AlternativeTitleResource {
     pub id: i32,
     pub source_type: SourceType,
     pub movie_metadata_id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub title: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub clean_title: String,
 }
 
@@ -263,7 +292,9 @@ pub struct AlternativeTitleResource {
 #[serde(default, rename_all = "camelCase")]
 pub struct MediaCover {
     pub cover_type: MediaCoverTypes,
+    #[serde(deserialize_with = "null_as_default")]
     pub url: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub remote_url: String,
 }
 
@@ -289,16 +320,22 @@ pub struct RatingChild {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Ratings {
+    #[serde(deserialize_with = "null_as_default")]
     pub imdb: RatingChild,
+    #[serde(deserialize_with = "null_as_default")]
     pub tmdb: RatingChild,
+    #[serde(deserialize_with = "null_as_default")]
     pub metacritic: RatingChild,
+    #[serde(deserialize_with = "null_as_default")]
     pub rotten_tomatoes: RatingChild,
+    #[serde(deserialize_with = "null_as_default")]
     pub trakt: RatingChild,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MovieCollectionResource {
+    #[serde(deserialize_with = "null_as_default")]
     pub title: String,
     pub tmdb_id: i32,
 }
@@ -308,32 +345,96 @@ pub struct MovieCollectionResource {
 pub struct MovieStatisticsResource {
     pub movie_file_count: i32,
     pub size_on_disk: i64,
+    #[serde(deserialize_with = "null_as_default")]
     pub release_groups: Vec<String>,
+    #[serde(deserialize_with = "null_as_default")]
     pub movie_file_qualities: Vec<Quality>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SelectOption {
+    pub value: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub name: String,
+    pub order: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub hint: String,
+    pub divider_after: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Field {
+    pub order: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub name: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub label: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub unit: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub help_text: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub help_text_warning: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub help_link: String,
+    pub value: Option<serde_json::Value>,
+    #[serde(rename = "type", deserialize_with = "null_as_default")]
+    pub kind: String,
+    pub advanced: bool,
+    #[serde(deserialize_with = "null_as_default")]
+    pub select_options: Vec<SelectOption>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub select_options_provider_action: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub section: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub hidden: String,
+    pub privacy: PrivacyLevel,
+    #[serde(deserialize_with = "null_as_default")]
+    pub placeholder: String,
+    pub is_float: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ProviderMessage {
+    #[serde(deserialize_with = "null_as_default")]
+    pub message: String,
+    #[serde(rename = "type")]
+    pub kind: ProviderMessageType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct CustomFormatResource {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
     pub include_custom_format_when_renaming: Option<bool>,
+    #[serde(deserialize_with = "null_as_default")]
     pub specifications: Vec<CustomFormatSpecificationSchema>,
 }
 
-/// Unseen has no custom formats in the compat API until M11, so this is
-/// always an empty list; the shape is only here so the type is complete.
+/// One condition specification inside a [`CustomFormatResource`].
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct CustomFormatSpecificationSchema {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub implementation: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub implementation_name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub info_link: String,
     pub negate: bool,
     pub required: bool,
-    pub fields: Vec<serde_json::Value>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub fields: Vec<Field>,
+    #[serde(deserialize_with = "null_as_default")]
     pub presets: Vec<CustomFormatSpecificationSchema>,
 }
 
@@ -343,18 +444,27 @@ pub struct MediaInfoResource {
     pub id: i32,
     pub audio_bitrate: i64,
     pub audio_channels: f64,
+    #[serde(deserialize_with = "null_as_default")]
     pub audio_codec: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub audio_languages: String,
     pub audio_stream_count: i32,
     pub video_bit_depth: i32,
     pub video_bitrate: i64,
+    #[serde(deserialize_with = "null_as_default")]
     pub video_codec: String,
     pub video_fps: f64,
+    #[serde(deserialize_with = "null_as_default")]
     pub video_dynamic_range: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub video_dynamic_range_type: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub resolution: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub run_time: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub scan_type: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub subtitles: String,
 }
 
@@ -363,19 +473,29 @@ pub struct MediaInfoResource {
 pub struct MovieFileResource {
     pub id: i32,
     pub movie_id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub relative_path: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub path: String,
     pub size: i64,
     pub date_added: Timestamp,
+    #[serde(deserialize_with = "null_as_default")]
     pub scene_name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub release_group: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub edition: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub languages: Vec<Language>,
+    #[serde(deserialize_with = "null_as_default")]
     pub quality: QualityModel,
+    #[serde(deserialize_with = "null_as_default")]
     pub custom_formats: Vec<CustomFormatResource>,
     pub custom_format_score: Option<i32>,
     pub indexer_flags: Option<i32>,
+    #[serde(deserialize_with = "null_as_default")]
     pub media_info: MediaInfoResource,
+    #[serde(deserialize_with = "null_as_default")]
     pub original_file_path: String,
     pub quality_cutoff_not_met: bool,
 }
@@ -384,27 +504,40 @@ pub struct MovieFileResource {
 #[serde(default, rename_all = "camelCase")]
 pub struct MovieResource {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub title: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub original_title: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub original_language: Language,
+    #[serde(deserialize_with = "null_as_default")]
     pub alternate_titles: Vec<AlternativeTitleResource>,
     pub secondary_year: Option<i32>,
     pub secondary_year_source_id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub sort_title: String,
     pub size_on_disk: Option<i64>,
     pub status: MovieStatusType,
+    #[serde(deserialize_with = "null_as_default")]
     pub overview: String,
     pub in_cinemas: Option<Timestamp>,
     pub physical_release: Option<Timestamp>,
     pub digital_release: Option<Timestamp>,
     pub release_date: Option<Timestamp>,
+    #[serde(deserialize_with = "null_as_default")]
     pub physical_release_note: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub images: Vec<MediaCover>,
+    #[serde(deserialize_with = "null_as_default")]
     pub website: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub remote_poster: String,
     pub year: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub you_tube_trailer_id: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub studio: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub path: String,
     pub quality_profile_id: i32,
     pub has_file: Option<bool>,
@@ -412,25 +545,38 @@ pub struct MovieResource {
     pub monitored: bool,
     pub minimum_availability: MovieStatusType,
     pub is_available: bool,
+    #[serde(deserialize_with = "null_as_default")]
     pub folder_name: String,
     pub runtime: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub clean_title: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub imdb_id: String,
     pub tmdb_id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub title_slug: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub root_folder_path: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub folder: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub certification: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub genres: Vec<String>,
+    #[serde(deserialize_with = "null_as_default")]
     pub keywords: Vec<String>,
+    #[serde(deserialize_with = "null_as_default")]
     pub tags: Vec<i32>,
     pub added: Timestamp,
+    #[serde(deserialize_with = "null_as_default")]
     pub add_options: AddMovieOptions,
+    #[serde(deserialize_with = "null_as_default")]
     pub ratings: Ratings,
     pub movie_file: Option<MovieFileResource>,
     pub collection: Option<MovieCollectionResource>,
     pub popularity: f64,
     pub last_search_time: Option<Timestamp>,
+    #[serde(deserialize_with = "null_as_default")]
     pub statistics: MovieStatisticsResource,
 }
 
@@ -439,6 +585,7 @@ pub struct MovieResource {
 pub struct ProfileFormatItemResource {
     pub id: i32,
     pub format: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
     pub score: i32,
 }
@@ -449,8 +596,10 @@ pub struct ProfileFormatItemResource {
 #[serde(default, rename_all = "camelCase")]
 pub struct QualityProfileQualityItemResource {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
     pub quality: Option<Quality>,
+    #[serde(deserialize_with = "null_as_default")]
     pub items: Vec<QualityProfileQualityItemResource>,
     pub allowed: bool,
 }
@@ -459,22 +608,98 @@ pub struct QualityProfileQualityItemResource {
 #[serde(default, rename_all = "camelCase")]
 pub struct QualityProfileResource {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
     pub upgrade_allowed: bool,
     pub cutoff: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub items: Vec<QualityProfileQualityItemResource>,
     pub min_format_score: i32,
     pub cutoff_format_score: i32,
     pub min_upgrade_format_score: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub format_items: Vec<ProfileFormatItemResource>,
+    #[serde(deserialize_with = "null_as_default")]
     pub language: Language,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct QualityDefinitionResource {
+    pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub quality: Quality,
+    #[serde(deserialize_with = "null_as_default")]
+    pub title: String,
+    pub weight: i32,
+    pub min_size: Option<f64>,
+    pub max_size: Option<f64>,
+    pub preferred_size: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CollectionMovieResource {
+    pub tmdb_id: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub imdb_id: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub title: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub clean_title: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub sort_title: String,
+    pub status: MovieStatusType,
+    #[serde(deserialize_with = "null_as_default")]
+    pub overview: String,
+    pub runtime: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub images: Vec<MediaCover>,
+    pub year: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub ratings: Ratings,
+    #[serde(deserialize_with = "null_as_default")]
+    pub genres: Vec<String>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub folder: String,
+    pub is_existing: bool,
+    pub is_excluded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CollectionResource {
+    pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub title: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub sort_title: String,
+    pub tmdb_id: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub images: Vec<MediaCover>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub overview: String,
+    pub monitored: bool,
+    #[serde(deserialize_with = "null_as_default")]
+    pub root_folder_path: String,
+    pub quality_profile_id: i32,
+    pub search_on_add: bool,
+    pub minimum_availability: MovieStatusType,
+    #[serde(deserialize_with = "null_as_default")]
+    pub movies: Vec<CollectionMovieResource>,
+    pub missing_movies: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub tags: Vec<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct UnmappedFolder {
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub path: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub relative_path: String,
 }
 
@@ -482,9 +707,11 @@ pub struct UnmappedFolder {
 #[serde(default, rename_all = "camelCase")]
 pub struct RootFolderResource {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub path: String,
     pub accessible: bool,
     pub free_space: Option<i64>,
+    #[serde(deserialize_with = "null_as_default")]
     pub unmapped_folders: Vec<UnmappedFolder>,
 }
 
@@ -492,13 +719,89 @@ pub struct RootFolderResource {
 #[serde(default, rename_all = "camelCase")]
 pub struct TagResource {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+pub struct IndexerResource {
+    pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub name: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub fields: Vec<Field>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub implementation_name: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub implementation: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub config_contract: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub info_link: String,
+    pub message: Option<ProviderMessage>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub tags: Vec<i32>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub presets: Vec<IndexerResource>,
+    pub enable_rss: bool,
+    pub enable_automatic_search: bool,
+    pub enable_interactive_search: bool,
+    pub supports_rss: bool,
+    pub supports_search: bool,
+    pub protocol: DownloadProtocol,
+    pub priority: i32,
+    pub download_client_id: i32,
+}
+
+impl IndexerResource {
+    /// Looks up a configuration field by its Radarr name (such as `baseUrl` or `apiKey`).
+    pub fn field(&self, name: &str) -> Option<&Field> {
+        self.fields.iter().find(|field| field.name == name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DownloadClientResource {
+    pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
+    pub name: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub fields: Vec<Field>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub implementation_name: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub implementation: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub config_contract: String,
+    #[serde(deserialize_with = "null_as_default")]
+    pub info_link: String,
+    pub message: Option<ProviderMessage>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub tags: Vec<i32>,
+    #[serde(deserialize_with = "null_as_default")]
+    pub presets: Vec<DownloadClientResource>,
+    pub enable: bool,
+    pub protocol: DownloadProtocol,
+    pub priority: i32,
+    pub remove_completed_downloads: bool,
+    pub remove_failed_downloads: bool,
+}
+
+impl DownloadClientResource {
+    /// Looks up a configuration field by its Radarr name (such as `host` or `movieCategory`).
+    pub fn field(&self, name: &str) -> Option<&Field> {
+        self.fields.iter().find(|field| field.name == name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct TrackedDownloadStatusMessage {
+    #[serde(deserialize_with = "null_as_default")]
     pub title: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub messages: Vec<String>,
 }
 
@@ -508,24 +811,34 @@ pub struct QueueResource {
     pub id: i32,
     pub movie_id: Option<i32>,
     pub movie: Option<MovieResource>,
+    #[serde(deserialize_with = "null_as_default")]
     pub languages: Vec<Language>,
+    #[serde(deserialize_with = "null_as_default")]
     pub quality: QualityModel,
+    #[serde(deserialize_with = "null_as_default")]
     pub custom_formats: Vec<CustomFormatResource>,
     pub custom_format_score: i32,
     pub size: f64,
+    #[serde(deserialize_with = "null_as_default")]
     pub title: String,
     pub estimated_completion_time: Option<Timestamp>,
     pub added: Option<Timestamp>,
     pub status: QueueStatus,
     pub tracked_download_status: TrackedDownloadStatus,
     pub tracked_download_state: TrackedDownloadState,
+    #[serde(deserialize_with = "null_as_default")]
     pub status_messages: Vec<TrackedDownloadStatusMessage>,
+    #[serde(deserialize_with = "null_as_default")]
     pub error_message: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub download_id: String,
     pub protocol: DownloadProtocol,
+    #[serde(deserialize_with = "null_as_default")]
     pub download_client: String,
     pub download_client_has_post_import_category: bool,
+    #[serde(deserialize_with = "null_as_default")]
     pub indexer: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub output_path: String,
     pub sizeleft: f64,
     /// A .NET time span, `hh:mm:ss`, absent while unknown.
@@ -535,13 +848,19 @@ pub struct QueueResource {
 /// A page of records. Radarr has one schema per record type, all with these
 /// fields.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(
+    default,
+    rename_all = "camelCase",
+    bound(deserialize = "T: Deserialize<'de>")
+)]
 pub struct Paging<T> {
     pub page: i32,
     pub page_size: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub sort_key: String,
     pub sort_direction: SortDirection,
     pub total_records: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub records: Vec<T>,
 }
 
@@ -567,16 +886,19 @@ pub type MovieResourcePagingResource = Paging<MovieResource>;
 pub struct Command {
     pub send_updates_to_client: bool,
     pub update_scheduled_task: bool,
+    #[serde(deserialize_with = "null_as_default")]
     pub completion_message: String,
     pub requires_disk_access: bool,
     pub is_exclusive: bool,
     pub is_type_exclusive: bool,
     pub is_long_running: bool,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
     pub last_execution_time: Option<Timestamp>,
     pub last_start_time: Option<Timestamp>,
     pub trigger: CommandTrigger,
     pub suppress_messages: bool,
+    #[serde(deserialize_with = "null_as_default")]
     pub client_user_agent: String,
 }
 
@@ -584,9 +906,13 @@ pub struct Command {
 #[serde(default, rename_all = "camelCase")]
 pub struct CommandResource {
     pub id: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub command_name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub message: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub body: Command,
     pub priority: CommandPriority,
     pub status: CommandStatus,
@@ -596,8 +922,10 @@ pub struct CommandResource {
     pub ended: Option<Timestamp>,
     /// A .NET time span, `hh:mm:ss`, absent until the command ended.
     pub duration: Option<String>,
+    #[serde(deserialize_with = "null_as_default")]
     pub exception: String,
     pub trigger: CommandTrigger,
+    #[serde(deserialize_with = "null_as_default")]
     pub client_user_agent: String,
     pub state_change_time: Option<Timestamp>,
     pub send_updates_to_client: bool,
@@ -608,17 +936,24 @@ pub struct CommandResource {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SystemResource {
+    #[serde(deserialize_with = "null_as_default")]
     pub app_name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub instance_name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub version: String,
     pub build_time: Timestamp,
     pub is_debug: bool,
     pub is_production: bool,
     pub is_admin: bool,
     pub is_user_interactive: bool,
+    #[serde(deserialize_with = "null_as_default")]
     pub startup_path: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub app_data: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub os_name: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub os_version: String,
     pub is_net_core: bool,
     pub is_linux: bool,
@@ -627,18 +962,26 @@ pub struct SystemResource {
     pub is_docker: bool,
     pub is_containerized: bool,
     pub mode: RuntimeMode,
+    #[serde(deserialize_with = "null_as_default")]
     pub branch: String,
     pub database_type: DatabaseType,
+    #[serde(deserialize_with = "null_as_default")]
     pub database_version: String,
     pub authentication: AuthenticationType,
     pub migration_version: i32,
+    #[serde(deserialize_with = "null_as_default")]
     pub url_base: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub runtime_version: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub runtime_name: String,
     pub start_time: Timestamp,
+    #[serde(deserialize_with = "null_as_default")]
     pub package_version: String,
+    #[serde(deserialize_with = "null_as_default")]
     pub package_author: String,
     pub package_update_mechanism: UpdateMechanism,
+    #[serde(deserialize_with = "null_as_default")]
     pub package_update_mechanism_message: String,
 }
 
