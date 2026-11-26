@@ -15,3 +15,4 @@ pub mod subtitle;
 pub mod subtitle_provider;
 pub mod tmdb;
 pub mod torznab;
+pub mod tv_release;
