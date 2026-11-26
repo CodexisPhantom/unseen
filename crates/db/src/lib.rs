@@ -16,6 +16,7 @@ pub mod audit;
 pub mod backfill;
 pub mod collections;
 pub mod download_clients;
+pub mod downloads;
 pub mod entities;
 pub mod indexers;
 mod migration;
@@ -90,10 +91,12 @@ mod tests {
             "account",
             "api_key_permissions",
             "audit_log",
+            "blocklist",
             "collections",
             "custom_formats",
             "download_client_tags",
             "download_clients",
+            "downloads",
             "api_keys",
             "indexer_tags",
             "indexers",

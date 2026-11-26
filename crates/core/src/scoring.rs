@@ -6,14 +6,192 @@
 //! custom format score is 0 for every release and its rules and its place in
 //! the comparison do not apply).
 
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
 use std::collections::HashMap;
 use std::fmt;
 
+use chrono::{DateTime, Utc};
+
+use crate::newznab::NzbRelease;
 use crate::profile::{Item, LANGUAGE_ANY, LANGUAGE_ORIGINAL, Profile};
 use crate::quality::{Quality, SizeCheck, SizeLimits};
 use crate::release::{self, Language, ParsedRelease};
-use crate::torznab::Release;
+use crate::torznab::Release as TorznabRelease;
+
+/// Download protocol of a release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Protocol {
+    Torrent,
+    Usenet,
+}
+
+impl Protocol {
+    /// Stable lowercase identifier used in API responses and settings.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Torrent => "torrent",
+            Self::Usenet => "usenet",
+        }
+    }
+}
+
+/// Which download protocol is preferred or allowed when comparing torrent and
+/// Usenet releases.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ProtocolPreference {
+    /// Neither protocol is preferred over the other.
+    #[default]
+    None,
+    /// Prefer Usenet over torrents when quality and revision tie.
+    PreferUsenet,
+    /// Prefer torrents over Usenet when quality and revision tie.
+    PreferTorrent,
+    /// Accept only Usenet releases; reject torrents.
+    OnlyUsenet,
+    /// Accept only torrent releases; reject Usenet releases.
+    OnlyTorrent,
+}
+
+impl ProtocolPreference {
+    /// Resolves an optional per-profile preference against a global default.
+    #[must_use]
+    pub const fn resolve(profile: Option<Self>, global: Self) -> Self {
+        match profile {
+            Some(pref) => pref,
+            None => global,
+        }
+    }
+
+    /// Stable machine-readable identifier for API and settings storage.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::PreferUsenet => "prefer_usenet",
+            Self::PreferTorrent => "prefer_torrent",
+            Self::OnlyUsenet => "only_usenet",
+            Self::OnlyTorrent => "only_torrent",
+        }
+    }
+
+    /// Parses a stored preference string.
+    #[must_use]
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "none" => Some(Self::None),
+            "prefer_usenet" => Some(Self::PreferUsenet),
+            "prefer_torrent" => Some(Self::PreferTorrent),
+            "only_usenet" => Some(Self::OnlyUsenet),
+            "only_torrent" => Some(Self::OnlyTorrent),
+            _ => None,
+        }
+    }
+
+    /// Whether a release of `protocol` is allowed by this preference.
+    #[must_use]
+    pub const fn allows(self, protocol: Protocol) -> bool {
+        !matches!(
+            (self, protocol),
+            (Self::OnlyUsenet, Protocol::Torrent) | (Self::OnlyTorrent, Protocol::Usenet)
+        )
+    }
+
+    /// Whether `protocol` is the preferred protocol under this preference.
+    #[must_use]
+    pub const fn prefers(self, protocol: Protocol) -> bool {
+        matches!(
+            (self, protocol),
+            (Self::PreferUsenet | Self::OnlyUsenet, Protocol::Usenet)
+                | (Self::PreferTorrent | Self::OnlyTorrent, Protocol::Torrent)
+        )
+    }
+}
+
+/// A release from either a Torznab (torrent) or Newznab (Usenet) indexer.
+#[derive(Debug, Clone, Copy)]
+pub enum ReleaseRef<'a> {
+    Torrent(&'a TorznabRelease),
+    Usenet(&'a NzbRelease),
+}
+
+impl<'a> ReleaseRef<'a> {
+    #[must_use]
+    pub const fn protocol(self) -> Protocol {
+        match self {
+            Self::Torrent(_) => Protocol::Torrent,
+            Self::Usenet(_) => Protocol::Usenet,
+        }
+    }
+
+    #[must_use]
+    pub fn title(self) -> &'a str {
+        match self {
+            Self::Torrent(r) => &r.title,
+            Self::Usenet(r) => &r.title,
+        }
+    }
+
+    #[must_use]
+    pub fn guid(self) -> &'a str {
+        match self {
+            Self::Torrent(r) => &r.guid,
+            Self::Usenet(r) => &r.guid,
+        }
+    }
+
+    #[must_use]
+    pub const fn size(self) -> Option<u64> {
+        match self {
+            Self::Torrent(r) => r.size,
+            Self::Usenet(r) => r.size,
+        }
+    }
+
+    #[must_use]
+    pub const fn seeders(self) -> Option<u32> {
+        match self {
+            Self::Torrent(r) => r.seeders,
+            Self::Usenet(_) => None,
+        }
+    }
+
+    /// Posting date on Usenet (`usenetdate` falling back to `pubDate`) for
+    /// NZBs, or `pubDate` for torrents.
+    #[must_use]
+    pub fn published(self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Torrent(r) => r.published,
+            Self::Usenet(r) => r.posted_at(),
+        }
+    }
+
+    /// Age in whole hours relative to `now`, clamped to 0 for future dates.
+    #[must_use]
+    pub fn age_hours(self, now: DateTime<Utc>) -> Option<u64> {
+        let posted = self.published()?;
+        let seconds = now.signed_duration_since(posted).num_seconds().max(0);
+        Some(u64::try_from(seconds).unwrap_or(0) / 3600)
+    }
+
+    /// Age in whole days relative to `now`, clamped to 0 for future dates.
+    #[must_use]
+    pub fn age_days(self, now: DateTime<Utc>) -> Option<u64> {
+        Some(self.age_hours(now)? / 24)
+    }
+}
+
+impl<'a> From<&'a TorznabRelease> for ReleaseRef<'a> {
+    fn from(release: &'a TorznabRelease) -> Self {
+        Self::Torrent(release)
+    }
+}
+
+impl<'a> From<&'a NzbRelease> for ReleaseRef<'a> {
+    fn from(release: &'a NzbRelease) -> Self {
+        Self::Usenet(release)
+    }
+}
 
 /// The movie a release is for.
 #[derive(Debug, Clone, Copy)]
@@ -44,12 +222,21 @@ pub struct Context<'a> {
     /// Size limits per quality. A quality without an entry has no limits.
     pub size_limits: &'a HashMap<Quality, SizeLimits>,
     pub existing: Option<Existing>,
+    /// Effective protocol preference (use [`ProtocolPreference::resolve`] to
+    /// combine a profile override with a global default).
+    pub protocol_preference: ProtocolPreference,
+    /// Maximum age in days for Usenet releases (`None` or `Some(0)` means
+    /// unlimited). Torrents ignore this limit.
+    pub retention_days: Option<u32>,
+    /// Reference timestamp used to compute release age for Usenet retention
+    /// and age scoring. `None` skips age-based rules.
+    pub now: Option<DateTime<Utc>>,
 }
 
 /// A release found by an indexer, with the facts of that indexer.
 #[derive(Debug, Clone, Copy)]
 pub struct Candidate<'a> {
-    pub release: &'a Release,
+    pub release: ReleaseRef<'a>,
     /// 1 to 50. A lower number wins.
     pub indexer_priority: i32,
     pub indexer_tags: &'a [i32],
@@ -77,6 +264,10 @@ pub enum Rejection {
     NotAnUpgrade,
     /// The indexer has tags and shares none with the movie.
     IndexerTags,
+    /// The release's protocol is disallowed by the protocol preference.
+    ProtocolNotAllowed,
+    /// The Usenet release is older than the configured retention limit.
+    RetentionExceeded,
 }
 
 impl Rejection {
@@ -93,6 +284,8 @@ impl Rejection {
             Self::CutoffMet => "cutoff_met",
             Self::NotAnUpgrade => "not_an_upgrade",
             Self::IndexerTags => "indexer_tags_mismatch",
+            Self::ProtocolNotAllowed => "protocol_not_allowed",
+            Self::RetentionExceeded => "retention_exceeded",
         }
     }
 
@@ -109,6 +302,8 @@ impl Rejection {
             Self::CutoffMet => "Existing file already meets the quality profile cutoff",
             Self::NotAnUpgrade => "Release is not an upgrade over the existing file",
             Self::IndexerTags => "Indexer tags do not match any tag on the movie",
+            Self::ProtocolNotAllowed => "Protocol is not allowed by the protocol preference",
+            Self::RetentionExceeded => "Release age exceeds the configured Usenet retention limit",
         }
     }
 }
@@ -130,6 +325,12 @@ pub struct Decision<'a> {
     /// Position of the quality in the profile, higher is better. `None` when
     /// the profile does not list the quality.
     rank: Option<usize>,
+    /// Whether this release's protocol is preferred by the context.
+    preferred_protocol: bool,
+    /// Age of the release in whole hours when a timestamp and `now` are known.
+    age_hours: Option<u64>,
+    /// Age bucket on a log10 scale for Usenet releases; smaller is newer.
+    age_bucket: Option<u32>,
     /// Bytes between the size and the preferred size, when both are known.
     preferred_distance: Option<u64>,
 }
@@ -139,6 +340,19 @@ impl Decision<'_> {
         self.rejections.is_empty()
     }
 
+    /// Download protocol of the candidate release.
+    #[must_use]
+    pub const fn protocol(&self) -> Protocol {
+        self.candidate.release.protocol()
+    }
+
+    /// Whether this release's protocol is the preferred one under the scoring
+    /// context.
+    #[must_use]
+    pub const fn preferred_protocol(&self) -> bool {
+        self.preferred_protocol
+    }
+
     /// Position of the quality in the profile, higher is better.
     #[must_use]
     pub fn quality_rank(&self) -> Option<usize> {
@@ -146,9 +360,24 @@ impl Decision<'_> {
     }
 
     /// Seeders bucketed on a log10 scale (`round(log10(seeders + 1))`).
+    /// Returns `0` for Usenet releases.
     #[must_use]
     pub fn seeder_score(&self) -> u32 {
-        seeder_bucket(self.candidate.release.seeders)
+        seeder_bucket(self.candidate.release.seeders())
+    }
+
+    /// Age of the release in whole hours, when a posting timestamp and `now`
+    /// were supplied.
+    #[must_use]
+    pub const fn age_hours(&self) -> Option<u64> {
+        self.age_hours
+    }
+
+    /// Age bucket on a log10 scale (`round(log10(age_hours + 1))`) for Usenet
+    /// releases; smaller is newer. `None` for torrents or unknown timestamps.
+    #[must_use]
+    pub const fn age_score(&self) -> Option<u32> {
+        self.age_bucket
     }
 
     /// Distance in bytes from the quality definition's preferred size, when
@@ -278,11 +507,14 @@ fn is_upgrade(ctx: &Context, existing: Existing, rank: usize, version: u8) -> bo
 /// Judges one release: parses it and lists every rule it breaks.
 pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a> {
     let release = candidate.release;
-    let parsed = release::parse(&release.title);
+    let protocol = release.protocol();
+    let parsed = release::parse(release.title());
     let quality = quality_of(&parsed);
     let item = find_item(ctx.profile, quality);
     let rank = item.map(|(index, _)| index);
     let limits = ctx.size_limits.get(&quality);
+    let age_hours = ctx.now.and_then(|now| release.age_hours(now));
+    let age_days = age_hours.map(|hours| hours / 24);
     let mut rejections = Vec::new();
 
     if !same_movie(&ctx.movie, &parsed) {
@@ -292,7 +524,7 @@ pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a>
     if !allowed {
         rejections.push(Rejection::QualityNotAllowed);
     }
-    if let (Some(limits), Some(size)) = (limits, release.size) {
+    if let (Some(limits), Some(size)) = (limits, release.size()) {
         match limits.check(size, ctx.movie.runtime_minutes) {
             SizeCheck::Within => {}
             SizeCheck::TooSmall => rejections.push(Rejection::TooSmall),
@@ -326,17 +558,34 @@ pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a>
     {
         rejections.push(Rejection::IndexerTags);
     }
+    if !ctx.protocol_preference.allows(protocol) {
+        rejections.push(Rejection::ProtocolNotAllowed);
+    }
+    if protocol == Protocol::Usenet
+        && let (Some(limit), Some(days)) = (ctx.retention_days.filter(|&d| d > 0), age_days)
+        && days > u64::from(limit)
+    {
+        rejections.push(Rejection::RetentionExceeded);
+    }
 
     let preferred_distance = limits
         .and_then(|limits| limits.preferred_bytes(ctx.movie.runtime_minutes))
-        .zip(release.size)
+        .zip(release.size())
         .map(|(preferred, size)| (size as f64 - preferred).abs() as u64);
+    let age_bucket = if protocol == Protocol::Usenet {
+        age_bucket(age_hours)
+    } else {
+        None
+    };
     Decision {
         candidate,
         parsed,
         quality,
         rejections,
         rank,
+        preferred_protocol: ctx.protocol_preference.prefers(protocol),
+        age_hours,
+        age_bucket,
         preferred_distance,
     }
 }
@@ -346,8 +595,34 @@ fn seeder_bucket(seeders: Option<u32>) -> u32 {
     (f64::from(seeders.unwrap_or(0)) + 1.0).log10().round() as u32
 }
 
+/// Age in hours on a log10 scale, so Usenet releases of similar age count as
+/// equal and fall through to size. Smaller is newer (better).
+fn age_bucket(age_hours: Option<u64>) -> Option<u32> {
+    age_hours.map(|hours| (hours as f64 + 1.0).log10().round() as u32)
+}
+
+/// Protocol-specific health key: Usenet compares by age bucket (smaller/newer
+/// wins, known beats unknown), torrents compare by seeder bucket (higher wins).
+/// Using a tagged key keeps `compare` a strict total order even when
+/// `ProtocolPreference::None` mixes both protocols.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ProtocolHealth {
+    Usenet(u32),
+    Torrent(Reverse<u32>),
+}
+
+impl Decision<'_> {
+    fn protocol_health(&self) -> ProtocolHealth {
+        match self.protocol() {
+            Protocol::Usenet => ProtocolHealth::Usenet(self.age_bucket.unwrap_or(u32::MAX)),
+            Protocol::Torrent => ProtocolHealth::Torrent(Reverse(self.seeder_score())),
+        }
+    }
+}
+
 /// `Less` when `a` is the better release: accepted before rejected, then
-/// quality rank, revision, indexer priority, seeders and size (docs/07,
+/// quality rank, revision, protocol preference, indexer priority, protocol
+/// health (seeders for torrents, age for Usenet) and size (docs/07,
 /// "Scoring"). The title and the guid end every tie, so the order is total.
 fn compare(a: &Decision, b: &Decision) -> Ordering {
     let (ra, rb) = (a.candidate.release, b.candidate.release);
@@ -355,23 +630,24 @@ fn compare(a: &Decision, b: &Decision) -> Ordering {
         // Closest to the preferred size; on a tie the larger release.
         (Some(dx), Some(dy)) => dx
             .cmp(&dy)
-            .then(y.candidate.release.size.cmp(&x.candidate.release.size)),
+            .then(y.candidate.release.size().cmp(&x.candidate.release.size())),
         // No preferred size: larger wins.
-        _ => y.candidate.release.size.cmp(&x.candidate.release.size),
+        _ => y.candidate.release.size().cmp(&x.candidate.release.size()),
     };
     b.accepted()
         .cmp(&a.accepted())
         .then(b.rank.cmp(&a.rank))
         .then(b.parsed.version.cmp(&a.parsed.version))
+        .then(b.preferred_protocol.cmp(&a.preferred_protocol))
         .then(
             a.candidate
                 .indexer_priority
                 .cmp(&b.candidate.indexer_priority),
         )
-        .then(seeder_bucket(rb.seeders).cmp(&seeder_bucket(ra.seeders)))
+        .then(a.protocol_health().cmp(&b.protocol_health()))
         .then_with(|| size(a, b))
-        .then_with(|| ra.title.cmp(&rb.title))
-        .then_with(|| ra.guid.cmp(&rb.guid))
+        .then_with(|| ra.title().cmp(rb.title()))
+        .then_with(|| ra.guid().cmp(rb.guid()))
 }
 
 /// Judges and orders releases, best first. Accepted releases come first;

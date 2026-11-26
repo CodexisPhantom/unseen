@@ -18,6 +18,11 @@
 		profileState
 	} from '#lib/library.js';
 	import { qualityName } from '#lib/profiles.js';
+	import {
+		downloadBadgeLabel,
+		downloadsForMovie,
+		stateBadgeVariant
+	} from '#lib/queue.js';
 	import { formatBytes } from '#lib/root-folders.js';
 	import { session } from '#lib/session.svelte.js';
 
@@ -25,6 +30,7 @@
 	const read = $derived(session.can('library:read'));
 	const edit = $derived(session.can('library:edit'));
 	const remove = $derived(session.can('library:delete'));
+	const canReadQueue = $derived(session.can('queue:read'));
 
 	const movie = createQuery(() => ({
 		queryKey: ['movie', id],
@@ -80,6 +86,15 @@
 			return data;
 		}
 	}));
+	const queue = createQuery(() => ({
+		queryKey: ['queue'],
+		enabled: canReadQueue && Number.isInteger(id),
+		queryFn: async () => {
+			const { data, error } = await api.GET('/api/v1/queue');
+			if (!data) throw new Error(error?.detail ?? 'The activity queue could not be loaded.');
+			return data;
+		}
+	}));
 
 	let editOpen = $state(false);
 	let deleteOpen = $state(false);
@@ -103,7 +118,10 @@
 		(movie.data?.tags ?? []).map((tagId) => tags.data?.find((tag) => tag.id === tagId)?.label ?? `#${tagId}`)
 	);
 	const unmanaged = $derived((files.data ?? []).filter((file) => !file.managed));
+	const activeDownloads = $derived(downloadsForMovie(queue.data ?? [], id));
 	const fileOf = (fileId: number | null | undefined) => files.data?.find((file) => file.id === fileId);
+	const downloadOf = (movieProfileId: number) =>
+		activeDownloads.find((item) => item.movieProfileId === movieProfileId);
 </script>
 
 <svelte:head>
@@ -134,9 +152,18 @@
 			{/if}
 			<div class="min-w-0 flex-1">
 				<div class="flex flex-wrap items-start justify-between gap-2">
-					<h1 class="text-2xl font-semibold">
-						{m.title} <span class="font-normal text-muted-foreground">({m.year})</span>
-					</h1>
+					<div class="flex flex-wrap items-center gap-2">
+						<h1 class="text-2xl font-semibold">
+							{m.title} <span class="font-normal text-muted-foreground">({m.year})</span>
+						</h1>
+						{#each activeDownloads as download (download.id)}
+							<a href={resolve('activity')} title={download.releaseTitle}>
+								<Badge variant={stateBadgeVariant(download.state)}>
+									{downloadBadgeLabel(download)}
+								</Badge>
+							</a>
+						{/each}
+					</div>
 					<div class="flex gap-2">
 						{#if edit}
 							<Button variant="outline" size="sm" onclick={() => (editOpen = true)}>Edit</Button>
@@ -206,12 +233,23 @@
 			<Table.Body>
 				{#each m.profiles as profile (profile.id)}
 					{@const file = fileOf(profile.fileId)}
+					{@const activeDownload = downloadOf(profile.id)}
 					<Table.Row>
 						<Table.Cell class="font-medium">
 							{profileName(profile.qualityProfileId)}
 							{#if profile.isPrimary}<Badge variant="secondary">Primary</Badge>{/if}
 						</Table.Cell>
-						<Table.Cell>{profileState(profile, m.monitored)}</Table.Cell>
+						<Table.Cell>
+							{#if activeDownload}
+								<a href={resolve('activity')}>
+									<Badge variant={stateBadgeVariant(activeDownload.state)}>
+										{downloadBadgeLabel(activeDownload)}
+									</Badge>
+								</a>
+							{:else}
+								{profileState(profile, m.monitored)}
+							{/if}
+						</Table.Cell>
 						<Table.Cell class="break-all">{file?.relativePath ?? '—'}</Table.Cell>
 						<Table.Cell>{file ? qualityName(file.qualityId) : '—'}</Table.Cell>
 						<Table.Cell class="text-end">{file ? formatBytes(file.size) : '—'}</Table.Cell>

@@ -216,6 +216,51 @@ describe('events', () => {
 		expect(MockEventSource.instances).toHaveLength(1);
 	});
 
+	it('patches cached queue progress on download.progress without a reload', () => {
+		const queue = [
+			{
+				id: 1,
+				movieId: 42,
+				movieTitle: 'The Matrix',
+				movieYear: 1999,
+				movieProfileId: null,
+				downloadClientId: 1,
+				downloadClientName: 'qBit',
+				releaseTitle: 'The.Matrix.1999.1080p',
+				qualityId: 7,
+				size: 1000,
+				progress: 0.1,
+				speed: 100,
+				eta: 90,
+				state: 'downloading',
+				error: null,
+				grabbedAt: '2026-11-26T00:00:00.000Z'
+			}
+		];
+		let cached = queue;
+		const invalidateQueries = vi.fn().mockResolvedValue(undefined);
+		const setQueryData = vi.fn((_key: unknown, updater: (prev: typeof queue) => typeof queue) => {
+			cached = updater(cached);
+		});
+		const client = { invalidateQueries, setQueryData } as unknown as QueryClient;
+
+		events.connect(client);
+		const source = MockEventSource.instances[0]!;
+		source.emitOpen();
+		source.emitEvent('download.progress', {
+			id: 1,
+			progress: 0.65,
+			speed: 5000,
+			eta: 20,
+			state: 'downloading'
+		});
+
+		expect(cached[0]?.progress).toBe(0.65);
+		expect(cached[0]?.speed).toBe(5000);
+		expect(cached[0]?.eta).toBe(20);
+		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['queue'] });
+	});
+
 	it('is a safe no-op when EventSource is unavailable', () => {
 		const { client } = makeQueryClient();
 		globalThis.EventSource = undefined as unknown as typeof EventSource;
