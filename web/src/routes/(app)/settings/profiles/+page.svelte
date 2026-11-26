@@ -6,7 +6,12 @@
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
-	import { allowedSummary, cutoffName, type QualityProfile } from '#lib/profiles.js';
+	import {
+		allowedSummary,
+		cutoffName,
+		formatScoreSummary,
+		type QualityProfile
+	} from '#lib/profiles.js';
 	import { session } from '#lib/session.svelte.js';
 
 	const read = $derived(session.can('profiles:read'));
@@ -83,6 +88,7 @@
 					<Table.Head>Allowed</Table.Head>
 					<Table.Head>Cutoff</Table.Head>
 					<Table.Head>Upgrades</Table.Head>
+					<Table.Head>Format scores</Table.Head>
 					{#if manage}<Table.Head class="text-end">Actions</Table.Head>{/if}
 				</Table.Row>
 			</Table.Header>
@@ -95,6 +101,7 @@
 						</Table.Cell>
 						<Table.Cell>{cutoffName(profile)}</Table.Cell>
 						<Table.Cell>{profile.upgradeAllowed ? 'Yes' : 'No'}</Table.Cell>
+						<Table.Cell class="text-muted-foreground">{formatScoreSummary(profile)}</Table.Cell>
 						{#if manage}
 							<Table.Cell class="space-x-2 text-end">
 								<Button
@@ -119,7 +126,11 @@
 	{/if}
 
 	{#if manage}
-		<ProfileFormDialog bind:open={formOpen} profile={editing} />
+		<ProfileFormDialog
+			bind:open={formOpen}
+			profile={editing}
+			availableFormats={profiles.data?.[0]?.formatScores ?? []}
+		/>
 
 		<AlertDialog.Root open={deleting !== null} onOpenChange={(open) => !open && (deleting = null)}>
 			<AlertDialog.Content>

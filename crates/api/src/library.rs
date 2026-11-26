@@ -14,7 +14,7 @@ use db::movies::{Metadata, MovieError, NewFile, NewMovie as StoredNew};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::task::JoinSet;
-use unseen_core::backfill::file_quality;
+use unseen_core::backfill::{file_languages, file_quality};
 use unseen_core::library::{
     FolderGuess, confident_match, guess_folder, is_extras_folder, is_movie_video,
 };
@@ -537,6 +537,7 @@ pub async fn adopt(
                 relative_path: file.relative_path.clone(),
                 size: i64::try_from(file.size).unwrap_or(i64::MAX),
                 quality_id: file_quality(&file.relative_path, &item.folder_name).id(),
+                languages: file_languages(&file.relative_path, &item.folder_name),
             })
             .collect();
         let created = db::movies::create_with_files(

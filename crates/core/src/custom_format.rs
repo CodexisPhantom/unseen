@@ -15,6 +15,16 @@ mod tests;
 
 const BYTES_PER_GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 
+/// Radarr's language id for a movie's original language.
+pub const ORIGINAL_LANGUAGE_ID: i32 = -2;
+
+/// A custom format paired with the score a quality profile assigns to it.
+#[derive(Debug, Clone)]
+pub struct ScoredFormat {
+    pub format: CustomFormat,
+    pub score: i32,
+}
+
 /// Validation error for a custom format definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationError {
@@ -359,6 +369,170 @@ fn regex_matches(pattern: Option<&str>, text: Option<&str>) -> bool {
         .ok()
         .and_then(|regex| regex.is_match(text).ok())
         .unwrap_or(false)
+}
+
+/// Radarr's numeric language id for an ISO 639-1 code (or `"original"` / `"any"`).
+#[must_use]
+pub fn language_code_id(code: &str) -> Option<i32> {
+    Some(match code.trim().to_ascii_lowercase().as_str() {
+        "original" => ORIGINAL_LANGUAGE_ID,
+        "any" => -1,
+        "en" => 1,
+        "fr" => 2,
+        "es" => 3,
+        "de" => 4,
+        "it" => 5,
+        "da" => 6,
+        "nl" => 7,
+        "ja" => 8,
+        "is" => 9,
+        "zh" => 10,
+        "ru" => 11,
+        "pl" => 12,
+        "vi" => 13,
+        "sv" => 14,
+        "no" | "nb" => 15,
+        "fi" => 16,
+        "tr" => 17,
+        "pt" => 18,
+        "el" => 20,
+        "ko" => 21,
+        "hu" => 22,
+        "he" => 23,
+        "lt" => 24,
+        "cs" => 25,
+        "hi" => 26,
+        "ro" => 27,
+        "th" => 28,
+        "bg" => 29,
+        "ar" => 31,
+        "uk" => 32,
+        "fa" => 33,
+        "bn" => 34,
+        "sk" => 35,
+        "lv" => 36,
+        "ca" => 38,
+        "hr" => 39,
+        "sr" => 40,
+        "bs" => 41,
+        "et" => 42,
+        "ta" => 43,
+        "id" => 44,
+        "te" => 45,
+        "mk" => 46,
+        "sl" => 47,
+        "ml" => 48,
+        "kn" => 49,
+        "sq" => 50,
+        "af" => 51,
+        "mr" => 52,
+        "tl" => 53,
+        "ur" => 54,
+        "rm" => 55,
+        "mn" => 56,
+        "ka" => 57,
+        "ga" => 58,
+        _ => return None,
+    })
+}
+
+/// Maps parsed release languages to Radarr language ids. An untagged release
+/// counts as the movie's original language (including [`ORIGINAL_LANGUAGE_ID`]);
+/// a tagged release that includes the movie's original language also includes
+/// [`ORIGINAL_LANGUAGE_ID`].
+#[must_use]
+pub fn release_language_ids(
+    parsed_languages: &[Language],
+    original_language: Option<&str>,
+) -> Vec<i32> {
+    let orig_id = original_language.and_then(language_code_id);
+    let mut ids = Vec::new();
+    if parsed_languages.is_empty() {
+        ids.push(ORIGINAL_LANGUAGE_ID);
+        if let Some(id) = orig_id {
+            ids.push(id);
+        }
+        return ids;
+    }
+    for &lang in parsed_languages {
+        if let Some(id) = language_id(lang)
+            && !ids.contains(&id)
+        {
+            ids.push(id);
+        }
+    }
+    if let Some(id) = orig_id
+        && ids.contains(&id)
+        && !ids.contains(&ORIGINAL_LANGUAGE_ID)
+    {
+        ids.push(ORIGINAL_LANGUAGE_ID);
+    }
+    ids
+}
+
+/// Maps stored ISO 639-1 language codes (as kept on `movie_files.languages`) to
+/// Radarr language ids, with the same original-language rule as
+/// [`release_language_ids`].
+#[must_use]
+pub fn code_language_ids(language_codes: &[String], original_language: Option<&str>) -> Vec<i32> {
+    let orig_id = original_language.and_then(language_code_id);
+    let mut ids = Vec::new();
+    if language_codes.is_empty() {
+        ids.push(ORIGINAL_LANGUAGE_ID);
+        if let Some(id) = orig_id {
+            ids.push(id);
+        }
+        return ids;
+    }
+    for code in language_codes {
+        if let Some(id) = language_code_id(code)
+            && !ids.contains(&id)
+        {
+            ids.push(id);
+        }
+    }
+    if let Some(id) = orig_id
+        && ids.contains(&id)
+        && !ids.contains(&ORIGINAL_LANGUAGE_ID)
+    {
+        ids.push(ORIGINAL_LANGUAGE_ID);
+    }
+    ids
+}
+
+/// Builds a [`ReleaseInfo`] from a release title, its parsed fields, Radarr
+/// language ids, size in bytes, indexer flags, and the movie's year.
+#[must_use]
+pub fn release_info_from_parsed<'a>(
+    title: &'a str,
+    parsed: &'a ParsedRelease,
+    languages: &'a [i32],
+    size_bytes: i64,
+    indexer_flags: &'a [i32],
+    movie_year: Option<i32>,
+) -> ReleaseInfo<'a> {
+    ReleaseInfo {
+        title,
+        release_group: parsed.release_group.as_deref(),
+        edition: parsed.edition.as_deref(),
+        languages,
+        source: Some(source_id(parsed.source)),
+        resolution: parsed.resolution.map(resolution_id),
+        quality_modifier: Some(modifier_id(parsed.modifier)),
+        size_bytes,
+        indexer_flags,
+        year: parsed.year.map(i32::from),
+        movie_year,
+    }
+}
+
+/// Sums the scores of every custom format that matches `release`.
+#[must_use]
+pub fn score_release(formats: &[ScoredFormat], release: &ReleaseInfo<'_>) -> i32 {
+    formats
+        .iter()
+        .filter(|entry| entry.format.matches(release))
+        .fold(0i32, |total, entry| total.saturating_add(entry.score))
 }
 
 /// Reads Radarr's field list or the TRaSH guide's field map.

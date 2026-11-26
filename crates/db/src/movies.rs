@@ -336,6 +336,9 @@ pub struct NewFile {
     pub size: i64,
     /// A quality id of `core::quality`; `0` is `Unknown`.
     pub quality_id: i32,
+    /// Lowercase ISO 639-1 language codes (or `"multi"`) parsed from the file or
+    /// folder name.
+    pub languages: Vec<String>,
 }
 
 /// Adds a movie with its profiles (the first is primary) and tags in one
@@ -419,11 +422,13 @@ pub async fn create_with_files(
         }
     }
     for (index, file) in files.iter().enumerate() {
+        let languages = (!file.languages.is_empty()).then(|| serde_json::json!(file.languages));
         movie_files::ActiveModel {
             movie_id: Set(movie.id),
             relative_path: Set(file.relative_path.clone()),
             size: Set(file.size),
             quality_id: Set(file.quality_id),
+            languages: Set(languages),
             movie_profile_id: Set(primary_profile.filter(|_| index == 0)),
             added_at: Set(crate::now()),
             ..Default::default()

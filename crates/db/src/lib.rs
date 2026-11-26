@@ -273,6 +273,7 @@ mod tests {
                 min_format_score: 0,
                 cutoff_format_score: 0,
                 min_upgrade_format_score: 1,
+                format_scores: Vec::new(),
             },
         )
         .await

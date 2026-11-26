@@ -15,6 +15,10 @@ use db::entities::movie_files;
 use db::secret::decrypt;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
+use unseen_core::custom_format::{
+    self, CustomFormat, ScoredFormat, Specification, code_language_ids, release_info_from_parsed,
+    release_language_ids,
+};
 use unseen_core::newznab::{MovieQuery as NewznabMovieQuery, NewznabClient, NzbRelease};
 use unseen_core::permission::Permission;
 use unseen_core::profile::{Item, Profile};
@@ -64,8 +68,7 @@ pub struct ReleaseScore {
     /// Position of the quality in the profile, higher is better. Absent when
     /// the quality is not listed in the profile.
     pub quality_rank: Option<u32>,
-    /// Total custom format score for the profile (0 until custom formats are
-    /// evaluated).
+    /// Total custom format score for the profile.
     pub custom_format_score: i32,
     /// Revision number: 1 for a first release, 2 for PROPER/REPACK, and higher
     /// for subsequent revisions.
@@ -173,14 +176,52 @@ fn failed(error: impl std::fmt::Display) -> Problem {
     Problem::internal()
 }
 
-fn existing_file_version(file: &movie_files::Model) -> u8 {
-    let name = file.scene_name.as_deref().unwrap_or_else(|| {
+fn existing_file_name(file: &movie_files::Model) -> &str {
+    file.scene_name.as_deref().unwrap_or_else(|| {
         file.relative_path
             .rsplit('/')
             .next()
             .unwrap_or(&file.relative_path)
-    });
-    release::parse(name).version
+    })
+}
+
+fn existing_file_decision_info(
+    file: &movie_files::Model,
+    movie_year: i32,
+    scored_formats: &[ScoredFormat],
+) -> scoring::Existing {
+    let name = existing_file_name(file);
+    let parsed = release::parse(name);
+    let stored_languages: Vec<String> = file
+        .languages
+        .as_ref()
+        .and_then(|value| serde_json::from_value::<Vec<String>>(value.clone()).ok())
+        .unwrap_or_default();
+    let language_ids = if stored_languages.is_empty() {
+        release_language_ids(&parsed.languages, None)
+    } else {
+        code_language_ids(&stored_languages, None)
+    };
+    let mut info = release_info_from_parsed(
+        name,
+        &parsed,
+        &language_ids,
+        file.size,
+        &[],
+        Some(movie_year),
+    );
+    if let Some(group) = file.release_group.as_deref() {
+        info.release_group = Some(group);
+    }
+    if let Some(edition) = file.edition.as_deref() {
+        info.edition = Some(edition);
+    }
+    let custom_format_score = custom_format::score_release(scored_formats, &info);
+    scoring::Existing {
+        quality: Quality::from_id(file.quality_id).unwrap_or(Quality::Unknown),
+        version: parsed.version,
+        custom_format_score,
+    }
 }
 
 /// Queries all enabled indexers in parallel for releases of a movie, parses
@@ -244,8 +285,41 @@ pub async fn search_movie(
         items: profile_items,
         cutoff_quality_id: quality_profile_model.cutoff_quality_id,
         language: quality_profile_model.language,
+        min_format_score: quality_profile_model.min_format_score,
+        cutoff_format_score: quality_profile_model.cutoff_format_score,
         min_upgrade_format_score: quality_profile_model.min_upgrade_format_score,
     };
+
+    let scored_formats: Vec<ScoredFormat> =
+        db::profiles::scored_custom_formats(&state.db, quality_profile_model.id)
+            .await
+            .map_err(failed)?
+            .into_iter()
+            .filter_map(|entry| {
+                let specifications: Vec<Specification> =
+                    match serde_json::from_value(entry.custom_format.specifications) {
+                        Ok(specs) => specs,
+                        Err(error) => {
+                            tracing::warn!(
+                                custom_format_id = entry.custom_format.id,
+                                %error,
+                                "skipping custom format with unreadable specifications"
+                            );
+                            return None;
+                        }
+                    };
+                Some(ScoredFormat {
+                    format: CustomFormat {
+                        include_custom_format_when_renaming: entry
+                            .custom_format
+                            .include_when_renaming,
+                        name: entry.custom_format.name,
+                        specifications,
+                    },
+                    score: entry.score,
+                })
+            })
+            .collect();
 
     let size_limits: HashMap<Quality, SizeLimits> = db::quality_definitions::list(&state.db)
         .await
@@ -268,10 +342,7 @@ pub async fn search_movie(
         Some(file_id) => db::movies::find_file(&state.db, movie.model.id, file_id)
             .await
             .map_err(failed)?
-            .map(|file| scoring::Existing {
-                quality: Quality::from_id(file.quality_id).unwrap_or(Quality::Unknown),
-                version: existing_file_version(&file),
-            }),
+            .map(|file| existing_file_decision_info(&file, movie.model.year, &scored_formats)),
         None => None,
     };
 
@@ -484,6 +555,7 @@ pub async fn search_movie(
         profile: &scoring_profile,
         upgrade_allowed: quality_profile_model.upgrade_allowed,
         size_limits: &size_limits,
+        custom_formats: &scored_formats,
         existing,
         protocol_preference: ProtocolPreference::None,
         retention_days: None,
@@ -547,12 +619,13 @@ pub async fn search_movie(
                 reason: rejection.reason().to_owned(),
             })
             .collect();
+        let custom_format_score = decision.custom_format_score();
         let score = ReleaseScore {
             rank: u32::try_from(index + 1).unwrap_or(u32::MAX),
             quality_rank: decision
                 .quality_rank()
                 .and_then(|rank| u32::try_from(rank).ok()),
-            custom_format_score: 0,
+            custom_format_score,
             revision: decision.parsed.version,
             indexer_priority: fetched_item.indexer_priority,
             seeder_score: decision.seeder_score(),
@@ -573,7 +646,7 @@ pub async fn search_movie(
                 info_hash,
                 size: raw.size(),
                 quality_id: decision.quality.id(),
-                custom_format_score: 0,
+                custom_format_score,
                 protocol: protocol.clone(),
                 accepted,
             },

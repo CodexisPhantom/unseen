@@ -36,6 +36,7 @@ pub struct QueueItem {
     pub download_client_name: Option<String>,
     pub release_title: String,
     pub quality_id: i32,
+    pub custom_format_score: i32,
     pub size: i64,
     /// Progress from `0.0` to `1.0`.
     pub progress: f64,
@@ -249,6 +250,7 @@ pub async fn list_queue(
                 download_client_name: row.client.map(|c| c.name),
                 release_title: dl.release_title,
                 quality_id: dl.quality_id,
+                custom_format_score: dl.custom_format_score,
                 size: dl.size,
                 progress,
                 speed,

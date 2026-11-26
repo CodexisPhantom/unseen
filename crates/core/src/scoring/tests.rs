@@ -6,6 +6,7 @@ use super::{
     Candidate, Context, Existing, Movie, Protocol, ProtocolPreference, Rejection as R, ReleaseRef,
     evaluate, rank,
 };
+use crate::custom_format::{CustomFormat, Field, ScoredFormat, Specification};
 use crate::newznab::NzbRelease;
 use crate::profile::{Item, Profile};
 use crate::quality::{Quality, SizeLimits};
@@ -79,6 +80,8 @@ fn profile(language: &str) -> Profile {
         ],
         cutoff_quality_id: Quality::Bluray1080p.id(),
         language: language.into(),
+        min_format_score: 0,
+        cutoff_format_score: 0,
         min_upgrade_format_score: 1,
     }
 }
@@ -108,6 +111,7 @@ struct Fixture {
     upgrade_allowed: bool,
     existing: Option<Existing>,
     limits: HashMap<Quality, SizeLimits>,
+    custom_formats: Vec<ScoredFormat>,
     original_language: Option<&'static str>,
     movie_tags: Vec<i32>,
     protocol_preference: ProtocolPreference,
@@ -122,6 +126,7 @@ impl Fixture {
             upgrade_allowed: true,
             existing: None,
             limits: limits(),
+            custom_formats: Vec::new(),
             original_language: Some("en"),
             movie_tags: vec![1],
             protocol_preference: ProtocolPreference::None,
@@ -142,6 +147,7 @@ impl Fixture {
             profile: &self.profile,
             upgrade_allowed: self.upgrade_allowed,
             size_limits: &self.limits,
+            custom_formats: &self.custom_formats,
             existing: self.existing,
             protocol_preference: self.protocol_preference,
             retention_days: self.retention_days,
@@ -356,7 +362,13 @@ fn every_broken_rule_is_listed_in_the_order_of_the_doc() {
 
 #[test]
 fn upgrade_decisions_against_an_existing_file() {
-    let existing = |quality, version| Some(Existing { quality, version });
+    let existing = |quality, version| {
+        Some(Existing {
+            quality,
+            version,
+            custom_format_score: 0,
+        })
+    };
     let hdtv = Quality::Hdtv720p;
     let web = Quality::WebDl1080p;
     let bluray = Quality::Bluray1080p;
@@ -550,6 +562,7 @@ fn rejection_codes_and_reasons_are_stable_and_distinct() {
         R::TooSmall,
         R::TooLarge,
         R::Language,
+        R::MinFormatScore,
         R::UpgradesDisabled,
         R::CutoffMet,
         R::NotAnUpgrade,
@@ -1039,4 +1052,200 @@ fn mixed_protocol_order_is_transitive_and_independent_of_input_order() {
         candidates.reverse();
         assert_eq!(order_mixed(&fixture, &candidates), expected, "{pref:?}");
     }
+}
+
+fn title_format(name: &str, pattern: &str, score: i32) -> ScoredFormat {
+    ScoredFormat {
+        format: CustomFormat {
+            include_custom_format_when_renaming: false,
+            name: name.to_owned(),
+            specifications: vec![Specification {
+                name: name.to_owned(),
+                implementation: "ReleaseTitleSpecification".to_owned(),
+                negate: false,
+                required: true,
+                fields: vec![Field {
+                    name: "value".to_owned(),
+                    value: serde_json::Value::from(pattern),
+                }],
+            }],
+        },
+        score,
+    }
+}
+
+#[test]
+fn higher_custom_format_score_wins_for_same_quality_but_not_over_higher_quality() {
+    let mut fixture = Fixture::new();
+    fixture.custom_formats = vec![
+        title_format("HDR", r"\bHDR\b", 500),
+        title_format("Atmos", r"\bAtmos\b", 250),
+        title_format("BadGroup", r"-BAD$", -1000),
+    ];
+
+    let plain = "The.Matrix.1999.PROPER.1080p.BluRay.x264-PLAIN";
+    let hdr = "The.Matrix.1999.1080p.BluRay.HDR.x264-HDR";
+    let hdr_atmos = "The.Matrix.1999.1080p.BluRay.HDR.Atmos.x264-BOTH";
+    let web_hdr_atmos = "The.Matrix.1999.1080p.WEB-DL.HDR.Atmos.x264-WEB";
+
+    let candidates = [
+        (release(web_hdr_atmos, 5000, Some(1000)), 1),
+        (release(plain, 5000, Some(1000)), 1),
+        (release(hdr, 5000, Some(10)), 30),
+        (release(hdr_atmos, 5000, Some(1)), 50),
+    ];
+    // Bluray-1080p beats WEB-DL-1080p even when WEB-DL has a higher format score;
+    // within Bluray-1080p, score 750 > 500 > 0 (even though plain is PROPER with better priority & seeders).
+    assert_eq!(
+        order(&fixture, &candidates),
+        [hdr_atmos, hdr, plain, web_hdr_atmos]
+    );
+
+    let scored = release(hdr_atmos, 5000, Some(1));
+    let decision = evaluate(
+        &fixture.ctx(),
+        Candidate {
+            release: (&scored).into(),
+            indexer_priority: 25,
+            indexer_tags: &[],
+        },
+    );
+    assert_eq!(decision.custom_format_score(), 750);
+}
+
+#[test]
+fn release_below_min_format_score_is_rejected_with_that_reason() {
+    let mut fixture = Fixture::new();
+    fixture.profile.min_format_score = 100;
+    fixture.custom_formats = vec![
+        title_format("HDR", r"\bHDR\b", 200),
+        title_format("Bad", r"\bBAD\b", -500),
+    ];
+
+    let below = release("The.Matrix.1999.1080p.BluRay.x264-A", 5000, Some(10));
+    let negative = release("The.Matrix.1999.1080p.BluRay.BAD.x264-A", 5000, Some(10));
+    let passing = release("The.Matrix.1999.1080p.BluRay.HDR.x264-A", 5000, Some(10));
+
+    assert_eq!(fixture.rejections(&below, &[]), vec![R::MinFormatScore]);
+    assert_eq!(fixture.rejections(&negative, &[]), vec![R::MinFormatScore]);
+    assert_eq!(fixture.rejections(&passing, &[]), vec![]);
+
+    // Rejection order: Language before MinFormatScore before UpgradesDisabled.
+    fixture.profile.language = "fr".into();
+    fixture.upgrade_allowed = false;
+    fixture.existing = Some(Existing {
+        quality: Quality::Bluray1080p,
+        version: 1,
+        custom_format_score: 0,
+    });
+    assert_eq!(
+        fixture.rejections(&below, &[]),
+        vec![R::Language, R::MinFormatScore, R::UpgradesDisabled]
+    );
+}
+
+#[test]
+fn custom_format_score_upgrade_and_cutoff_rules() {
+    let mut fixture = Fixture::new();
+    fixture.profile.cutoff_format_score = 500;
+    fixture.profile.min_upgrade_format_score = 100;
+    fixture.custom_formats = vec![
+        title_format("Plus50", r"\bP50\b", 50),
+        title_format("Plus100", r"\bP100\b", 100),
+        title_format("Plus600", r"\bP600\b", 600),
+    ];
+
+    let bluray = Quality::Bluray1080p; // at quality cutoff
+    let web = Quality::WebDl1080p; // below quality cutoff
+
+    // Same quality, existing below cutoffFormatScore (200 < 500), gain is 100 (>= 100): upgrades.
+    fixture.existing = Some(Existing {
+        quality: bluray,
+        version: 1,
+        custom_format_score: 200,
+    });
+    assert_eq!(
+        fixture.rejections(
+            &release("The.Matrix.1999.1080p.BluRay.P600.x264-A", 5000, None),
+            &[]
+        ),
+        vec![]
+    );
+
+    // Same quality, existing below cutoffFormatScore (0 < 500), gain is 50 (< 100): NotAnUpgrade.
+    fixture.existing = Some(Existing {
+        quality: bluray,
+        version: 1,
+        custom_format_score: 0,
+    });
+    assert_eq!(
+        fixture.rejections(
+            &release("The.Matrix.1999.1080p.BluRay.P50.x264-A", 5000, None),
+            &[]
+        ),
+        vec![R::NotAnUpgrade]
+    );
+
+    // Existing at both quality cutoff and cutoffFormatScore (500 >= 500): not upgraded for score.
+    fixture.existing = Some(Existing {
+        quality: bluray,
+        version: 1,
+        custom_format_score: 500,
+    });
+    assert_eq!(
+        fixture.rejections(
+            &release("The.Matrix.1999.1080p.BluRay.P600.x264-A", 5000, None),
+            &[]
+        ),
+        vec![R::CutoffMet]
+    );
+
+    // Existing below quality cutoff but at cutoffFormatScore (500 >= 500):
+    // same quality with higher score is rejected, higher quality still upgrades.
+    fixture.existing = Some(Existing {
+        quality: web,
+        version: 1,
+        custom_format_score: 500,
+    });
+    assert_eq!(
+        fixture.rejections(
+            &release("The.Matrix.1999.1080p.WEB-DL.P600.x264-A", 5000, None),
+            &[]
+        ),
+        vec![R::NotAnUpgrade]
+    );
+    assert_eq!(
+        fixture.rejections(
+            &release("The.Matrix.1999.1080p.BluRay.x264-A", 5000, None),
+            &[]
+        ),
+        vec![]
+    );
+
+    // Same quality and same score (100), higher revision (PROPER) still upgrades.
+    fixture.existing = Some(Existing {
+        quality: bluray,
+        version: 1,
+        custom_format_score: 100,
+    });
+    assert_eq!(
+        fixture.rejections(
+            &release(
+                "The.Matrix.1999.PROPER.1080p.BluRay.P100.x264-A",
+                5000,
+                None
+            ),
+            &[]
+        ),
+        vec![]
+    );
+
+    // Same quality, lower score than existing, higher revision (PROPER) does NOT upgrade.
+    assert_eq!(
+        fixture.rejections(
+            &release("The.Matrix.1999.PROPER.1080p.BluRay.x264-A", 5000, None),
+            &[]
+        ),
+        vec![R::NotAnUpgrade]
+    );
 }

@@ -6,6 +6,8 @@ import {
 	draftOf,
 	draftProblem,
 	dropIndex,
+	formatScorePayload,
+	formatScoreSummary,
 	itemDetail,
 	itemId,
 	itemName,
@@ -13,6 +15,8 @@ import {
 	qualityName,
 	resolveCutoff,
 	setAllowed,
+	setFormatScore,
+	type ProfileFormatScore,
 	type ProfileItem,
 	type QualityProfile
 } from './profiles.js';
@@ -119,7 +123,16 @@ describe('setAllowed', () => {
 });
 
 describe('draftProblem', () => {
-	const ok = { name: 'HD', upgradeAllowed: true, cutoff: 7, items: [quality(7, true)] };
+	const ok = {
+		name: 'HD',
+		upgradeAllowed: true,
+		cutoff: 7,
+		items: [quality(7, true)],
+		minFormatScore: 0,
+		cutoffFormatScore: 0,
+		minUpgradeFormatScore: 1,
+		formatScores: [] as ProfileFormatScore[]
+	};
 
 	it('accepts a complete draft', () => {
 		expect(draftProblem(ok)).toBe('');
@@ -129,28 +142,92 @@ describe('draftProblem', () => {
 		expect(draftProblem({ ...ok, name: '  ' })).toMatch(/name/);
 		expect(draftProblem({ ...ok, items: [quality(7, false)] })).toMatch(/at least one/);
 		expect(draftProblem({ ...ok, cutoff: null })).toMatch(/cutoff/);
+		expect(draftProblem({ ...ok, minFormatScore: 1.5 })).toMatch(/whole number/);
+		expect(draftProblem({ ...ok, cutoffFormatScore: Number.NaN })).toMatch(/whole number/);
+		expect(draftProblem({ ...ok, minUpgradeFormatScore: 0 })).toMatch(/at least 1/);
+		expect(
+			draftProblem({
+				...ok,
+				formatScores: [{ customFormatId: 1, name: 'HDR', score: 1.5 }]
+			})
+		).toMatch(/whole numbers/);
 	});
 });
 
 describe('draftOf', () => {
-	it('starts a new profile with a valid draft', () => {
-		const draft = draftOf(null);
+	it('starts a new profile with a valid draft and zeroes available formats', () => {
+		const available: ProfileFormatScore[] = [{ customFormatId: 2, name: 'HDR', score: 500 }];
+		const draft = draftOf(null, available);
 		expect(draft.name).toBe('');
 		expect(draft.cutoff).toBe(7);
+		expect(draft.minFormatScore).toBe(0);
+		expect(draft.cutoffFormatScore).toBe(0);
+		expect(draft.minUpgradeFormatScore).toBe(1);
+		expect(draft.formatScores).toEqual([{ customFormatId: 2, name: 'HDR', score: 0 }]);
 		expect(draftProblem({ ...draft, name: 'x' })).toBe('');
 	});
 
-	it('copies an existing profile', () => {
+	it('copies an existing profile including format scores', () => {
 		const profile = {
 			name: 'HD',
 			upgradeAllowed: false,
 			cutoff: 1002,
-			items: [quality(7, true), group]
+			items: [quality(7, true), group],
+			minFormatScore: 50,
+			cutoffFormatScore: 500,
+			minUpgradeFormatScore: 25,
+			formatScores: [{ customFormatId: 1, name: 'HDR', score: 300 }]
 		} as QualityProfile;
 		const draft = draftOf(profile);
-		expect(draft).toMatchObject({ name: 'HD', upgradeAllowed: false, cutoff: 1002 });
+		expect(draft).toMatchObject({
+			name: 'HD',
+			upgradeAllowed: false,
+			cutoff: 1002,
+			minFormatScore: 50,
+			cutoffFormatScore: 500,
+			minUpgradeFormatScore: 25
+		});
 		draft.items[0].allowed = false;
+		draft.formatScores[0].score = 0;
 		expect(profile.items[0].allowed).toBe(true);
+		expect(profile.formatScores[0].score).toBe(300);
+	});
+});
+
+describe('format scores helpers', () => {
+	const scores: ProfileFormatScore[] = [
+		{ customFormatId: 1, name: 'HDR', score: 500 },
+		{ customFormatId: 2, name: 'x265', score: 0 }
+	];
+
+	it('updates a single format score without mutating input', () => {
+		const next = setFormatScore(scores, 2, -100);
+		expect(next).toEqual([
+			{ customFormatId: 1, name: 'HDR', score: 500 },
+			{ customFormatId: 2, name: 'x265', score: -100 }
+		]);
+		expect(scores[1].score).toBe(0);
+	});
+
+	it('filters zero scores from the request payload', () => {
+		expect(formatScorePayload(scores)).toEqual([{ customFormatId: 1, score: 500 }]);
+	});
+
+	it('summarises format scores for the table', () => {
+		expect(
+			formatScoreSummary({
+				minFormatScore: 0,
+				cutoffFormatScore: 0,
+				formatScores: [{ customFormatId: 1, name: 'HDR', score: 0 }]
+			})
+		).toBe('—');
+		expect(
+			formatScoreSummary({
+				minFormatScore: 100,
+				cutoffFormatScore: 500,
+				formatScores: scores
+			})
+		).toBe('1 scored · min 100 · cutoff 500');
 	});
 });
 

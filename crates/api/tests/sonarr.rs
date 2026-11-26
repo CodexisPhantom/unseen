@@ -491,6 +491,7 @@ async fn quality_profiles_translate_tv_quality_ids_and_match_case_insensitively(
             min_format_score: 0,
             cutoff_format_score: 0,
             min_upgrade_format_score: 1,
+            format_scores: Vec::new(),
         },
     )
     .await

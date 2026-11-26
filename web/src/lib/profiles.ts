@@ -2,6 +2,8 @@ import type { components } from './api/schema.js';
 
 export type ProfileItem = components['schemas']['ProfileItem'];
 export type QualityProfile = components['schemas']['QualityProfile'];
+export type ProfileFormatScore = components['schemas']['ProfileFormatScore'];
+export type FormatScoreInput = components['schemas']['FormatScoreInput'];
 
 /** Radarr's quality ids and names in the default order, lowest first (crates/core/src/quality.rs). */
 const qualities: readonly (readonly [number, string])[] = [
@@ -124,6 +126,10 @@ export interface Draft {
 	upgradeAllowed: boolean;
 	cutoff: number | null;
 	items: ProfileItem[];
+	minFormatScore: number;
+	cutoffFormatScore: number;
+	minUpgradeFormatScore: number;
+	formatScores: ProfileFormatScore[];
 }
 
 /** The first rule the draft breaks, as the server words it, or an empty string. */
@@ -131,20 +137,65 @@ export function draftProblem(draft: Draft): string {
 	if (!draft.name.trim()) return 'The name must not be empty.';
 	if (!draft.items.some((item) => item.allowed)) return 'Allow at least one quality.';
 	if (draft.cutoff === null) return 'Choose a cutoff.';
+	if (!Number.isInteger(draft.minFormatScore)) return 'Minimum format score must be a whole number.';
+	if (!Number.isInteger(draft.cutoffFormatScore))
+		return 'Upgrade until score must be a whole number.';
+	if (!Number.isInteger(draft.minUpgradeFormatScore) || draft.minUpgradeFormatScore < 1)
+		return 'Minimum upgrade gain must be at least 1.';
+	if (draft.formatScores.some((entry) => !Number.isInteger(entry.score)))
+		return 'Custom format scores must be whole numbers.';
 	return '';
 }
 
-export function draftOf(profile: QualityProfile | null): Draft {
+export function draftOf(
+	profile: QualityProfile | null,
+	availableFormats: readonly ProfileFormatScore[] = []
+): Draft {
 	if (!profile) {
 		const items = defaultItems();
-		return { name: '', upgradeAllowed: true, cutoff: resolveCutoff(items, BLURAY_1080P), items };
+		return {
+			name: '',
+			upgradeAllowed: true,
+			cutoff: resolveCutoff(items, BLURAY_1080P),
+			items,
+			minFormatScore: 0,
+			cutoffFormatScore: 0,
+			minUpgradeFormatScore: 1,
+			formatScores: availableFormats.map((entry) => ({
+				customFormatId: entry.customFormatId,
+				name: entry.name,
+				score: 0
+			}))
+		};
 	}
 	return {
 		name: profile.name,
 		upgradeAllowed: profile.upgradeAllowed,
 		cutoff: resolveCutoff(profile.items, profile.cutoff),
-		items: structuredClone(profile.items)
+		items: structuredClone(profile.items),
+		minFormatScore: profile.minFormatScore ?? 0,
+		cutoffFormatScore: profile.cutoffFormatScore ?? 0,
+		minUpgradeFormatScore: profile.minUpgradeFormatScore ?? 1,
+		formatScores: (profile.formatScores ?? []).map((entry) => ({ ...entry }))
 	};
+}
+
+/** Returns a copy of `scores` with the score for `customFormatId` updated. */
+export function setFormatScore(
+	scores: readonly ProfileFormatScore[],
+	customFormatId: number,
+	score: number
+): ProfileFormatScore[] {
+	return scores.map((entry) =>
+		entry.customFormatId === customFormatId ? { ...entry, score } : entry
+	);
+}
+
+/** Non-zero score assignments ready for POST/PATCH requests. */
+export function formatScorePayload(scores: readonly ProfileFormatScore[]): FormatScoreInput[] {
+	return scores
+		.filter((entry) => entry.score !== 0)
+		.map(({ customFormatId, score }) => ({ customFormatId, score }));
 }
 
 /** Allowed names in list order, for a table cell. */
@@ -156,4 +207,16 @@ export function allowedSummary(items: readonly ProfileItem[]): string {
 export function cutoffName(profile: Pick<QualityProfile, 'items' | 'cutoff'>): string {
 	const match = profile.items.find((item) => itemId(item) === profile.cutoff);
 	return match ? itemName(match) : qualityName(profile.cutoff);
+}
+
+/** Short summary of custom format scoring on a profile, for a table cell. */
+export function formatScoreSummary(
+	profile: Pick<QualityProfile, 'minFormatScore' | 'cutoffFormatScore' | 'formatScores'>
+): string {
+	const scored = (profile.formatScores ?? []).filter((entry) => entry.score !== 0).length;
+	const parts: string[] = [];
+	if (scored > 0) parts.push(`${scored} scored`);
+	if (profile.minFormatScore !== 0) parts.push(`min ${profile.minFormatScore}`);
+	if (profile.cutoffFormatScore !== 0) parts.push(`cutoff ${profile.cutoffFormatScore}`);
+	return parts.length > 0 ? parts.join(' · ') : '—';
 }

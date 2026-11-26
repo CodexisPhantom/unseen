@@ -3591,8 +3591,8 @@
             }
           }
         },
-        "x-permission": "authenticated",
-        "x-owner-only": true
+        "x-owner-only": true,
+        "x-permission": "authenticated"
       }
     },
     "/api/v1/permissions": {
@@ -6500,6 +6500,24 @@
           }
         }
       },
+      "FormatScoreInput": {
+        "type": "object",
+        "description": "A score assignment sent when creating or updating a profile.",
+        "required": [
+          "customFormatId",
+          "score"
+        ],
+        "properties": {
+          "customFormatId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
@@ -7262,6 +7280,7 @@
           "relativePath",
           "size",
           "qualityId",
+          "languages",
           "managed",
           "addedAt"
         ],
@@ -7278,6 +7297,13 @@
           "id": {
             "type": "integer",
             "format": "int32"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Lowercase ISO 639-1 language codes (or `\"multi\"`) stored on the file."
           },
           "managed": {
             "type": "boolean"
@@ -7875,6 +7901,12 @@
             "type": "integer",
             "format": "int32"
           },
+          "formatScores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormatScoreInput"
+            }
+          },
           "items": {
             "type": "array",
             "items": {
@@ -8108,6 +8140,28 @@
           "type": {
             "type": "string",
             "description": "URI that identifies the problem kind."
+          }
+        }
+      },
+      "ProfileFormatScore": {
+        "type": "object",
+        "description": "One custom format and the score this profile assigns to it.",
+        "required": [
+          "customFormatId",
+          "name",
+          "score"
+        ],
+        "properties": {
+          "customFormatId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -8390,6 +8444,7 @@
           "minFormatScore",
           "cutoffFormatScore",
           "minUpgradeFormatScore",
+          "formatScores",
           "createdAt",
           "updatedAt"
         ],
@@ -8405,6 +8460,13 @@
           "cutoffFormatScore": {
             "type": "integer",
             "format": "int32"
+          },
+          "formatScores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileFormatScore"
+            },
+            "description": "Every custom format, ordered by name, with its score for this profile."
           },
           "id": {
             "type": "integer",
@@ -8456,6 +8518,16 @@
               "null"
             ],
             "format": "int32"
+          },
+          "formatScores": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FormatScoreInput"
+            },
+            "description": "Replaces all custom format scores on this profile when provided."
           },
           "items": {
             "type": [
@@ -8509,6 +8581,7 @@
           "movieYear",
           "releaseTitle",
           "qualityId",
+          "customFormatScore",
           "size",
           "progress",
           "speed",
@@ -8516,6 +8589,10 @@
           "grabbedAt"
         ],
         "properties": {
+          "customFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
           "downloadClientId": {
             "type": [
               "integer",
@@ -8778,7 +8855,7 @@
           "customFormatScore": {
             "type": "integer",
             "format": "int32",
-            "description": "Total custom format score for the profile (0 until custom formats are\nevaluated)."
+            "description": "Total custom format score for the profile."
           },
           "indexerPriority": {
             "type": "integer",
