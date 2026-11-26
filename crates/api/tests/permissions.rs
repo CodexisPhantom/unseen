@@ -399,6 +399,11 @@ fn app_router_passes_route_coverage() {
             ),
             profiles(
                 Method::GET,
+                "/api/v1/movies/{id}/releases",
+                Permission::SearchRun
+            ),
+            profiles(
+                Method::GET,
                 "/api/v1/language-profiles",
                 Permission::LibraryRead
             ),

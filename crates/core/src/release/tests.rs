@@ -472,3 +472,32 @@ fn random_names_never_panic() {
         assert!(parsed.version >= 1, "{name:?}");
     }
 }
+
+#[test]
+fn every_language_has_a_unique_code() {
+    let all = [
+        (Language::English, "en"),
+        (Language::French, "fr"),
+        (Language::German, "de"),
+        (Language::Spanish, "es"),
+        (Language::Italian, "it"),
+        (Language::Dutch, "nl"),
+        (Language::Portuguese, "pt"),
+        (Language::Russian, "ru"),
+        (Language::Japanese, "ja"),
+        (Language::Korean, "ko"),
+        (Language::Chinese, "zh"),
+        (Language::Swedish, "sv"),
+        (Language::Norwegian, "no"),
+        (Language::Danish, "da"),
+        (Language::Finnish, "fi"),
+        (Language::Polish, "pl"),
+        (Language::Hindi, "hi"),
+        (Language::Multi, "multi"),
+    ];
+    for (lang, expected) in all {
+        assert_eq!(lang.code(), expected);
+    }
+    let unique: std::collections::HashSet<_> = all.iter().map(|(lang, _)| lang.code()).collect();
+    assert_eq!(unique.len(), all.len(), "two languages share a code");
+}
