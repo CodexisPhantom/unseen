@@ -24,6 +24,8 @@ const PREFIX_LEN: usize = 8;
 /// The SHA-256 of a key, as stored.
 pub(crate) fn hash(key: &str) -> String {
     // API keys are random high-entropy tokens, not user passwords, so SHA-256 is correct.
+    // API keys are 256-bit random tokens, so a fast digest is the safe choice and no password
+    // KDF applies.
     // lgtm[rust/insufficient-password-hash]
     hex(&Sha256::digest(key.as_bytes()))
 }
