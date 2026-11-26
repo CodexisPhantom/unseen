@@ -10,7 +10,9 @@
 	let password = $state('');
 	let passkeyName = $state('My passkey');
 	let failure = $state('');
-	let setup = $state<{ secret: string; backupCodes: string[] } | null>(null);
+	let setup = $state<{ secret: string; backupCodes: string[]; verified: boolean } | null>(null);
+	let verificationCode = $state('');
+	let verificationPending = $state(false);
 	let copied = $state(false);
 	const queryClient = useQueryClient();
 
@@ -38,17 +40,40 @@
 				failure = 'The authenticator setup returned an unexpected response.';
 				return;
 			}
-			setup = { secret: totpSecretFromUri(data.totpURI), backupCodes: data.backupCodes };
+			setup = {
+				secret: totpSecretFromUri(data.totpURI),
+				backupCodes: data.backupCodes,
+				verified: false
+			};
 			password = '';
+		},
+		onError: (error) => (failure = error.message)
+	}));
+
+	async function verifySetup() {
+		if (!setup) return;
+		failure = '';
+		verificationPending = true;
+		try {
+			const { error } = await authClient.twoFactor.verifyTotp({ code: verificationCode.trim() });
+			if (error) {
+				failure = error.message || 'That code was not accepted. Check it and try again.';
+				return;
+			}
+			setup = { ...setup, verified: true };
+			verificationCode = '';
 			if (session.me) {
 				session.me = {
 					...session.me,
 					user: { ...session.me.user, twoFactorEnabled: true }
 				};
 			}
-		},
-		onError: (error) => (failure = error.message)
-	}));
+		} catch {
+			failure = 'That code was not accepted. Check it and try again.';
+		} finally {
+			verificationPending = false;
+		}
+	}
 
 	const disableTwoFactor = createMutation(() => ({
 		mutationFn: async () => {
@@ -124,25 +149,57 @@
 		{#if setup}
 			<div class="grid gap-3">
 				<p class="text-sm">
-					Enter this setup key in your authenticator app. Save the recovery codes somewhere safe;
-					each code works once.
+					Enter this setup key in your authenticator app.
 				</p>
-			<code class="rounded-md border bg-muted p-3 font-mono text-sm break-all select-all">{setup.secret}</code>
-			<div class="grid gap-2">
-				<div class="flex items-center justify-between gap-2">
-					<Label for="backup-codes">Recovery codes</Label>
-					<Button type="button" variant="outline" size="sm" onclick={copyBackupCodes}>
-						{copied ? 'Copied' : 'Copy codes'}
-					</Button>
+				<code class="rounded-md border bg-muted p-3 font-mono text-sm break-all select-all">{setup.secret}</code>
+				{#if setup.verified}
+					<p class="text-sm">
+						Save the recovery codes somewhere safe. Each code works once.
+					</p>
+					<div class="grid gap-2">
+						<div class="flex items-center justify-between gap-2">
+							<Label for="backup-codes">Recovery codes</Label>
+							<Button type="button" variant="outline" size="sm" onclick={copyBackupCodes}>
+								{copied ? 'Copied' : 'Copy codes'}
+							</Button>
+						</div>
+						<textarea
+							id="backup-codes"
+							readonly
+							class="min-h-28 w-full rounded-md border bg-muted p-3 font-mono text-sm focus-visible:ring-2 focus-visible:ring-ring"
+							>{formatBackupCodes(setup.backupCodes)}</textarea
+						>
+					</div>
+					<Button type="button" onclick={() => (setup = null)}>Done</Button>
+				{:else}
+					<form
+						class="flex flex-wrap items-end gap-3"
+						onsubmit={(event) => {
+							event.preventDefault();
+							verifySetup();
+						}}
+					>
+						<div class="grid gap-2">
+							<Label for="setup-verification-code">Authenticator code</Label>
+							<Input
+								id="setup-verification-code"
+								autocomplete="one-time-code"
+								inputmode="numeric"
+								pattern="[0-9]{6}"
+								maxlength={6}
+								required
+								bind:value={verificationCode}
+							/>
+						</div>
+						<Button type="submit" disabled={verificationCode.trim().length !== 6 || verificationPending}>
+							{verificationPending ? 'Verifying…' : 'Verify code'}
+						</Button>
+					</form>
+				{/if}
+				{#if failure}
+					<p role="alert" class="text-sm text-destructive">{failure}</p>
+				{/if}
 				</div>
-				<textarea
-					id="backup-codes"
-					readonly
-					class="min-h-28 w-full rounded-md border bg-muted p-3 font-mono text-sm focus-visible:ring-2 focus-visible:ring-ring"
-					>{formatBackupCodes(setup.backupCodes)}</textarea
-				>
-			</div>
-			</div>
 		{:else if session.me?.user.twoFactorEnabled}
 			<form
 				class="flex flex-wrap items-end gap-3"
@@ -230,7 +287,7 @@
 		{/if}
 	</div>
 
-	{#if failure}
+	{#if failure && !setup}
 		<p role="alert" class="text-sm text-destructive">{failure}</p>
 	{/if}
 </section>

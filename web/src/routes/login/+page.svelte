@@ -22,6 +22,7 @@
 	let failure = $state('');
 	let twoFactorRequired = $state(false);
 	let verificationCode = $state('');
+	let useRecoveryCode = $state(false);
 	let passkeyPending = $state(false);
 
 	async function continueSignedIn() {
@@ -32,12 +33,18 @@
 
 	async function verifyTwoFactor() {
 		failure = '';
-		const { error } = await authClient.twoFactor.verifyTotp({ code: verificationCode.trim() });
-		if (error) {
-			failure = error.message || 'That code was not accepted. Check it and try again.';
-			return;
+		try {
+			const result = useRecoveryCode
+				? await authClient.twoFactor.verifyBackupCode({ code: verificationCode.trim() })
+				: await authClient.twoFactor.verifyTotp({ code: verificationCode.trim() });
+			if (result.error) {
+				failure = result.error.message || 'That code was not accepted. Check it and try again.';
+				return;
+			}
+			await continueSignedIn();
+		} catch {
+			failure = 'That code was not accepted. Check it and try again.';
 		}
-		await continueSignedIn();
 	}
 
 	async function signInWithPasskey() {
@@ -105,13 +112,13 @@
 						Enter the current code from your authenticator app to finish signing in.
 					</p>
 					<div class="grid gap-2">
-						<Label for="two-factor-code">Authenticator code</Label>
+						<Label for="two-factor-code">{useRecoveryCode ? 'Recovery code' : 'Authenticator code'}</Label>
 						<Input
 							id="two-factor-code"
-							autocomplete="one-time-code"
-							inputmode="numeric"
-							pattern="[0-9]*"
-							maxlength={8}
+							autocomplete={useRecoveryCode ? 'off' : 'one-time-code'}
+							inputmode={useRecoveryCode ? 'text' : 'numeric'}
+							pattern={useRecoveryCode ? undefined : '[0-9]{6}'}
+							maxlength={useRecoveryCode ? 32 : 6}
 							required
 							bind:value={verificationCode}
 						/>
@@ -119,7 +126,20 @@
 					{#if failure}
 						<p role="alert" class="text-sm text-destructive">{failure}</p>
 					{/if}
-					<Button type="submit" disabled={!verificationCode.trim()}>Verify code</Button>
+					<Button type="submit" disabled={!verificationCode.trim()}>
+						{useRecoveryCode ? 'Verify recovery code' : 'Verify code'}
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						onclick={() => {
+							useRecoveryCode = !useRecoveryCode;
+							verificationCode = '';
+							failure = '';
+						}}
+					>
+						{useRecoveryCode ? 'Use an authenticator code instead' : 'Use a recovery code instead'}
+					</Button>
 				</form>
 			{:else}
 			<form method="POST" use:enhance class="grid gap-4">
