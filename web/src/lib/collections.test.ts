@@ -5,6 +5,7 @@ import {
 	buildDefaultsPatch,
 	buildMonitorPatch,
 	collectionCountLabel,
+	collectionLibraryState,
 	collectionListCountLabel,
 	draftChanged,
 	draftOf,
@@ -137,6 +138,15 @@ describe('collectionCountLabel', () => {
 
 	it('builds list summaries from the list payload count without needing collection details', () => {
 		expect(collectionListCountLabel({ movieCount: 3 })).toBe('3 in library');
+	});
+});
+
+describe('collectionLibraryState', () => {
+	it('distinguishes a failed fallback request from a loaded empty collection', () => {
+		expect(collectionLibraryState(false, false, true, 0)).toBe('error');
+		expect(collectionLibraryState(false, false, false, 0)).toBe('empty');
+		expect(collectionLibraryState(false, true, false, 0)).toBe('loading');
+		expect(collectionLibraryState(true, false, false, 0)).toBe('empty');
 	});
 });
 

@@ -125,6 +125,18 @@ export function collectionListCountLabel(collection: Pick<Collection, 'movieCoun
 	return collectionCountLabel(collection.movieCount);
 }
 
+/** The visible state for a collection's library list when its detail request failed. */
+export function collectionLibraryState(
+	hasDetail: boolean,
+	fallbackMoviesPending: boolean,
+	fallbackMoviesError: boolean,
+	movieCount: number
+): 'error' | 'loading' | 'empty' | 'loaded' {
+	if (!hasDetail && fallbackMoviesError) return 'error';
+	if (!hasDetail && fallbackMoviesPending) return 'loading';
+	return movieCount === 0 ? 'empty' : 'loaded';
+}
+
 /** Today's UTC date as `YYYY-MM-DD`. */
 export function todayIsoDate(now = new Date()): string {
 	return now.toISOString().slice(0, 10);

@@ -10,6 +10,7 @@
 		buildDefaultsPatch,
 		buildMonitorPatch,
 		collectionCountLabel,
+		collectionLibraryState,
 		draftChanged,
 		draftOf,
 		isTmdbProblem,
@@ -128,6 +129,14 @@
 		)
 	);
 	const missingMovies = $derived(sortMissingMovies(detail.data?.missing ?? []));
+	const libraryState = $derived(
+		collectionLibraryState(
+			!!detail.data,
+			fallbackMovies.isPending,
+			fallbackMovies.isError,
+			libraryMovies.length
+		)
+	);
 
 	let syncedId = $state<number | null>(null);
 	let syncedUpdatedAt = $state<string | null>(null);
@@ -337,6 +346,7 @@
 	{:else if current}
 		{@const c = current}
 		{@const poster = posterUrl(c.posterPath)}
+		{@const libraryCount = detail.data ? libraryMovies.length : c.movieCount}
 		<div class="mt-4 flex flex-col gap-6 sm:flex-row">
 			{#if poster}
 				<img
@@ -355,7 +365,7 @@
 					</Badge>
 				</div>
 				<p class="mt-1 text-sm text-muted-foreground">
-					{collectionCountLabel(libraryMovies.length, detail.data ? missingMovies.length : null)}
+					{collectionCountLabel(libraryCount, detail.data ? missingMovies.length : null)}
 				</p>
 				{#if c.overview}
 					<p class="mt-3 max-w-prose text-sm">{c.overview}</p>
@@ -529,9 +539,19 @@
 		<section class="mt-8" aria-labelledby="in-library-heading">
 			<h2 id="in-library-heading" class="text-lg font-semibold">
 				In library
-				<span class="text-sm font-normal text-muted-foreground">({libraryMovies.length})</span>
+				<span class="text-sm font-normal text-muted-foreground">({libraryCount})</span>
 			</h2>
-			{#if libraryMovies.length === 0}
+			{#if libraryState === 'error'}
+				<div role="alert" class="mt-2 space-y-2 text-sm">
+					<p class="text-destructive">
+						Library movies could not be loaded: {fallbackMovies.error?.message ??
+							'The library could not be loaded.'}
+					</p>
+					<Button variant="outline" size="sm" onclick={() => fallbackMovies.refetch()}>Retry</Button>
+				</div>
+			{:else if libraryState === 'loading'}
+				<p class="mt-2 text-sm text-muted-foreground">Loading library movies…</p>
+			{:else if libraryState === 'empty'}
 				<p class="mt-2 text-sm text-muted-foreground">
 					No movie from this collection is in the library.
 				</p>
