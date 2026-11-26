@@ -294,7 +294,7 @@ async fn rejects_bad_input_and_duplicate_names() {
         ("apiKey", json!({ "apiKey": " " })),
         ("priority", json!({ "priority": 0 })),
         ("priority", json!({ "priority": 51 })),
-        ("kind", json!({ "kind": "newznab" })),
+        ("kind", json!({ "kind": "rss" })),
         ("tags", json!({ "tags": [999] })),
     ] {
         let mut request = body("New");
@@ -482,4 +482,180 @@ async fn an_unreadable_stored_key_must_be_entered_again() {
         .await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(reply["code"], "indexer_api_key_unreadable");
+}
+
+const NEWZNAB_CAPS: &str = include_str!("../../../fixtures/newznab/nzbgeek_caps.xml");
+const NEWZNAB_FEED: &str = include_str!("../../../fixtures/newznab/nzbgeek_movie.xml");
+const NEWZNAB_REJECTED: &str = include_str!("../../../fixtures/newznab/error_credentials.xml");
+const NEWZNAB_RATE_LIMITED: &str = include_str!("../../../fixtures/newznab/error_rate_limit.xml");
+
+async fn newznab_indexer_at(app: &App, name: &str, server: &MockServer, token: &str) -> i64 {
+    let payload = json!({
+        "name": name,
+        "kind": "newznab",
+        "url": server.uri(),
+        "apiKey": token,
+    });
+    let (status, reply) = app.owner(Method::POST, PATH, Some(payload)).await;
+    assert_eq!(status, StatusCode::CREATED, "{reply}");
+    reply["id"].as_i64().unwrap()
+}
+
+#[tokio::test]
+async fn newznab_indexers_create_list_update_and_keep_keys_write_only() {
+    let app = App::new().await;
+    let initial_token = "nzb-initial-token";
+    let rotated_token = "nzb-rotated-token";
+
+    create(&app, "Alpha").await;
+    let (status, created) = app
+        .owner(
+            Method::POST,
+            PATH,
+            Some(json!({
+                "name": "Geek",
+                "kind": "newznab",
+                "url": "https://api.nzbgeek.example/api",
+                "apiKey": initial_token,
+                "categories": [2000, 2040],
+                "priority": 15,
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["kind"], "newznab");
+    assert_eq!(created["hasApiKey"], true);
+    assert_eq!(created["apiKeyMustBeReentered"], false);
+    let id = created["id"].as_i64().unwrap();
+    let path = format!("{PATH}/{id}");
+
+    let (status, one) = app.owner(Method::GET, &path, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(one["kind"], "newznab");
+    assert_eq!(one["priority"], 15);
+    assert_eq!(one["categories"], json!([2000, 2040]));
+
+    let (status, all) = app.owner(Method::GET, PATH, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let kinds: Vec<_> = all
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| {
+            (
+                item["name"].as_str().unwrap(),
+                item["kind"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(kinds, [("Alpha", "torznab"), ("Geek", "newznab")]);
+
+    let (status, updated) = app
+        .owner(
+            Method::PATCH,
+            &path,
+            Some(json!({ "name": "Geek HD", "priority": 8, "apiKey": rotated_token })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["name"], "Geek HD");
+    assert_eq!(updated["kind"], "newznab");
+    assert_eq!(updated["priority"], 8);
+
+    let (status, audit) = app.owner(Method::GET, "/api/v1/audit-log", None).await;
+    assert_eq!(status, StatusCode::OK);
+    for reply in [&created, &one, &all, &updated, &audit] {
+        let text = reply.to_string();
+        assert!(
+            !text.contains(initial_token) && !text.contains(rotated_token),
+            "{text}"
+        );
+    }
+
+    let stored = db::indexers::find(&app.state.db, id as i32)
+        .await
+        .unwrap()
+        .unwrap()
+        .model
+        .api_key;
+    assert!(!stored.contains(rotated_token));
+    assert_eq!(
+        db::secret::decrypt(&app.state.secrets, &stored)
+            .unwrap()
+            .expose(),
+        rotated_token
+    );
+}
+
+#[tokio::test]
+async fn newznab_test_reports_caps_and_maps_error_responses() {
+    let app = App::new().await;
+    let fixture_token = "nzb-valid-token";
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(query_param("t", "caps"))
+        .and(query_param("apikey", fixture_token))
+        .respond_with(xml(NEWZNAB_CAPS))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(query_param("t", "movie"))
+        .and(query_param("limit", "1"))
+        .and(query_param("apikey", fixture_token))
+        .respond_with(xml(NEWZNAB_FEED))
+        .mount(&server)
+        .await;
+    let id = newznab_indexer_at(&app, "Geek", &server, fixture_token).await;
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert_eq!(reply["movieSearch"], true);
+    assert_eq!(reply["textSearch"], true);
+    assert_eq!(reply["imdbId"], true);
+    assert_eq!(reply["tmdbId"], true);
+    assert!(
+        reply["categories"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == 2000 && c["name"] == "Movies")
+    );
+
+    let rejected_server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(xml(NEWZNAB_REJECTED))
+        .mount(&rejected_server)
+        .await;
+    let bad_token = "nzb-bad-token";
+    let rejected_id = newznab_indexer_at(&app, "BadGeek", &rejected_server, bad_token).await;
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{rejected_id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(reply["code"], "indexer_api_key_rejected");
+    assert!(!reply.to_string().contains(bad_token));
+
+    let limited_server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(xml(NEWZNAB_RATE_LIMITED))
+        .mount(&limited_server)
+        .await;
+    let limited_id = newznab_indexer_at(&app, "LimitedGeek", &limited_server, "k").await;
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{limited_id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(reply["code"], "indexer_rate_limited");
+
+    let closed_server = MockServer::start().await;
+    let closed_id = newznab_indexer_at(&app, "OfflineGeek", &closed_server, "k").await;
+    drop(closed_server);
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{closed_id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(reply["code"], "indexer_unavailable");
+    assert!(!reply.to_string().contains("apikey"));
 }

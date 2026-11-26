@@ -2590,8 +2590,8 @@
             }
           }
         },
-        "x-owner-only": true,
-        "x-permission": "authenticated"
+        "x-permission": "authenticated",
+        "x-owner-only": true
       }
     },
     "/api/v1/permissions": {
@@ -5210,7 +5210,7 @@
               "type": "integer",
               "format": "int32"
             },
-            "description": "Torznab category ids to search, for example `2000` for movies."
+            "description": "Torznab or Newznab category ids to search, for example `2000` for movies."
           },
           "createdAt": {
             "type": "string"
@@ -5228,7 +5228,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`torznab`."
+            "description": "`torznab` or `newznab`."
           },
           "name": {
             "type": "string"
@@ -6125,7 +6125,8 @@
             "type": "boolean"
           },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "description": "`torznab` or `newznab`. Defaults to `torznab`."
           },
           "name": {
             "type": "string"

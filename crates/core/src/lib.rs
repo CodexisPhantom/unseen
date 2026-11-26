@@ -3,6 +3,7 @@ pub mod http;
 pub mod library;
 pub mod metadata;
 pub mod naming;
+pub mod newznab;
 pub mod opensubtitles;
 pub mod permission;
 pub mod profile;

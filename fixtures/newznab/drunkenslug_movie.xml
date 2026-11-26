@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:newznab="http://www.newznab.com/DTD/2010/feeds/attributes/">
+  <channel>
+    <atom:link href="https://api.drunkenslug.example/api?t=movie&amp;imdbid=1375666&amp;extended=1" rel="self" type="application/rss+xml" />
+    <title>DrunkenSlug</title>
+    <description>DrunkenSlug Feed</description>
+    <language>en-us</language>
+    <newznab:response offset="0" total="2" />
+    <item>
+      <title>Inception.2010.1080p.BluRay.DTS.x264-SLUG</title>
+      <guid isPermaLink="false">f9e8d7c6b5a40001</guid>
+      <link>https://api.drunkenslug.example/getnzb/f9e8d7c6b5a40001.nzb&amp;r=demo</link>
+      <comments>https://drunkenslug.example/details/f9e8d7c6b5a40001#comments</comments>
+      <pubDate>Tue, 17 Nov 2026 12:00:00 GMT</pubDate>
+      <category>Movies &gt; HD</category>
+      <enclosure url="https://api.drunkenslug.example/getnzb/f9e8d7c6b5a40001.nzb&amp;r=demo" length="12884901888" type="application/x-nzb" />
+      <newznab:attr name="category" value="2000" />
+      <newznab:attr name="category" value="2040" />
+      <newznab:attr name="size" value="12884901888" />
+      <newznab:attr name="files" value="115" />
+      <newznab:attr name="poster" value="poster@slug.example" />
+      <newznab:attr name="grabs" value="63" />
+      <newznab:attr name="usenetdate" value="Mon, 16 Nov 2026 07:00:00 -0500" />
+      <newznab:attr name="group" value="alt.binaries.moovee" />
+      <newznab:attr name="imdb" value="1375666" />
+      <newznab:attr name="tmdbid" value="27205" />
+      <newznab:attr name="password" value="0" />
+    </item>
+    <item>
+      <title>Inception.2010.REMUX.1080p.BluRay.AVC-LINKONLY</title>
+      <guid isPermaLink="false">f9e8d7c6b5a40002</guid>
+      <link>https://api.drunkenslug.example/getnzb/f9e8d7c6b5a40002.nzb&amp;r=demo</link>
+      <pubDate>Mon, 16 Nov 2026 18:00:00 +0000</pubDate>
+      <size>34359738368</size>
+      <category>2050</category>
+      <newznab:attr name="grabs" value="12" />
+    </item>
+  </channel>
+</rss>

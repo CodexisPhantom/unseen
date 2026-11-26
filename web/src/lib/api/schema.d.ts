@@ -1260,7 +1260,7 @@ export interface components {
         Indexer: {
             /** @description A key is stored but cannot be decrypted: enter it again. */
             apiKeyMustBeReentered: boolean;
-            /** @description Torznab category ids to search, for example `2000` for movies. */
+            /** @description Torznab or Newznab category ids to search, for example `2000` for movies. */
             categories: number[];
             createdAt: string;
             enabled: boolean;
@@ -1268,7 +1268,7 @@ export interface components {
             hasApiKey: boolean;
             /** Format: int32 */
             id: number;
-            /** @description `torznab`. */
+            /** @description `torznab` or `newznab`. */
             kind: string;
             name: string;
             /**
@@ -1568,6 +1568,7 @@ export interface components {
             apiKey: string;
             categories?: number[];
             enabled?: boolean;
+            /** @description `torznab` or `newznab`. Defaults to `torznab`. */
             kind?: string;
             name: string;
             /** Format: int32 */
