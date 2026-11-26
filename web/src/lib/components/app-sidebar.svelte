@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ActivityIcon from '@lucide/svelte/icons/activity';
+	import FileCodeIcon from '@lucide/svelte/icons/file-code';
 	import ImportIcon from '@lucide/svelte/icons/folder-input';
 	import LayersIcon from '@lucide/svelte/icons/layers';
 	import LibraryIcon from '@lucide/svelte/icons/library';
@@ -29,6 +30,7 @@
 		settings: SettingsIcon,
 		'settings/profiles': SlidersIcon,
 		'settings/quality-sizes': RulerIcon,
+		'settings/custom-formats': FileCodeIcon,
 		'settings/indexers': SearchIcon,
 		users: UsersIcon,
 		roles: ShieldIcon,

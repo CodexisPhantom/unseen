@@ -7,6 +7,7 @@ pub mod auth;
 pub mod base_path;
 mod collections;
 pub mod compat;
+mod custom_formats;
 mod download_clients;
 pub mod error;
 pub mod events;
@@ -367,6 +368,41 @@ pub fn routes() -> ApiRouter {
         .require(
             Permission::ProfilesManage,
             routes!(profiles::update_profile, profiles::delete_profile),
+        )
+        .require(
+            Permission::ProfilesRead,
+            routes!(custom_formats::list_custom_formats),
+        )
+        .require(
+            Permission::ProfilesManage,
+            routes!(custom_formats::create_custom_format),
+        )
+        .require(
+            Permission::ProfilesManage,
+            routes!(custom_formats::import_custom_formats),
+        )
+        .require(
+            Permission::ProfilesRead,
+            routes!(custom_formats::export_custom_formats),
+        )
+        .require(
+            Permission::ProfilesRead,
+            routes!(custom_formats::test_custom_formats),
+        )
+        .require(
+            Permission::ProfilesRead,
+            routes!(custom_formats::get_custom_format),
+        )
+        .require(
+            Permission::ProfilesRead,
+            routes!(custom_formats::export_custom_format),
+        )
+        .require(
+            Permission::ProfilesManage,
+            routes!(
+                custom_formats::update_custom_format,
+                custom_formats::delete_custom_format
+            ),
         )
         .require(Permission::ImportRun, routes!(library::scan))
         .require(Permission::ImportRun, routes!(library::adopt))

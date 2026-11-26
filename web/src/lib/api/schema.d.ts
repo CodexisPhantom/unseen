@@ -138,6 +138,114 @@ export interface paths {
         patch: operations["update_collection"];
         trace?: never;
     };
+    "/api/v1/custom-formats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every custom format, ordered by name. */
+        get: operations["list_custom_formats"];
+        put?: never;
+        /** Creates a custom format. */
+        post: operations["create_custom_format"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exports every custom format in Radarr's JSON format (without ids). */
+        get: operations["export_custom_formats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Imports one or many custom formats from Radarr's JSON format. */
+        post: operations["import_custom_formats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tests a release name against all custom formats and computes the score for
+         *     every quality profile.
+         */
+        post: operations["test_custom_formats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One custom format. */
+        get: operations["get_custom_format"];
+        put?: never;
+        post?: never;
+        /** Deletes a custom format and removes its scores from every quality profile. */
+        delete: operations["delete_custom_format"];
+        options?: never;
+        head?: never;
+        /** Updates a custom format. */
+        patch: operations["update_custom_format"];
+        trace?: never;
+    };
+    "/api/v1/custom-formats/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exports one custom format in Radarr's JSON format (without id). */
+        get: operations["export_custom_format"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/download-clients": {
         parameters: {
             query?: never;
@@ -1358,6 +1466,35 @@ export interface components {
             /** @description The key. This is the only response that carries it. */
             key: string;
         };
+        CustomFormat: {
+            createdAt: string;
+            /** Format: int32 */
+            id: number;
+            includeCustomFormatWhenRenaming: boolean;
+            name: string;
+            specifications: components["schemas"]["CustomFormatSpecification"][];
+            trashId?: string | null;
+            trashSynced: boolean;
+            updatedAt: string;
+        };
+        CustomFormatPatch: {
+            includeCustomFormatWhenRenaming?: boolean | null;
+            name?: string | null;
+            specifications?: components["schemas"]["CustomFormatSpecification"][] | null;
+        };
+        /** @description One condition of a custom format. */
+        CustomFormatSpecification: {
+            fields?: components["schemas"]["SpecificationField"][];
+            implementation: string;
+            name?: string;
+            negate?: boolean;
+            required?: boolean;
+        };
+        CustomFormatTestResult: {
+            matchedFormats: components["schemas"]["MatchedCustomFormat"][];
+            parsed: components["schemas"]["ParsedReleaseSummary"];
+            profileScores: components["schemas"]["ProfileScoreResult"][];
+        };
         /** @enum {string} */
         DatabaseStatus: "ok" | "error";
         DirectGrants: {
@@ -1441,6 +1578,8 @@ export interface components {
             /** @description Version of the running binary. */
             version: string;
         };
+        /** @description One Radarr custom format object or an array of them. */
+        ImportCustomFormatsRequest: components["schemas"]["RadarrCustomFormat"][] | components["schemas"]["RadarrCustomFormat"];
         Indexer: {
             /** @description A key is stored but cannot be decrypted: enter it again. */
             apiKeyMustBeReentered: boolean;
@@ -1581,6 +1720,19 @@ export interface components {
              * @description Configured log retention window in days (`logs.retention_days`).
              */
             retentionDays: number;
+        };
+        MatchedCustomFormat: {
+            /** Format: int32 */
+            id: number;
+            includeCustomFormatWhenRenaming: boolean;
+            name: string;
+        };
+        MatchedFormatScore: {
+            /** Format: int32 */
+            formatId: number;
+            formatName: string;
+            /** Format: int32 */
+            score: number;
         };
         Me: {
             /** @description The user holds the Owner role. */
@@ -1812,6 +1964,11 @@ export interface components {
             name: string;
             permissions: components["schemas"]["Permission"][];
         };
+        NewCustomFormat: {
+            includeCustomFormatWhenRenaming?: boolean;
+            name: string;
+            specifications?: components["schemas"]["CustomFormatSpecification"][];
+        };
         NewDownloadClient: {
             /**
              * @description Stored encrypted and never returned. qBittorrent 5.2 or later;
@@ -1904,6 +2061,20 @@ export interface components {
             roleAssignments?: components["schemas"]["RoleAssignment"][] | null;
             roleIds?: number[];
         };
+        ParsedReleaseSummary: {
+            edition?: string | null;
+            languages: string[];
+            /** Format: int32 */
+            qualityModifier: number;
+            releaseGroup?: string | null;
+            /** Format: int32 */
+            resolution?: number | null;
+            /** Format: int32 */
+            source: number;
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
         /**
          * @description One entry of the permission catalog, `resource:action`.
          * @enum {string}
@@ -1936,6 +2107,18 @@ export interface components {
             qualityIds: number[];
             /** @enum {string} */
             type: "group";
+        };
+        ProfileScoreResult: {
+            /** Format: int32 */
+            cutoffFormatScore: number;
+            formatScores: components["schemas"]["MatchedFormatScore"][];
+            /** Format: int32 */
+            minFormatScore: number;
+            /** Format: int32 */
+            profileId: number;
+            profileName: string;
+            /** Format: int32 */
+            totalScore: number;
         };
         ProxySettings: {
             /**
@@ -2088,6 +2271,12 @@ export interface components {
             speed: number;
             /** @description `queued`, `downloading`, `paused`, `completed`, `importing`, `importFailed`. */
             state: string;
+        };
+        /** @description Custom format in Radarr's import/export JSON shape (without database ids). */
+        RadarrCustomFormat: {
+            includeCustomFormatWhenRenaming?: boolean;
+            name: string;
+            specifications?: components["schemas"]["CustomFormatSpecification"][];
         };
         /** @description One parsed and scored release returned from a manual search. */
         Release: {
@@ -2301,6 +2490,14 @@ export interface components {
             id: string;
             name: string;
         };
+        /**
+         * @description One field of a custom format specification. Preserves extra Radarr metadata
+         *     fields so imported formats round-trip unchanged.
+         */
+        SpecificationField: {
+            name: string;
+            value: Record<string, never>;
+        };
         /** @description A subtitle file of a movie file. */
         Subtitle: {
             addedAt: string;
@@ -2342,6 +2539,14 @@ export interface components {
         TagBody: {
             /** @description Lower case letters, digits and `-`. Upper case is lowered. */
             label: string;
+        };
+        TestCustomFormatsRequest: {
+            indexerFlags?: number[];
+            /** Format: int32 */
+            movieYear?: number | null;
+            releaseName: string;
+            /** Format: int64 */
+            sizeBytes?: number | null;
         };
         TestResult: {
             /** @description The client version, for example `v4.6.2` or `4.3.2`. */
@@ -2746,6 +2951,392 @@ export interface operations {
             };
             /** @description TMDB failed or refused the key */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The custom formats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewCustomFormat"];
+            };
+        };
+        responses: {
+            /** @description The new custom format */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exported custom formats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadarrCustomFormat"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    import_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportCustomFormatsRequest"];
+            };
+        };
+        responses: {
+            /** @description The imported custom formats */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A format name is already taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    test_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestCustomFormatsRequest"];
+            };
+        };
+        responses: {
+            /** @description Matching formats and profile scores */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormatTestResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The custom format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFormatPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated custom format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exported custom format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadarrCustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
