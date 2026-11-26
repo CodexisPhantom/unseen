@@ -236,7 +236,7 @@ fn checked(mut profile: NewQualityProfile) -> Result<Values, Problem> {
     })
     .map_err(|(field, message)| Problem::validation(field, &message))?;
     let mut seen = BTreeSet::new();
-    let mut format_scores = Vec::with_capacity(profile.format_scores.len());
+    let mut format_scores = Vec::new();
     for entry in profile.format_scores {
         if !seen.insert(entry.custom_format_id) {
             return Err(Problem::validation(
