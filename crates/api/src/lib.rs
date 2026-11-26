@@ -7,6 +7,7 @@ pub mod auth;
 mod collections;
 mod download_clients;
 pub mod error;
+pub mod events;
 mod health;
 mod indexers;
 mod library;
@@ -41,6 +42,7 @@ use crate::error::Problem;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub events: events::EventBus,
     pub db: DatabaseConnection,
     pub auth: auth::Auth,
     pub policy: auth::Policy,
@@ -57,6 +59,55 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Tells connected clients that a movie row changed.
+    pub fn publish_movie_changed(&self, id: i32) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "movie.updated".to_owned(),
+            data: serde_json::json!({ "id": id }),
+            permission: Some(unseen_core::permission::Permission::LibraryRead),
+            target_user: None,
+        });
+    }
+
+    /// Re-reads grants for one user: sent only to that user.
+    pub fn publish_permissions_changed(&self, user_id: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "permissions.changed".to_owned(),
+            data: serde_json::Value::String(user_id.to_owned()),
+            permission: None,
+            target_user: Some(user_id.to_owned()),
+        });
+    }
+
+    /// A download's progress moved, visible to `queue:read` holders.
+    pub fn publish_download_progress(&self, id: i32, progress: f64) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.progress".to_owned(),
+            data: serde_json::json!({ "id": id, "progress": progress }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+        });
+    }
+
+    /// A download changed state, visible to `queue:read` holders.
+    pub fn publish_download_state(&self, id: i32, state: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.state".to_owned(),
+            data: serde_json::json!({ "id": id, "state": state }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+        });
+    }
+
+    /// A background task changed status, visible to `system:tasks` holders.
+    pub fn publish_task_status(&self, name: &str, status: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "task.status".to_owned(),
+            data: serde_json::json!({ "name": name, "status": status }),
+            permission: Some(unseen_core::permission::Permission::SystemTasks),
+            target_user: None,
+        });
+    }
     /// `db` must be migrated: the auth instance reads its tables.
     pub async fn new(
         db: DatabaseConnection,
@@ -71,6 +122,7 @@ impl AppState {
             policy.disable(id);
         }
         Ok(Self {
+            events: events::EventBus::new(),
             db,
             auth,
             policy,
@@ -102,6 +154,7 @@ pub fn routes() -> ApiRouter {
         .public(routes!(health::health))
         .public(routes!(setup::status, setup::create))
         .authenticated(routes!(me::me))
+        .authenticated(routes!(events::stream_events))
         .authenticated(routes!(owner::transfer))
         .authenticated(routes!(roles::list_permissions))
         .authenticated(routes!(api_keys::list_own, api_keys::create_own))

@@ -110,6 +110,8 @@ pub async fn transfer(
     )
     .await
     .map_err(failed)?;
+    state.publish_permissions_changed(caller.user_id());
+    state.publish_permissions_changed(&target.user.id);
     tracing::info!(from = caller.user_id(), to = %target.user.id, "ownership transferred");
     let event = Event::new("owner.transferred")
         .target("user", &target.user.id)

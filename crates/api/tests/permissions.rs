@@ -295,6 +295,11 @@ fn app_router_passes_route_coverage() {
                 access: Some(Access::Authenticated),
             },
             RouteEntry {
+                method: Method::GET,
+                path: "/api/v1/events".to_owned(),
+                access: Some(Access::Authenticated),
+            },
+            RouteEntry {
                 method: Method::POST,
                 path: "/api/v1/owner/transfer".to_owned(),
                 access: Some(Access::Authenticated),

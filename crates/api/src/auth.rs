@@ -90,6 +90,13 @@ impl Policy {
     pub fn enable(&self, user_id: &str) {
         self.disabled.write().unwrap().remove(user_id);
     }
+
+    /// Whether the account was disabled since the process started. Open
+    /// streams consult this so they stop without waiting for a new request.
+    #[must_use]
+    pub fn is_disabled(&self, user_id: &str) -> bool {
+        self.disabled.read().unwrap().contains(user_id)
+    }
 }
 
 #[async_trait]
