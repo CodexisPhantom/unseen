@@ -1361,3 +1361,118 @@ async fn requires_auth_and_search_run_permission_and_handles_missing_movie() {
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{reply}");
 }
+
+const NZBGEEK_CAPS: &str = include_str!("../../../fixtures/newznab/nzbgeek_caps.xml");
+
+#[tokio::test]
+async fn searches_and_ranks_newznab_and_torznab_indexers_together() {
+    let tmdb = MockServer::start().await;
+    let fx = Fixture::new(&tmdb).await;
+    let movie = fx.add_matrix(&[fx.hd_profile_id]).await;
+    let movie_id = movie["id"].as_i64().unwrap();
+
+    let torrent_server = MockServer::start().await;
+    let usenet_server = MockServer::start().await;
+
+    mount_torznab(
+        &torrent_server,
+        "tor-key",
+        torznab_feed(&[MockItem {
+            title: "The.Matrix.1999.1080p.WEB-DL.x264-TOR",
+            guid: "tor-webdl",
+            size: 6000 * MIB,
+            seeders: 100,
+            peers: 120,
+            download_url: Some("http://tor.test/dl/webdl"),
+            magnet_url: None,
+            info_hash: None,
+            pub_date: None,
+        }]),
+    )
+    .await;
+
+    let nzb_feed = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:newznab="http://www.newznab.com/DTD/2010/feeds/attributes/">
+  <channel>
+    <item>
+      <title>The.Matrix.1999.1080p.BluRay.x264-NZB</title>
+      <guid>nzb-bluray</guid>
+      <pubDate>Sun, 22 Nov 2026 18:30:00 +0000</pubDate>
+      <enclosure url="https://nzb.test/getnzb/bluray.nzb" length="{size}" type="application/x-nzb" />
+      <newznab:attr name="size" value="{size}" />
+      <newznab:attr name="category" value="2040" />
+      <newznab:attr name="usenetdate" value="Sat, 21 Nov 2026 12:30:00 +0000" />
+    </item>
+  </channel>
+</rss>"#,
+        size = 10_000 * MIB
+    );
+    Mock::given(method("GET"))
+        .and(query_param("t", "caps"))
+        .and(query_param("apikey", "nzb-key"))
+        .respond_with(xml(NZBGEEK_CAPS))
+        .mount(&usenet_server)
+        .await;
+    Mock::given(method("GET"))
+        .and(query_param("t", "movie"))
+        .and(query_param("imdbid", "0133093"))
+        .and(query_param("apikey", "nzb-key"))
+        .respond_with(xml(&nzb_feed))
+        .mount(&usenet_server)
+        .await;
+
+    fx.add_indexer(json!({
+        "name": "TorrentIdx",
+        "kind": "torznab",
+        "url": torrent_server.uri(),
+        "apiKey": "tor-key",
+        "priority": 10,
+        "enabled": true,
+    }))
+    .await;
+    fx.add_indexer(json!({
+        "name": "UsenetIdx",
+        "kind": "newznab",
+        "url": usenet_server.uri(),
+        "apiKey": "nzb-key",
+        "priority": 25,
+        "enabled": true,
+    }))
+    .await;
+
+    let (status, reply) = fx
+        .app
+        .owner(
+            Method::GET,
+            &format!("/api/v1/movies/{movie_id}/releases"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert_eq!(reply["indexerErrors"], json!([]));
+
+    let releases = reply["releases"].as_array().unwrap();
+    assert_eq!(releases.len(), 2);
+    assert_eq!(releases[0]["guid"], "nzb-bluray");
+    assert_eq!(releases[0]["protocol"], "usenet");
+    assert_eq!(releases[0]["publishedAt"], "2026-11-21T12:30:00.000Z");
+    assert!(releases[0]["seeders"].is_null());
+    assert!(releases[0]["leechers"].is_null());
+    assert_eq!(releases[1]["guid"], "tor-webdl");
+    assert_eq!(releases[1]["protocol"], "torrent");
+
+    let cached = fx
+        .app
+        .state
+        .search_cache
+        .get(releases[0]["id"].as_str().unwrap())
+        .expect("cached nzb release");
+    assert_eq!(cached.protocol, "usenet");
+    assert_eq!(
+        cached.download_url.as_deref(),
+        Some("https://nzb.test/getnzb/bluray.nzb")
+    );
+    assert!(cached.magnet_url.is_none());
+    assert!(cached.info_hash.is_none());
+}

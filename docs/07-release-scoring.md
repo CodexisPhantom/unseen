@@ -180,6 +180,20 @@ they arrive with the blocklist and custom formats. Choices the doc left open:
   tagged release.
 - A quality without size limits, a release without a size and a movie without
   a runtime skip the size check.
+- Usenet (M9): `Candidate` accepts either a torrent (`torznab::Release`) or a
+  Usenet release (`newznab::NzbRelease`) via `ReleaseRef`. `ProtocolPreference`
+  (`None`, `PreferUsenet`, `PreferTorrent`, `OnlyUsenet`, `OnlyTorrent`) can be
+  resolved per profile with a global fallback via `ProtocolPreference::resolve`.
+  - Rejection: `OnlyUsenet` / `OnlyTorrent` reject the other protocol with
+    `protocol_not_allowed`. When `retention_days` is set (non-zero) and `now`
+    is supplied, a Usenet release whose age in whole days (from `usenetdate`,
+    falling back to `pubDate`) exceeds `retention_days` is rejected with
+    `retention_exceeded`; torrents and releases without a timestamp skip the
+    retention check.
+  - Scoring: protocol preference breaks ties right after revision and before
+    indexer priority. For two Usenet releases, age in hours on a
+    `log10(age_hours + 1)` scale (smaller/newer wins; known age beats unknown)
+    replaces seeders, and releases in the same bucket fall through to size.
 
 ## Test table
 
