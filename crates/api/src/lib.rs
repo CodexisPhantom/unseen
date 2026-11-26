@@ -27,6 +27,7 @@ mod releases;
 mod roles;
 mod root_folders;
 pub mod setup;
+pub mod sonarr;
 mod subtitles;
 mod tags;
 mod tmdb;
@@ -70,6 +71,8 @@ pub struct AppState {
     /// Short-lived cache of manual search results, keyed by release id, so
     /// grab requests can look up a searched release without re-querying.
     pub search_cache: unseen_core::search::SearchCache,
+    /// UTC ISO 8601 timestamp recorded when the server state was created.
+    pub started_at: String,
 }
 
 impl AppState {
@@ -155,6 +158,7 @@ impl AppState {
             settings_overrides: db::settings::Overrides::from_env(),
             logs_dir: std::env::temp_dir().join("unseen-logs-default"),
             search_cache: unseen_core::search::SearchCache::new(),
+            started_at: db::now(),
         })
     }
 
@@ -364,6 +368,12 @@ pub fn radarr_routes() -> compat::CompatRouter {
     radarr::routes()
 }
 
+/// Every Sonarr v3 compatibility route, registered once with its permission.
+/// Not included in Unseen's OpenAPI document.
+pub fn sonarr_routes() -> compat::CompatRouter {
+    sonarr::routes()
+}
+
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.
 pub fn openapi() -> utoipa::openapi::OpenApi {
     routes().into_openapi()
@@ -385,15 +395,27 @@ pub fn router(state: AppState) -> Router {
             ));
     let radarr = radarr_routes().into_service(&state);
     let radarr_fallback = radarr.clone();
+    let sonarr = sonarr_routes().into_service(&state);
+    let sonarr_fallback = sonarr.clone();
     let web_state = state.clone();
     let app = api
         .nest("/api/auth", auth)
         .nest_service(radarr::API_BASE, radarr)
+        .nest_service(sonarr::API_BASE, sonarr)
         .fallback(move |req: axum::extract::Request| {
             let radarr = radarr_fallback.clone();
+            let sonarr = sonarr_fallback.clone();
             async move {
-                match compat::dispatch_prefix(req, radarr::API_BASE) {
-                    Ok(rewritten) => tower::ServiceExt::oneshot(radarr, rewritten)
+                let req = match compat::dispatch_prefix(req, radarr::API_BASE) {
+                    Ok(rewritten) => {
+                        return tower::ServiceExt::oneshot(radarr, rewritten)
+                            .await
+                            .unwrap_or_else(|never| match never {});
+                    }
+                    Err(req) => req,
+                };
+                match compat::dispatch_prefix(req, sonarr::API_BASE) {
+                    Ok(rewritten) => tower::ServiceExt::oneshot(sonarr, rewritten)
                         .await
                         .unwrap_or_else(|never| match never {}),
                     Err(req) => {
