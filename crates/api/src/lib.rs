@@ -22,11 +22,13 @@ mod owner;
 mod profiles;
 mod proxy;
 mod quality_definitions;
+mod queue;
 pub mod radarr;
 mod releases;
 mod roles;
 mod root_folders;
 pub mod setup;
+pub mod sonarr;
 mod subtitles;
 mod tags;
 mod tmdb;
@@ -70,7 +72,7 @@ pub struct AppState {
     /// Short-lived cache of manual search results, keyed by release id, so
     /// grab requests can look up a searched release without re-querying.
     pub search_cache: unseen_core::search::SearchCache,
-    /// RFC 3339 UTC timestamp when this process state was initialized.
+    /// UTC ISO 8601 timestamp recorded when the server state was created.
     pub started_at: String,
 }
 
@@ -113,6 +115,45 @@ impl AppState {
         self.events.publish(crate::events::AppEvent {
             kind: "download.state".to_owned(),
             data: serde_json::json!({ "id": id, "state": state }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
+
+    /// Detailed download progress event (docs/05-api.md), visible to `queue:read` holders.
+    pub fn publish_download_progress_update(
+        &self,
+        id: i32,
+        progress: f64,
+        speed: i64,
+        eta: Option<i64>,
+        state: &str,
+    ) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.progress".to_owned(),
+            data: serde_json::json!({
+                "id": id,
+                "progress": progress,
+                "speed": speed,
+                "eta": eta,
+                "state": state,
+            }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
+
+    /// Download state transition event (docs/05-api.md), visible to `queue:read` holders.
+    pub fn publish_download_state_changed(&self, id: i32, old_state: &str, new_state: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.state".to_owned(),
+            data: serde_json::json!({
+                "id": id,
+                "oldState": old_state,
+                "newState": new_state,
+            }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
             target_user: None,
             target_api_key: None,
@@ -359,12 +400,20 @@ pub fn routes() -> ApiRouter {
                 download_clients::test_client
             ),
         )
+        .require(Permission::QueueRead, routes!(queue::list_queue))
+        .require(Permission::QueueManage, routes!(queue::remove_queue_item))
 }
 
 /// Every Radarr v3 compatibility route, registered once with its permission.
 /// Not included in Unseen's OpenAPI document.
 pub fn radarr_routes() -> compat::CompatRouter {
     radarr::routes()
+}
+
+/// Every Sonarr v3 compatibility route, registered once with its permission.
+/// Not included in Unseen's OpenAPI document.
+pub fn sonarr_routes() -> compat::CompatRouter {
+    sonarr::routes()
 }
 
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.
@@ -388,15 +437,27 @@ pub fn router(state: AppState) -> Router {
             ));
     let radarr = radarr_routes().into_service(&state);
     let radarr_fallback = radarr.clone();
+    let sonarr = sonarr_routes().into_service(&state);
+    let sonarr_fallback = sonarr.clone();
     let web_state = state.clone();
     let app = api
         .nest("/api/auth", auth)
         .nest_service(radarr::API_BASE, radarr)
+        .nest_service(sonarr::API_BASE, sonarr)
         .fallback(move |req: axum::extract::Request| {
             let radarr = radarr_fallback.clone();
+            let sonarr = sonarr_fallback.clone();
             async move {
-                match compat::dispatch_prefix(req, radarr::API_BASE) {
-                    Ok(rewritten) => tower::ServiceExt::oneshot(radarr, rewritten)
+                let req = match compat::dispatch_prefix(req, radarr::API_BASE) {
+                    Ok(rewritten) => {
+                        return tower::ServiceExt::oneshot(radarr, rewritten)
+                            .await
+                            .unwrap_or_else(|never| match never {});
+                    }
+                    Err(req) => req,
+                };
+                match compat::dispatch_prefix(req, sonarr::API_BASE) {
+                    Ok(rewritten) => tower::ServiceExt::oneshot(sonarr, rewritten)
                         .await
                         .unwrap_or_else(|never| match never {}),
                     Err(req) => {

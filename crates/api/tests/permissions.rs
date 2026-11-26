@@ -594,11 +594,20 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/download-clients/{id}/test",
                 Permission::ClientsManage
             ),
+            profiles(Method::GET, "/api/v1/queue", Permission::QueueRead),
+            profiles(
+                Method::DELETE,
+                "/api/v1/queue/{id}",
+                Permission::QueueManage
+            ),
         ]
     );
 
     let radarr = api::radarr_routes();
     assert_eq!(radarr.verify(), Ok(()));
+
+    let sonarr = api::sonarr_routes();
+    assert_eq!(sonarr.verify(), Ok(()));
 
     let doc = serde_json::to_value(api::openapi()).unwrap();
     assert_eq!(
@@ -607,7 +616,9 @@ fn app_router_passes_route_coverage() {
     );
     let paths = doc["paths"].as_object().unwrap();
     assert!(
-        !paths.keys().any(|path| path.starts_with("/radarr")),
+        !paths
+            .keys()
+            .any(|path| path.starts_with("/radarr") || path.starts_with("/sonarr")),
         "compat routes must not appear in Unseen's OpenAPI document"
     );
 }

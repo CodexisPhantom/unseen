@@ -3274,6 +3274,126 @@
         "x-permission": "profiles:manage"
       }
     },
+    "/api/v1/queue": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Active downloads in the queue, enriched with live progress from each client.",
+        "operationId": "list_queue",
+        "responses": {
+          "200": {
+            "description": "Active downloads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QueueItem"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "queue:read"
+      }
+    },
+    "/api/v1/queue/{id}": {
+      "delete": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Removes an active download from the queue, optionally deleting it from the\ndownload client and/or adding its release to the blocklist.",
+        "operationId": "remove_queue_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Download id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "removeFromClient",
+            "in": "query",
+            "description": "Also delete the item and its files from the download client (default true).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "blocklist",
+            "in": "query",
+            "description": "Add the release to the movie's blocklist so it is not grabbed again (default false).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed from queue"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such active download",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The stored client credentials cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The download client refused or failed the delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "queue:manage"
+      }
+    },
     "/api/v1/roles": {
       "get": {
         "tags": [
@@ -7166,6 +7286,101 @@
               "boolean",
               "null"
             ]
+          }
+        }
+      },
+      "QueueItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "movieId",
+          "movieTitle",
+          "movieYear",
+          "releaseTitle",
+          "qualityId",
+          "size",
+          "progress",
+          "speed",
+          "state",
+          "grabbedAt"
+        ],
+        "properties": {
+          "downloadClientId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "downloadClientName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eta": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Estimated seconds remaining, or null when unknown."
+          },
+          "grabbedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "movieId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "movieProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "movieTitle": {
+            "type": "string"
+          },
+          "movieYear": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "progress": {
+            "type": "number",
+            "format": "double",
+            "description": "Progress from `0.0` to `1.0`."
+          },
+          "qualityId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "releaseTitle": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "speed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Download speed in bytes per second."
+          },
+          "state": {
+            "type": "string",
+            "description": "`queued`, `downloading`, `paused`, `completed`, `importing`, `importFailed`."
           }
         }
       },
