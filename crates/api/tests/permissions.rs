@@ -376,6 +376,51 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/quality-profiles/{id}",
                 Permission::ProfilesManage
             ),
+            profiles(
+                Method::GET,
+                "/api/v1/custom-formats",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/custom-formats",
+                Permission::ProfilesManage
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/custom-formats/import",
+                Permission::ProfilesManage
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/custom-formats/export",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/custom-formats/test",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/custom-formats/{id}",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::GET,
+                "/api/v1/custom-formats/{id}/export",
+                Permission::ProfilesRead
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/custom-formats/{id}",
+                Permission::ProfilesManage
+            ),
+            profiles(
+                Method::PATCH,
+                "/api/v1/custom-formats/{id}",
+                Permission::ProfilesManage
+            ),
             profiles(Method::POST, "/api/v1/library/scan", Permission::ImportRun),
             profiles(Method::POST, "/api/v1/library/adopt", Permission::ImportRun),
             profiles(Method::GET, "/api/v1/movies/lookup", Permission::LibraryAdd),

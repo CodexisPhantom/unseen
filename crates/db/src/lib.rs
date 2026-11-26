@@ -15,6 +15,7 @@ pub mod api_keys;
 pub mod audit;
 pub mod backfill;
 pub mod collections;
+pub mod custom_formats;
 pub mod download_clients;
 pub mod downloads;
 pub mod entities;
