@@ -577,10 +577,18 @@ fn app_router_passes_route_coverage() {
         ]
     );
 
+    let radarr = api::radarr_routes();
+    assert_eq!(radarr.verify(), Ok(()));
+
     let doc = serde_json::to_value(api::openapi()).unwrap();
     assert_eq!(
         doc["paths"]["/api/v1/health"]["get"][X_PERMISSION],
         "public"
+    );
+    let paths = doc["paths"].as_object().unwrap();
+    assert!(
+        !paths.keys().any(|path| path.starts_with("/radarr")),
+        "compat routes must not appear in Unseen's OpenAPI document"
     );
 }
 

@@ -1,6 +1,6 @@
 //! Request authentication, permission enforcement and OpenAPI `x-permission`.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -113,7 +113,7 @@ impl FromRequestParts<AppState> for Caller {
             return Ok(caller.clone());
         }
 
-        let caller = match presented_key(parts) {
+        let caller = match presented_api_key(parts) {
             Some(key) => from_api_key(state, &key).await?,
             None => from_session(parts, state).await?,
         };
@@ -122,29 +122,42 @@ impl FromRequestParts<AppState> for Caller {
     }
 }
 
-/// The API key sent as `X-Api-Key` or `?apikey=`.
-fn presented_key(parts: &Parts) -> Option<String> {
+/// Failure reason when resolving an API key.
+pub(crate) enum ApiKeyRejection {
+    Unauthorized,
+    Internal,
+}
+
+/// The API key sent as `X-Api-Key` or `?apikey=` (matching the query parameter
+/// name case-insensitively).
+pub(crate) fn presented_api_key(parts: &Parts) -> Option<String> {
     if let Some(value) = parts.headers.get(API_KEY_HEADER) {
         return Some(value.to_str().unwrap_or_default().to_owned());
     }
-    Query::<HashMap<String, String>>::try_from_uri(&parts.uri)
+    parts.uri.query()?;
+    Query::<Vec<(String, String)>>::try_from_uri(&parts.uri)
         .ok()?
         .0
-        .remove(API_KEY_QUERY)
+        .into_iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(API_KEY_QUERY))
+        .map(|(_, value)| value)
 }
 
-/// A key that is present but not valid is refused: it never falls back to a
-/// session cookie. The key stands for its owner's permissions it was given
-/// and the owner still holds, and never for the Owner role.
-async fn from_api_key(state: &AppState, key: &str) -> Result<Caller, Problem> {
+/// Resolves an API key to a [`Caller`]. The key stands for its owner's
+/// permissions it was given and the owner still holds, and never for the Owner
+/// role.
+pub(crate) async fn caller_from_api_key(
+    state: &AppState,
+    key: &str,
+) -> Result<Caller, ApiKeyRejection> {
     let failed = |error: better_auth::seaorm::sea_orm::DbErr| {
         tracing::error!(%error, "failed to resolve API key");
-        Problem::internal()
+        ApiKeyRejection::Internal
     };
     let owner = db::api_keys::authenticate(&state.db, &api_keys::hash(key))
         .await
         .map_err(failed)?
-        .ok_or_else(Problem::unauthorized)?;
+        .ok_or(ApiKeyRejection::Unauthorized)?;
     let grants = db::access::grants_of_user(&state.db, &owner.user_id)
         .await
         .map_err(failed)?;
@@ -160,6 +173,17 @@ async fn from_api_key(state: &AppState, key: &str) -> Result<Caller, Problem> {
         permissions: EffectivePermissions::new(false, narrowed),
         api_key: Some(owner.key_id),
     })
+}
+
+/// A key that is present but not valid is refused: it never falls back to a
+/// session cookie.
+async fn from_api_key(state: &AppState, key: &str) -> Result<Caller, Problem> {
+    caller_from_api_key(state, key)
+        .await
+        .map_err(|rejection| match rejection {
+            ApiKeyRejection::Unauthorized => Problem::unauthorized(),
+            ApiKeyRejection::Internal => Problem::internal(),
+        })
 }
 
 async fn from_session(parts: &mut Parts, state: &AppState) -> Result<Caller, Problem> {

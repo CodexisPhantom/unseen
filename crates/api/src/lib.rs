@@ -5,6 +5,7 @@ mod api_keys;
 pub mod audit;
 pub mod auth;
 mod collections;
+pub mod compat;
 mod download_clients;
 pub mod error;
 mod health;
@@ -18,6 +19,7 @@ mod owner;
 mod profiles;
 mod proxy;
 mod quality_definitions;
+pub mod radarr;
 mod roles;
 mod root_folders;
 pub mod setup;
@@ -272,6 +274,12 @@ pub fn routes() -> ApiRouter {
         )
 }
 
+/// Every Radarr v3 compatibility route, registered once with its permission.
+/// Not included in Unseen's OpenAPI document.
+pub fn radarr_routes() -> compat::CompatRouter {
+    radarr::routes()
+}
+
 /// The OpenAPI document. `just gen` writes it to `openapi.json`.
 pub fn openapi() -> utoipa::openapi::OpenApi {
     routes().into_openapi()
@@ -290,8 +298,21 @@ pub fn router(state: AppState) -> Router {
                 state.clone(),
                 audit::auth_events,
             ));
+    let radarr = radarr_routes().into_service(&state);
+    let radarr_fallback = radarr.clone();
     api.nest("/api/auth", auth)
-        .fallback(web::serve)
+        .nest_service(radarr::API_BASE, radarr)
+        .fallback(move |req: axum::extract::Request| {
+            let radarr = radarr_fallback.clone();
+            async move {
+                match compat::dispatch_prefix(req, radarr::API_BASE) {
+                    Ok(rewritten) => tower::ServiceExt::oneshot(radarr, rewritten)
+                        .await
+                        .unwrap_or_else(|never| match never {}),
+                    Err(req) => web::serve(req.uri().clone()).await,
+                }
+            }
+        })
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             setup::gate,

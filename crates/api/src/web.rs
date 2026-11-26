@@ -28,9 +28,10 @@ pub async fn serve(uri: Uri) -> Response {
 /// Paths that never fall back to `index.html`: the API prefixes, and
 /// SvelteKit's asset folder (a missing asset must be a 404, not HTML).
 fn is_reserved(path: &str) -> bool {
+    let first = path.split('/').next().unwrap_or_default();
     ["api", "radarr", "sonarr", "_app"]
         .iter()
-        .any(|prefix| path == *prefix || path.starts_with(&format!("{prefix}/")))
+        .any(|prefix| first.eq_ignore_ascii_case(prefix))
         && Assets::get(path).is_none()
 }
 
