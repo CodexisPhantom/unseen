@@ -176,6 +176,7 @@ impl TestApp {
         user_roles::ActiveModel {
             user_id: Set(user_id.into()),
             role_id: Set(role_id),
+            all_libraries: Set(true),
         }
         .insert(&self.state.db)
         .await
@@ -186,6 +187,7 @@ impl TestApp {
         user_permissions::ActiveModel {
             user_id: Set(user_id.into()),
             permission: Set(perm.into()),
+            all_libraries: Set(true),
         }
         .insert(&self.state.db)
         .await
@@ -327,6 +329,7 @@ fn app_router_passes_route_coverage() {
             apikeys_manage(Method::GET, "/api/v1/api-keys"),
             apikeys_manage(Method::DELETE, "/api/v1/api-keys/{id}"),
             users_manage(Method::GET, "/api/v1/assignable-roles"),
+            users_manage(Method::GET, "/api/v1/assignable-libraries"),
             roles_manage(Method::GET, "/api/v1/roles"),
             roles_manage(Method::POST, "/api/v1/roles"),
             roles_manage(Method::DELETE, "/api/v1/roles/{id}"),
@@ -572,6 +575,22 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/settings/proxy/test",
                 Permission::SettingsManage
             ),
+            profiles(Method::GET, "/api/v1/libraries", Permission::SettingsRead),
+            profiles(
+                Method::POST,
+                "/api/v1/libraries",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/libraries/{id}",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::PATCH,
+                "/api/v1/libraries/{id}",
+                Permission::SettingsManage
+            ),
             profiles(
                 Method::GET,
                 "/api/v1/root-folders",
@@ -584,6 +603,11 @@ fn app_router_passes_route_coverage() {
             ),
             profiles(
                 Method::DELETE,
+                "/api/v1/root-folders/{id}",
+                Permission::SettingsManage
+            ),
+            profiles(
+                Method::PATCH,
                 "/api/v1/root-folders/{id}",
                 Permission::SettingsManage
             ),

@@ -136,6 +136,7 @@ async fn roles_and_direct_grants_are_united_in_catalog_order() {
     user_roles::ActiveModel {
         user_id: Set(id.clone()),
         role_id: Set(role.id),
+        all_libraries: Set(true),
     }
     .insert(&app.state.db)
     .await
@@ -143,6 +144,7 @@ async fn roles_and_direct_grants_are_united_in_catalog_order() {
     user_permissions::ActiveModel {
         user_id: Set(id),
         permission: Set("queue:read".into()),
+        all_libraries: Set(true),
     }
     .insert(&app.state.db)
     .await

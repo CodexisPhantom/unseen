@@ -1,0 +1,17 @@
+use sea_orm::entity::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[sea_orm(table_name = "user_permission_libraries")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub user_id: String,
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub permission: String,
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub library_id: i32,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {}
+
+impl ActiveModelBehavior for ActiveModel {}

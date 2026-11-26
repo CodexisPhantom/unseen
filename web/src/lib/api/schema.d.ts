@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assignable-libraries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Libraries available for scoping user roles and direct grants, for callers
+         *     with `users:manage`.
+         */
+        get: operations["list_assignable_libraries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assignable-roles": {
         parameters: {
             query?: never;
@@ -439,6 +459,45 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/libraries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every library visible to the caller, ordered by name. */
+        get: operations["list_libraries"];
+        put?: never;
+        /** Creates a new library. Requires server-wide `settings:manage`. */
+        post: operations["create_library"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/libraries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Deletes an empty library. Any scoped user grants referencing this library
+         *     lose access to it without escalating to all libraries.
+         */
+        delete: operations["delete_library"];
+        options?: never;
+        head?: never;
+        /** Renames a library. */
+        patch: operations["update_library"];
         trace?: never;
     };
     "/api/v1/library/adopt": {
@@ -1002,7 +1061,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every root folder with its free space and unmapped folders. */
+        /**
+         * Every root folder visible to the caller, with its free space and unmapped
+         *     folders.
+         */
         get: operations["list_root_folders"];
         put?: never;
         /** Adds a root folder after checking the path on disk. */
@@ -1027,7 +1089,8 @@ export interface paths {
         delete: operations["delete_root_folder"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Moves a root folder to another library. */
+        patch: operations["update_root_folder"];
         trace?: never;
     };
     "/api/v1/settings/naming": {
@@ -1435,8 +1498,13 @@ export interface components {
         /** @enum {string} */
         DatabaseStatus: "ok" | "error";
         DirectGrants: {
-            /** @description Replaces the direct grants. */
-            permissions: components["schemas"]["Permission"][];
+            /** @description Replaces the direct grants (all libraries). */
+            permissions?: components["schemas"]["Permission"][];
+            /**
+             * @description Replaces the direct grants with explicit library scopes. Takes
+             *     precedence over `permissions` when provided.
+             */
+            scopedPermissions?: components["schemas"]["ScopedGrant"][] | null;
         };
         DownloadClient: {
             /**
@@ -1601,6 +1669,17 @@ export interface components {
             name: string;
             updatedAt: string;
         };
+        Library: {
+            createdAt: string;
+            /** Format: int32 */
+            id: number;
+            name: string;
+            rootFolderIds: number[];
+            updatedAt: string;
+        };
+        LibraryBody: {
+            name: string;
+        };
         /** @description One structured log entry written to a daily file and returned by the API. */
         LogEntry: {
             /** @description Structured fields attached to the event. */
@@ -1665,12 +1744,19 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
             /** @description Ordered by name. */
             roles: components["schemas"]["MeRole"][];
+            /** @description Effective permissions with their library scopes, in catalog order. */
+            scopedPermissions: components["schemas"]["ScopedPermission"][];
             user: components["schemas"]["MeUser"];
         };
         MeRole: {
             /** Format: int32 */
             id: number;
             isOwner: boolean;
+            /**
+             * @description `null` means all libraries; a list restricts the role assignment to
+             *     those libraries.
+             */
+            libraryIds?: number[] | null;
             name: string;
         };
         MeUser: {
@@ -1957,6 +2043,11 @@ export interface components {
         };
         NewRootFolder: {
             /**
+             * Format: int32
+             * @description Library to place this root folder in. Defaults to the default library.
+             */
+            libraryId?: number | null;
+            /**
              * @description An absolute path on the server. It must exist, be a directory that
              *     Unseen can write to, and not lie inside or contain another root folder.
              */
@@ -1966,6 +2057,8 @@ export interface components {
             email: string;
             name: string;
             password: string;
+            /** @description Scoped role assignments. When provided, takes precedence over `roleIds`. */
+            roleAssignments?: components["schemas"]["RoleAssignment"][] | null;
             roleIds?: number[];
         };
         ParsedReleaseSummary: {
@@ -2293,6 +2386,15 @@ export interface components {
              */
             users: number;
         };
+        RoleAssignment: {
+            /**
+             * @description Absent or `null` means all libraries; a list restricts the role to those
+             *     libraries.
+             */
+            libraryIds?: number[] | null;
+            /** Format: int32 */
+            roleId: number;
+        };
         RolePatch: {
             /** @description An empty text clears the description. */
             description?: string | null;
@@ -2312,9 +2414,15 @@ export interface components {
             freeSpace?: number | null;
             /** Format: int32 */
             id: number;
+            /** Format: int32 */
+            libraryId: number;
             path: string;
             /** @description Sub-folders on disk that no movie uses, sorted. */
             unmappedFolders: string[];
+        };
+        RootFolderPatch: {
+            /** Format: int32 */
+            libraryId: number;
         };
         /** @description A video file of a folder. */
         ScanFile: {
@@ -2351,6 +2459,22 @@ export interface components {
         };
         /** @enum {string} */
         ScanStatus: "matched" | "unmatched" | "duplicate" | "noVideo";
+        ScopedGrant: {
+            /**
+             * @description Absent or `null` means all libraries; a list restricts the grant to
+             *     those libraries.
+             */
+            libraryIds?: number[] | null;
+            permission: components["schemas"]["Permission"];
+        };
+        ScopedPermission: {
+            /**
+             * @description `null` means all libraries; a list restricts the permission to those
+             *     libraries.
+             */
+            libraryIds?: number[] | null;
+            permission: components["schemas"]["Permission"];
+        };
         SetupRequest: {
             email: string;
             name: string;
@@ -2470,6 +2594,8 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
             /** @description Ordered by name. */
             roles: components["schemas"]["MeRole"][];
+            /** @description Direct grants with their library scopes, in catalog order. */
+            scopedPermissions: components["schemas"]["ScopedPermission"][];
         };
         UserPatch: {
             /** @description Disabling signs the user out everywhere. */
@@ -2478,7 +2604,12 @@ export interface components {
             name?: string | null;
             /** @description Signs the user out everywhere. */
             password?: string | null;
-            /** @description Replaces the roles. */
+            /**
+             * @description Replaces the roles with explicit library scopes. Takes precedence over
+             *     `roleIds` when provided.
+             */
+            roleAssignments?: components["schemas"]["RoleAssignment"][] | null;
+            /** @description Replaces the roles (all libraries). */
             roleIds?: number[] | null;
         };
     };
@@ -2549,6 +2680,35 @@ export interface operations {
             };
             /** @description No such key */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_assignable_libraries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The libraries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3990,6 +4150,197 @@ export interface operations {
             };
             /** @description A movie uses the profile */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_libraries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The libraries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_library: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryBody"];
+            };
+        };
+        responses: {
+            /** @description The new library */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_library: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Library id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A root folder belongs to this library */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_library: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Library id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryBody"];
+            };
+        };
+        responses: {
+            /** @description The renamed library */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5774,6 +6125,15 @@ export interface operations {
                     "application/json": components["schemas"]["Problem"];
                 };
             };
+            /** @description No such library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
             /** @description The folder is already a root folder */
             409: {
                 headers: {
@@ -5833,6 +6193,60 @@ export interface operations {
             };
             /** @description A movie lives in the root folder */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_root_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Root folder id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RootFolderPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated root folder */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootFolder"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such root folder or library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -8,6 +8,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import { formatBytes } from '#lib/root-folders.js';
 	import { session } from '#lib/session.svelte.js';
@@ -24,16 +25,37 @@
 			return data;
 		}
 	}));
+	const libraries = createQuery(() => ({
+		queryKey: ['libraries'],
+		queryFn: async () => {
+			const { data, error } = await api.GET('/api/v1/libraries');
+			if (!data) throw new Error(error?.detail ?? 'The libraries could not be loaded.');
+			return data;
+		}
+	}));
 
 	let path = $state('');
+	let selectedLibraryId = $state<number | null>(null);
 	let browsing = $state(false);
 	let removing = $state<RootFolder | null>(null);
 	let failure = $state('');
 
+	const effectiveLibraryId = $derived(selectedLibraryId ?? libraries.data?.[0]?.id ?? null);
+	const libraryName = (id: number) =>
+		libraries.data?.find((library) => library.id === id)?.name ?? `Library #${id}`;
+
 	const queryClient = useQueryClient();
+	const invalidate = () =>
+		Promise.all([
+			queryClient.invalidateQueries({ queryKey: ['root-folders'] }),
+			queryClient.invalidateQueries({ queryKey: ['libraries'] })
+		]);
+
 	const add = createMutation(() => ({
 		mutationFn: async () => {
-			const { error } = await api.POST('/api/v1/root-folders', { body: { path } });
+			const { error } = await api.POST('/api/v1/root-folders', {
+				body: { path, ...(effectiveLibraryId !== null ? { libraryId: effectiveLibraryId } : {}) }
+			});
 			if (error) throw new Error(error.detail ?? error.title);
 		},
 		onSuccess: () => {
@@ -41,7 +63,19 @@
 			path = '';
 		},
 		onError: (error) => (failure = error.message),
-		onSettled: () => queryClient.invalidateQueries({ queryKey: ['root-folders'] })
+		onSettled: () => invalidate()
+	}));
+	const moveLibrary = createMutation(() => ({
+		mutationFn: async ({ folderId, libraryId }: { folderId: number; libraryId: number }) => {
+			const { error } = await api.PATCH('/api/v1/root-folders/{id}', {
+				params: { path: { id: folderId } },
+				body: { libraryId }
+			});
+			if (error) throw new Error(error.detail ?? error.title);
+		},
+		onSuccess: () => (failure = ''),
+		onError: (error) => (failure = error.message),
+		onSettled: () => invalidate()
 	}));
 	const remove = createMutation(() => ({
 		mutationFn: async (folder: RootFolder) => {
@@ -52,7 +86,7 @@
 		},
 		onSuccess: () => (failure = ''),
 		onError: (error) => (failure = error.message),
-		onSettled: () => queryClient.invalidateQueries({ queryKey: ['root-folders'] })
+		onSettled: () => invalidate()
 	}));
 </script>
 
@@ -78,6 +112,7 @@
 			<Table.Header>
 				<Table.Row>
 					<Table.Head>Path</Table.Head>
+					<Table.Head>Library</Table.Head>
 					<Table.Head>Free space</Table.Head>
 					<Table.Head>Unmapped folders</Table.Head>
 					{#if manage}<Table.Head class="text-end">Actions</Table.Head>{/if}
@@ -90,6 +125,31 @@
 							{folder.path}
 							{#if !folder.accessible}
 								<Badge variant="destructive" class="ms-2">Not accessible</Badge>
+							{/if}
+						</Table.Cell>
+						<Table.Cell>
+							{#if manage && (libraries.data?.length ?? 0) > 1}
+								<Select.Root
+									type="single"
+									value={String(folder.libraryId)}
+									onValueChange={(value) => {
+										const nextId = Number(value);
+										if (nextId !== folder.libraryId) {
+											moveLibrary.mutate({ folderId: folder.id, libraryId: nextId });
+										}
+									}}
+								>
+									<Select.Trigger class="h-8 w-40" aria-label="Library for {folder.path}">
+										{libraryName(folder.libraryId)}
+									</Select.Trigger>
+									<Select.Content>
+										{#each libraries.data ?? [] as library (library.id)}
+											<Select.Item value={String(library.id)} label={library.name} />
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							{:else}
+								{libraryName(folder.libraryId)}
 							{/if}
 						</Table.Cell>
 						<Table.Cell>{formatBytes(folder.freeSpace)}</Table.Cell>
@@ -118,14 +178,30 @@
 			}}
 		>
 			<Label for="root-folder-path">Add a root folder</Label>
-			<div class="flex gap-2">
+			<div class="flex flex-wrap gap-2">
 				<Input
 					id="root-folder-path"
 					required
 					placeholder="/data/media/movies"
-					class="font-mono"
+					class="min-w-56 flex-1 font-mono"
 					bind:value={path}
 				/>
+				{#if (libraries.data?.length ?? 0) > 1}
+					<Select.Root
+						type="single"
+						value={effectiveLibraryId === null ? '' : String(effectiveLibraryId)}
+						onValueChange={(value) => (selectedLibraryId = Number(value))}
+					>
+						<Select.Trigger class="w-40" aria-label="Library for new root folder">
+							{effectiveLibraryId !== null ? libraryName(effectiveLibraryId) : 'Choose library'}
+						</Select.Trigger>
+						<Select.Content>
+							{#each libraries.data ?? [] as library (library.id)}
+								<Select.Item value={String(library.id)} label={library.name} />
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				{/if}
 				<Button type="button" variant="outline" onclick={() => (browsing = true)}>Browse</Button>
 				<Button type="submit" disabled={add.isPending}>Add</Button>
 			</div>

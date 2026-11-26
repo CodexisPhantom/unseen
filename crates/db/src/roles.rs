@@ -243,6 +243,7 @@ mod tests {
         user_roles::ActiveModel {
             user_id: Set("u1".into()),
             role_id: Set(role.role.id),
+            all_libraries: Set(true),
         }
         .insert(&db)
         .await

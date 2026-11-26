@@ -19,11 +19,12 @@ use unseen_core::library::{
     FolderGuess, confident_match, guess_folder, is_extras_folder, is_movie_video,
 };
 use unseen_core::metadata::{MetadataError, MetadataProvider, MovieSummary};
+use unseen_core::permission::Permission;
 use unseen_core::root_folder;
 use utoipa::ToSchema;
 
 use crate::AppState;
-use crate::access::{ImportRun, Require};
+use crate::access::{Caller, ImportRun, Require};
 use crate::audit::{Actor, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::tmdb::{client, provider_error};
@@ -207,11 +208,14 @@ async fn resolve(
     Ok(confident_match(guess, &results).cloned())
 }
 
-async fn root_path(state: &AppState, id: i32) -> Result<PathBuf, Problem> {
+async fn root_path(state: &AppState, caller: &Caller, id: i32) -> Result<PathBuf, Problem> {
     let root = db::root_folders::find(&state.db, id)
         .await
         .map_err(failed)?
         .ok_or_else(|| Problem::validation("rootFolderId", "must be the id of a root folder"))?;
+    if !caller.allows_in_library(Permission::ImportRun, root.library_id) {
+        return Err(Problem::not_found());
+    }
     Ok(PathBuf::from(root.path))
 }
 
@@ -232,11 +236,11 @@ async fn root_path(state: &AppState, id: i32) -> Result<PathBuf, Problem> {
     )
 )]
 pub async fn scan(
-    _: Require<ImportRun>,
+    caller: Require<ImportRun>,
     State(state): State<AppState>,
     Json(body): Json<ScanRequest>,
 ) -> Result<Json<ScanResult>, Problem> {
-    let root = root_path(&state, body.root_folder_id).await?;
+    let root = root_path(&state, &caller, body.root_folder_id).await?;
     let known = db::root_folders::movie_folder_names(&state.db, body.root_folder_id)
         .await
         .map_err(failed)?;
@@ -421,7 +425,7 @@ pub async fn adopt(
             "must be `announced`, `inCinemas` or `released`",
         ));
     }
-    let root = root_path(&state, body.root_folder_id).await?;
+    let root = root_path(&state, &caller, body.root_folder_id).await?;
     for id in &body.quality_profile_ids {
         crate::movies::check_profile(&state, *id, "qualityProfileIds").await?;
     }

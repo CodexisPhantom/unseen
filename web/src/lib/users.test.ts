@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from './api/schema.js';
 import type { Permission } from './session.svelte.js';
-import { canAssignRole, canChangeUser, effectivePermissions } from './users.js';
+import { canAssignRole, canChangeUser, effectivePermissions, formatLibraryScope } from './users.js';
 
 type Role = components['schemas']['Role'];
 
@@ -59,5 +59,20 @@ describe('canChangeUser', () => {
 		expect(canChangeUser({ isOwner: true }, { isOwner: false })).toBe(false);
 		expect(canChangeUser({ isOwner: true }, { isOwner: true })).toBe(true);
 		expect(canChangeUser({ isOwner: false }, { isOwner: false })).toBe(true);
+	});
+});
+
+describe('formatLibraryScope', () => {
+	const libs = [
+		{ id: 1, name: 'Default' },
+		{ id: 2, name: 'Kids' }
+	];
+
+	it('returns null for all-library scope and names restricted libraries', () => {
+		expect(formatLibraryScope(null, libs)).toBeNull();
+		expect(formatLibraryScope(undefined, libs)).toBeNull();
+		expect(formatLibraryScope([], libs)).toBe('no libraries');
+		expect(formatLibraryScope([2], libs)).toBe('Kids');
+		expect(formatLibraryScope([1, 2, 99], libs)).toBe('Default, Kids, #99');
 	});
 });

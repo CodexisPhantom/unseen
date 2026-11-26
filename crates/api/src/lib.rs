@@ -13,6 +13,7 @@ pub mod error;
 pub mod events;
 mod health;
 mod indexers;
+mod libraries;
 mod library;
 pub mod logs;
 mod lookup;
@@ -81,10 +82,21 @@ pub struct AppState {
 impl AppState {
     /// Tells connected clients that a movie row changed.
     pub fn publish_movie_changed(&self, id: i32) {
+        self.publish_movie_changed_scoped(id, None);
+    }
+
+    /// Tells connected clients with access to `library_id` that a movie row
+    /// changed.
+    pub fn publish_movie_changed_in_library(&self, id: i32, library_id: i32) {
+        self.publish_movie_changed_scoped(id, Some(library_id));
+    }
+
+    fn publish_movie_changed_scoped(&self, id: i32, library_id: Option<i32>) {
         self.events.publish(crate::events::AppEvent {
             kind: "movie.updated".to_owned(),
             data: serde_json::json!({ "id": id }),
             permission: Some(unseen_core::permission::Permission::LibraryRead),
+            library_id,
             target_user: None,
             target_api_key: None,
         });
@@ -96,6 +108,7 @@ impl AppState {
             kind: "permissions.changed".to_owned(),
             data: serde_json::Value::String(user_id.to_owned()),
             permission: None,
+            library_id: None,
             target_user: Some(user_id.to_owned()),
             target_api_key: None,
         });
@@ -103,10 +116,21 @@ impl AppState {
 
     /// A download's progress moved, visible to `queue:read` holders.
     pub fn publish_download_progress(&self, id: i32, progress: f64) {
+        self.publish_download_progress_scoped(id, progress, None);
+    }
+
+    /// A download's progress moved, visible to `queue:read` holders in
+    /// `library_id`.
+    pub fn publish_download_progress_in_library(&self, id: i32, progress: f64, library_id: i32) {
+        self.publish_download_progress_scoped(id, progress, Some(library_id));
+    }
+
+    fn publish_download_progress_scoped(&self, id: i32, progress: f64, library_id: Option<i32>) {
         self.events.publish(crate::events::AppEvent {
             kind: "download.progress".to_owned(),
             data: serde_json::json!({ "id": id, "progress": progress }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
+            library_id,
             target_user: None,
             target_api_key: None,
         });
@@ -114,10 +138,21 @@ impl AppState {
 
     /// A download changed state, visible to `queue:read` holders.
     pub fn publish_download_state(&self, id: i32, state: &str) {
+        self.publish_download_state_scoped(id, state, None);
+    }
+
+    /// A download changed state, visible to `queue:read` holders in
+    /// `library_id`.
+    pub fn publish_download_state_in_library(&self, id: i32, state: &str, library_id: i32) {
+        self.publish_download_state_scoped(id, state, Some(library_id));
+    }
+
+    fn publish_download_state_scoped(&self, id: i32, state: &str, library_id: Option<i32>) {
         self.events.publish(crate::events::AppEvent {
             kind: "download.state".to_owned(),
             data: serde_json::json!({ "id": id, "state": state }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
+            library_id,
             target_user: None,
             target_api_key: None,
         });
@@ -132,6 +167,38 @@ impl AppState {
         eta: Option<i64>,
         state: &str,
     ) {
+        self.publish_download_progress_update_scoped(id, progress, speed, eta, state, None);
+    }
+
+    /// Detailed download progress event scoped to `library_id`.
+    pub fn publish_download_progress_update_in_library(
+        &self,
+        id: i32,
+        progress: f64,
+        speed: i64,
+        eta: Option<i64>,
+        state: &str,
+        library_id: i32,
+    ) {
+        self.publish_download_progress_update_scoped(
+            id,
+            progress,
+            speed,
+            eta,
+            state,
+            Some(library_id),
+        );
+    }
+
+    fn publish_download_progress_update_scoped(
+        &self,
+        id: i32,
+        progress: f64,
+        speed: i64,
+        eta: Option<i64>,
+        state: &str,
+        library_id: Option<i32>,
+    ) {
         self.events.publish(crate::events::AppEvent {
             kind: "download.progress".to_owned(),
             data: serde_json::json!({
@@ -142,6 +209,7 @@ impl AppState {
                 "state": state,
             }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
+            library_id,
             target_user: None,
             target_api_key: None,
         });
@@ -149,6 +217,27 @@ impl AppState {
 
     /// Download state transition event (docs/05-api.md), visible to `queue:read` holders.
     pub fn publish_download_state_changed(&self, id: i32, old_state: &str, new_state: &str) {
+        self.publish_download_state_changed_scoped(id, old_state, new_state, None);
+    }
+
+    /// Download state transition event scoped to `library_id`.
+    pub fn publish_download_state_changed_in_library(
+        &self,
+        id: i32,
+        old_state: &str,
+        new_state: &str,
+        library_id: i32,
+    ) {
+        self.publish_download_state_changed_scoped(id, old_state, new_state, Some(library_id));
+    }
+
+    fn publish_download_state_changed_scoped(
+        &self,
+        id: i32,
+        old_state: &str,
+        new_state: &str,
+        library_id: Option<i32>,
+    ) {
         self.events.publish(crate::events::AppEvent {
             kind: "download.state".to_owned(),
             data: serde_json::json!({
@@ -157,6 +246,7 @@ impl AppState {
                 "newState": new_state,
             }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
+            library_id,
             target_user: None,
             target_api_key: None,
         });
@@ -168,6 +258,7 @@ impl AppState {
             kind: "task.status".to_owned(),
             data: serde_json::json!({ "name": name, "status": status }),
             permission: Some(unseen_core::permission::Permission::SystemTasks),
+            library_id: None,
             target_user: None,
             target_api_key: None,
         });
@@ -240,6 +331,10 @@ pub fn routes() -> ApiRouter {
         .require(
             Permission::UsersManage,
             routes!(roles::list_assignable_roles),
+        )
+        .require(
+            Permission::UsersManage,
+            routes!(libraries::list_assignable_libraries),
         )
         .require(
             Permission::RolesManage,
@@ -394,6 +489,15 @@ pub fn routes() -> ApiRouter {
             Permission::SettingsManage,
             routes!(proxy::update_settings, proxy::test_proxy),
         )
+        .require(Permission::SettingsRead, routes!(libraries::list_libraries))
+        .require(
+            Permission::SettingsManage,
+            routes!(libraries::create_library),
+        )
+        .require(
+            Permission::SettingsManage,
+            routes!(libraries::update_library, libraries::delete_library),
+        )
         .require(
             Permission::SettingsRead,
             routes!(root_folders::list_root_folders),
@@ -404,7 +508,10 @@ pub fn routes() -> ApiRouter {
         )
         .require(
             Permission::SettingsManage,
-            routes!(root_folders::delete_root_folder),
+            routes!(
+                root_folders::update_root_folder,
+                root_folders::delete_root_folder
+            ),
         )
         .require(Permission::SettingsManage, routes!(root_folders::browse))
         .require(Permission::IndexersRead, routes!(indexers::list_indexers))

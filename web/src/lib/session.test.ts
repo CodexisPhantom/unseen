@@ -6,7 +6,8 @@ const me = (permissions: Me['permissions']): Me => ({
 	user: { id: 'u1', name: 'Member', email: 'member@example.com', twoFactorEnabled: false },
 	roles: [],
 	isOwner: false,
-	permissions
+	permissions,
+	scopedPermissions: permissions.map((permission) => ({ permission, libraryIds: null }))
 });
 
 describe('session', () => {

@@ -42,13 +42,40 @@ pub async fn create(
     db: &DatabaseConnection,
     path: String,
 ) -> Result<root_folders::Model, RootFolderError> {
+    let library_id = crate::libraries::default_id(db)
+        .await?
+        .ok_or_else(|| RootFolderError::Db(DbErr::Custom("no library exists".into())))?;
+    create_in_library(db, path, library_id).await
+}
+
+pub async fn create_in_library(
+    db: &DatabaseConnection,
+    path: String,
+    library_id: i32,
+) -> Result<root_folders::Model, RootFolderError> {
     Ok(root_folders::ActiveModel {
         path: Set(path),
+        library_id: Set(library_id),
         created_at: Set(crate::now()),
         ..Default::default()
     }
     .insert(db)
     .await?)
+}
+
+/// Moves a root folder to another library.
+pub async fn set_library(
+    db: &DatabaseConnection,
+    id: i32,
+    library_id: i32,
+) -> Result<root_folders::Model, RootFolderError> {
+    let current = root_folders::Entity::find_by_id(id)
+        .one(db)
+        .await?
+        .ok_or(RootFolderError::NotFound)?;
+    let mut active: root_folders::ActiveModel = current.into();
+    active.library_id = Set(library_id);
+    Ok(active.update(db).await?)
 }
 
 /// Deletes a root folder that no movie uses.
