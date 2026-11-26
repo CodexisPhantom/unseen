@@ -807,6 +807,43 @@ export interface paths {
         patch: operations["update_profile"];
         trace?: never;
     };
+    "/api/v1/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active downloads in the queue, enriched with live progress from each client. */
+        get: operations["list_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/queue/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Removes an active download from the queue, optionally deleting it from the
+         *     download client and/or adding its release to the blocklist.
+         */
+        delete: operations["remove_queue_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/roles": {
         parameters: {
             query?: never;
@@ -1920,6 +1957,44 @@ export interface components {
             minUpgradeFormatScore?: number | null;
             name?: string | null;
             upgradeAllowed?: boolean | null;
+        };
+        QueueItem: {
+            /** Format: int32 */
+            downloadClientId?: number | null;
+            downloadClientName?: string | null;
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description Estimated seconds remaining, or null when unknown.
+             */
+            eta?: number | null;
+            grabbedAt: string;
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            movieId: number;
+            /** Format: int32 */
+            movieProfileId?: number | null;
+            movieTitle: string;
+            /** Format: int32 */
+            movieYear: number;
+            /**
+             * Format: double
+             * @description Progress from `0.0` to `1.0`.
+             */
+            progress: number;
+            /** Format: int32 */
+            qualityId: number;
+            releaseTitle: string;
+            /** Format: int64 */
+            size: number;
+            /**
+             * Format: int64
+             * @description Download speed in bytes per second.
+             */
+            speed: number;
+            /** @description `queued`, `downloading`, `paused`, `completed`, `importing`, `importFailed`. */
+            state: string;
         };
         /** @description One parsed and scored release returned from a manual search. */
         Release: {
@@ -4754,6 +4829,97 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_queue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active downloads */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItem"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_queue_item: {
+        parameters: {
+            query?: {
+                /** @description Also delete the item and its files from the download client (default true). */
+                removeFromClient?: boolean;
+                /** @description Add the release to the movie's blocklist so it is not grabbed again (default false). */
+                blocklist?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Download id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed from queue */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such active download */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The stored client credentials cannot be read */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The download client refused or failed the delete */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

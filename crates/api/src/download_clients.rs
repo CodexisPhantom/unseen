@@ -396,7 +396,12 @@ pub async fn delete_client(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn test_error(error: QbError) -> Problem {
+pub(crate) enum ConnectedClient {
+    Qbittorrent(QbClient),
+    Sabnzbd(SabClient),
+}
+
+pub(crate) fn qb_error(error: QbError) -> Problem {
     let (code, title) = match &error {
         QbError::Credentials => (
             "client_credentials_rejected",
@@ -414,13 +419,13 @@ fn test_error(error: QbError) -> Problem {
             ("client_unavailable", "The download client is not available")
         }
     };
-    tracing::warn!(%error, "download client test");
+    tracing::warn!(%error, "download client");
     let mut problem = Problem::new(StatusCode::BAD_GATEWAY, code, title);
     problem.detail = Some(error.to_string());
     problem
 }
 
-fn sab_test_error(error: SabError) -> Problem {
+pub(crate) fn sab_error(error: SabError) -> Problem {
     let (code, title) = match &error {
         SabError::ApiKey => (
             "client_api_key_rejected",
@@ -430,33 +435,16 @@ fn sab_test_error(error: SabError) -> Problem {
             ("client_unavailable", "The download client is not available")
         }
     };
-    tracing::warn!(%error, "download client test");
+    tracing::warn!(%error, "download client");
     let mut problem = Problem::new(StatusCode::BAD_GATEWAY, code, title);
     problem.detail = Some(error.to_string());
     problem
 }
 
-/// Authenticates to the saved download client (with its API key when it has
-/// one, else with the username and password) and reports its version.
-#[utoipa::path(
-    post,
-    path = "/api/v1/download-clients/{id}/test",
-    tag = "download-clients",
-    params(("id" = i32, Path, description = "Download client id")),
-    responses(
-        (status = 200, description = "The login works", body = TestResult),
-        (status = 403, description = "Permission denied", body = Problem),
-        (status = 404, description = "No such download client", body = Problem),
-        (status = 409, description = "The stored password or API key cannot be read", body = Problem),
-        (status = 502, description = "The client refused the login or did not answer", body = Problem),
-    )
-)]
-pub async fn test_client(
-    _: Require<ClientsManage>,
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<TestResult>, Problem> {
-    let model = load(&state, id).await?.model;
+pub(crate) fn connect(
+    state: &AppState,
+    model: &db::entities::download_clients::Model,
+) -> Result<ConnectedClient, Problem> {
     let unreadable = |code: &str, title: &str| Problem::conflict(code, title);
     if model.kind == SABNZBD {
         let stored = model.api_key.as_deref().ok_or_else(|| {
@@ -474,11 +462,11 @@ pub async fn test_client(
             })?
             .expose()
             .to_owned();
-        let version = SabClient::new(state.http.clone(), &model.url, &key)
-            .test()
-            .await
-            .map_err(sab_test_error)?;
-        return Ok(Json(TestResult { version }));
+        return Ok(ConnectedClient::Sabnzbd(SabClient::new(
+            state.http.clone(),
+            &model.url,
+            &key,
+        )));
     }
     let auth = match (&model.api_key, &model.password) {
         (Some(stored), _) => QbAuth::ApiKey(
@@ -508,7 +496,37 @@ pub async fn test_client(
             },
         },
     };
-    let client = QbClient::new(state.http.clone(), &model.url, auth);
-    let version = client.test().await.map_err(test_error)?;
+    Ok(ConnectedClient::Qbittorrent(QbClient::new(
+        state.http.clone(),
+        &model.url,
+        auth,
+    )))
+}
+
+/// Authenticates to the saved download client (with its API key when it has
+/// one, else with the username and password) and reports its version.
+#[utoipa::path(
+    post,
+    path = "/api/v1/download-clients/{id}/test",
+    tag = "download-clients",
+    params(("id" = i32, Path, description = "Download client id")),
+    responses(
+        (status = 200, description = "The login works", body = TestResult),
+        (status = 403, description = "Permission denied", body = Problem),
+        (status = 404, description = "No such download client", body = Problem),
+        (status = 409, description = "The stored password or API key cannot be read", body = Problem),
+        (status = 502, description = "The client refused the login or did not answer", body = Problem),
+    )
+)]
+pub async fn test_client(
+    _: Require<ClientsManage>,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<TestResult>, Problem> {
+    let model = load(&state, id).await?.model;
+    let version = match connect(&state, &model)? {
+        ConnectedClient::Sabnzbd(client) => client.test().await.map_err(sab_error)?,
+        ConnectedClient::Qbittorrent(client) => client.test().await.map_err(qb_error)?,
+    };
     Ok(Json(TestResult { version }))
 }
