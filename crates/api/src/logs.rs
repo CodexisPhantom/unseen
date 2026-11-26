@@ -593,7 +593,7 @@ fn read_logs(
     let dated_files = list_log_files(logs_dir)?;
     let files: Vec<LogFileInfo> = dated_files.iter().map(|(_, info)| info.clone()).collect();
 
-    let mut items = Vec::with_capacity(limit);
+    let mut items = Vec::new();
     let mut last_cursor: Option<Cursor> = None;
     let mut has_more = false;
 
