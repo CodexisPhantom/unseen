@@ -68,7 +68,7 @@ const OPEN_DURING_SETUP: [&str; 2] = ["/api/v1/setup", "/api/v1/health"];
 
 pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let path = request.uri().path();
-    if path.contains("/api/") && !OPEN_DURING_SETUP.contains(&path) {
+    if path.to_ascii_lowercase().contains("/api/") && !OPEN_DURING_SETUP.contains(&path) {
         match state.setup.required(&state.db).await {
             Ok(false) => {}
             Ok(true) => return setup_required().into_response(),

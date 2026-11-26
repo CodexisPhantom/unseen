@@ -73,9 +73,15 @@ settings: not in V1, decided in the subtitles design (M10).
 ## D. API for companion tools
 
 Base: `/radarr/api/v3`. Auth: `X-Api-Key` header or `?apikey=` query, backed
-by Unseen API keys. Paths are matched case-insensitively. Fields without a
-value in Unseen are returned with a default, never omitted. Unimplemented
-endpoints return 501 with a JSON body and are logged.
+by Unseen API keys (session cookies are not accepted on the compat API). Paths
+are matched case-insensitively. Fields without a value in Unseen are returned
+with a default, never omitted. Unimplemented endpoints (after API-key
+authentication) return `501` with `{ "message": "Not implemented", "method": ..., "path": ... }`
+and log one `warn` entry with method and path. Errors use Radarr-style JSON
+bodies (`application/json`): `401` returns `{ "error": "Unauthorized" }`,
+`403` returns `{ "message": "Forbidden", "description": ..., "requiredPermission": ... }`,
+`404` returns `{ "message": "NotFound" }`, and `400` validation errors return
+an array of `{ propertyName, errorMessage, attemptedValue, severity, errorCode }`.
 
 V1 client: Seerr. Endpoint list taken from Seerr's source,
 `seerr-team/seerr` branch `develop` at commit `fc53b3d` (2026-11-15):

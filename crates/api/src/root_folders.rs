@@ -94,10 +94,17 @@ async fn blocking<T: Send + 'static>(
 fn describe(model: root_folders::Model, known: &[String]) -> RootFolder {
     let path = Path::new(&model.path);
     let on_disk = list_dirs(path);
+    // Windows reports a volume's free space even for a path that is gone, so
+    // only ask when the folder is readable at all.
+    let accessible = on_disk.is_ok();
     RootFolder {
         id: model.id,
-        accessible: on_disk.is_ok(),
-        free_space: fs4::available_space(path).ok(),
+        accessible,
+        free_space: if accessible {
+            fs4::available_space(path).ok()
+        } else {
+            None
+        },
         unmapped_folders: root_folder::unmapped(
             on_disk
                 .unwrap_or_default()
