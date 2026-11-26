@@ -39,7 +39,7 @@ build: web-build
 
 # Regenerate crates/db/src/auth_schema.rs with the Better Auth CLI
 gen-auth:
-    better-auth-rs generate --output crates/db/src/auth_schema.rs --force
+    better-auth-rs generate --plugins two-factor,passkey --output crates/db/src/auth_schema.rs --force
 
 # Regenerate openapi.json and the TypeScript types in web/src/lib/api
 gen:

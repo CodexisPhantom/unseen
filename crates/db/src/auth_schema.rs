@@ -25,6 +25,9 @@ pub mod user {
         #[sea_orm(column_name = "updatedAt")]
         #[auth(alias = "updatedAt")]
         pub updated_at: DateTimeUtc,
+        #[sea_orm(column_name = "twoFactorEnabled")]
+        #[auth(alias = "twoFactorEnabled")]
+        pub two_factor_enabled: Option<bool>,
     }
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     pub enum Relation {}
@@ -131,6 +134,77 @@ pub mod verification {
     pub enum Relation {}
     impl ActiveModelBehavior for ActiveModel {}
 }
+pub mod two_factor {
+    use super::*;
+    #[derive(Clone, Debug, serde::Serialize, DeriveEntityModel, AuthEntity)]
+    #[auth(role = "two_factor", native_two_factor)]
+    #[sea_orm(table_name = "twoFactor")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub secret: String,
+        #[sea_orm(column_name = "backupCodes")]
+        #[auth(alias = "backupCodes")]
+        pub backup_codes: String,
+        #[sea_orm(column_name = "userId")]
+        #[auth(alias = "userId")]
+        pub user_id: String,
+        pub verified: Option<bool>,
+        #[sea_orm(column_name = "failedVerificationCount")]
+        #[auth(alias = "failedVerificationCount")]
+        pub failed_verification_count: Option<i64>,
+        #[sea_orm(column_name = "lockedUntil")]
+        #[auth(alias = "lockedUntil")]
+        pub locked_until: Option<DateTimeUtc>,
+    }
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+    impl ActiveModelBehavior for ActiveModel {}
+}
+pub mod passkey {
+    use super::*;
+    #[derive(Clone, Debug, serde::Serialize, DeriveEntityModel, AuthEntity)]
+    #[auth(role = "passkey", native_passkey)]
+    #[sea_orm(table_name = "passkey")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub name: Option<String>,
+        #[sea_orm(column_name = "publicKey")]
+        #[auth(alias = "publicKey")]
+        pub public_key: String,
+        #[sea_orm(column_name = "userId")]
+        #[auth(alias = "userId")]
+        pub user_id: String,
+        #[sea_orm(column_name = "credentialID")]
+        #[auth(alias = "credentialID")]
+        pub credential_id: String,
+        pub counter: i64,
+        #[sea_orm(column_name = "deviceType")]
+        #[auth(alias = "deviceType")]
+        pub device_type: String,
+        #[sea_orm(column_name = "backedUp")]
+        #[auth(alias = "backedUp")]
+        pub backed_up: bool,
+        pub transports: Option<String>,
+        #[sea_orm(column_name = "createdAt")]
+        #[auth(alias = "createdAt")]
+        pub created_at: Option<DateTimeUtc>,
+        pub aaguid: Option<String>,
+    }
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+    impl ActiveModelBehavior for ActiveModel {}
+}
+pub type AppPluginSchema = better_auth::seaorm::PluginModels<
+    <better_auth::seaorm::PluginModels as better_auth::seaorm::SeaOrmPluginSchema>::ApiKey,
+    <better_auth::seaorm::PluginModels as better_auth::seaorm::SeaOrmPluginSchema>::DeviceCode,
+    passkey::Model,
+    two_factor::Model,
+    <better_auth::seaorm::PluginModels as better_auth::seaorm::SeaOrmPluginSchema>::Jwk,
+    <better_auth::seaorm::PluginModels as better_auth::seaorm::SeaOrmPluginSchema>::WalletAddress,
+    <better_auth::seaorm::PluginModels as better_auth::seaorm::SeaOrmPluginSchema>::RateLimit,
+>;
 pub struct AppAuthSchema;
 impl AuthSchema for AppAuthSchema {
     type User = user::Model;
@@ -184,6 +258,9 @@ pub async fn create_auth_tables(
                 }
                 if column.get_column_name().as_str() == "updatedAt" {
                     column.custom(Alias::new("date"));
+                }
+                if column.get_column_name().as_str() == "twoFactorEnabled" {
+                    column.integer();
                 }
                 table.col(column);
             }
@@ -343,6 +420,116 @@ pub async fn create_auth_tables(
             }
             table.to_owned()
         },
+        {
+            let mut table = Table::create();
+            table.table(Alias::new("twoFactor"));
+            for mut column in schema
+                .create_table_from_entity(two_factor::Entity)
+                .get_columns()
+                .clone()
+            {
+                if column.get_column_name().as_str() == "id" {
+                    if database.get_database_backend() == sea_orm::DbBackend::MySql {
+                        column.string_len(36);
+                    } else {
+                        column.text();
+                    }
+                }
+                if column.get_column_name().as_str() == "secret" {
+                    column.text();
+                }
+                if column.get_column_name().as_str() == "backupCodes" {
+                    column.text();
+                }
+                if column.get_column_name().as_str() == "userId" {
+                    if database.get_database_backend() == sea_orm::DbBackend::MySql {
+                        column.string_len(36);
+                    } else {
+                        column.text();
+                    }
+                }
+                if column.get_column_name().as_str() == "verified" {
+                    column.integer();
+                }
+                if column.get_column_name().as_str() == "failedVerificationCount" {
+                    column.integer();
+                }
+                if column.get_column_name().as_str() == "lockedUntil" {
+                    column.custom(Alias::new("date"));
+                }
+                table.col(column);
+            }
+            table
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_twoFactor_userId")
+                        .from(Alias::new("twoFactor"), Alias::new("userId"))
+                        .to(Alias::new("user"), Alias::new("id"))
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .to_owned()
+        },
+        {
+            let mut table = Table::create();
+            table.table(Alias::new("passkey"));
+            for mut column in schema
+                .create_table_from_entity(passkey::Entity)
+                .get_columns()
+                .clone()
+            {
+                if column.get_column_name().as_str() == "id" {
+                    if database.get_database_backend() == sea_orm::DbBackend::MySql {
+                        column.string_len(36);
+                    } else {
+                        column.text();
+                    }
+                }
+                if column.get_column_name().as_str() == "name" {
+                    column.text();
+                }
+                if column.get_column_name().as_str() == "publicKey" {
+                    column.text();
+                }
+                if column.get_column_name().as_str() == "userId" {
+                    if database.get_database_backend() == sea_orm::DbBackend::MySql {
+                        column.string_len(36);
+                    } else {
+                        column.text();
+                    }
+                }
+                if column.get_column_name().as_str() == "credentialID" {
+                    column.text();
+                }
+                if column.get_column_name().as_str() == "counter" {
+                    column.integer();
+                }
+                if column.get_column_name().as_str() == "deviceType" {
+                    column.text();
+                }
+                if column.get_column_name().as_str() == "backedUp" {
+                    column.integer();
+                }
+                if column.get_column_name().as_str() == "transports" {
+                    column.text();
+                }
+                if column.get_column_name().as_str() == "createdAt" {
+                    column.custom(Alias::new("date"));
+                }
+                if column.get_column_name().as_str() == "aaguid" {
+                    column.text();
+                }
+                table.col(column);
+            }
+            table
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_passkey_userId")
+                        .from(Alias::new("passkey"), Alias::new("userId"))
+                        .to(Alias::new("user"), Alias::new("id"))
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .to_owned()
+        },
     ] {
         let _ = database.execute(&statement).await?;
     }
@@ -361,6 +548,26 @@ pub async fn create_auth_tables(
             .name("verification_identifier_idx")
             .table(Alias::new("verification"))
             .col(Alias::new("identifier"))
+            .to_owned(),
+        Index::create()
+            .name("twoFactor_secret_idx")
+            .table(Alias::new("twoFactor"))
+            .col(Alias::new("secret"))
+            .to_owned(),
+        Index::create()
+            .name("twoFactor_userId_idx")
+            .table(Alias::new("twoFactor"))
+            .col(Alias::new("userId"))
+            .to_owned(),
+        Index::create()
+            .name("passkey_userId_idx")
+            .table(Alias::new("passkey"))
+            .col(Alias::new("userId"))
+            .to_owned(),
+        Index::create()
+            .name("passkey_credentialID_idx")
+            .table(Alias::new("passkey"))
+            .col(Alias::new("credentialID"))
             .to_owned(),
     ] {
         let _ = database.execute(&statement).await?;

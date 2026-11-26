@@ -24,6 +24,7 @@ pub async fn insert_user(db: &DatabaseConnection, id: &str) {
         image: Set(None),
         created_at: Set(now),
         updated_at: Set(now),
+        two_factor_enabled: sea_orm::ActiveValue::NotSet,
     }
     .insert(db)
     .await
