@@ -171,6 +171,13 @@ async fn revoke(
         .await
         .map_err(failed)?;
     tracing::info!(key = key.id, "API key revoked");
+    state.events.publish(crate::events::AppEvent {
+        kind: "api_key.revoked".to_owned(),
+        data: serde_json::Value::Null,
+        permission: None,
+        target_user: None,
+        target_api_key: Some(key.id),
+    });
     let event = Event::new("api_key.revoked")
         .target("api_key", key.id)
         .data(json!({ "name": key.name, "userId": key.user_id }));

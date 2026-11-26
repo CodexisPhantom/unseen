@@ -6,7 +6,7 @@ use api::{AppState, router};
 use axum::Router;
 use axum::body::{Body, BodyDataStream, to_bytes};
 use axum::http::{HeaderMap, Method, Request, StatusCode, header};
-use better_auth::seaorm::sea_orm::{ActiveModelTrait, Set};
+use better_auth::seaorm::sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use db::entities::{quality_profiles, role_permissions, roles, root_folders, user_roles};
 use db::movies::{Metadata, NewMovie};
 use futures_util::StreamExt;
@@ -702,4 +702,58 @@ async fn changing_a_password_stops_events_on_the_revoked_session() {
 
     app.state.publish_movie_changed(1);
     session_stream.assert_no_event().await;
+}
+
+#[tokio::test]
+async fn an_expired_session_row_stops_events_on_an_open_stream() {
+    let app = App::new().await;
+    let session = db::auth_schema::session::Entity::find()
+        .all(&app.state.db)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|session| session.user_id == app.owner_id)
+        .expect("owner session row");
+    let id = session.id.clone();
+    let mut session_stream = Box::pin(api::events::filtered(
+        &app.state.events,
+        app.state.db.clone(),
+        app.state.policy.clone(),
+        app.owner_id.clone(),
+        None,
+        Some(id.clone()),
+    ));
+
+    db::auth_schema::session::ActiveModel {
+        id: Set(id.clone()),
+        expires_at: Set(chrono::Utc::now() - chrono::Duration::seconds(1)),
+        ..Default::default()
+    }
+    .update(&app.state.db)
+    .await
+    .unwrap();
+    let persisted = db::auth_schema::session::Entity::find_by_id(id.clone())
+        .one(&app.state.db)
+        .await
+        .unwrap()
+        .expect("expired session row remains");
+    assert!(persisted.expires_at < chrono::Utc::now());
+
+    app.state.publish_movie_changed(1);
+    assert!(
+        timeout(EVENT_TIMEOUT, session_stream.next())
+            .await
+            .expect("timed out waiting for SSE stream to close")
+            .is_none(),
+        "expected the SSE stream to close"
+    );
+
+    let still_present = db::auth_schema::session::Entity::find_by_id(id)
+        .one(&app.state.db)
+        .await
+        .unwrap();
+    assert!(
+        still_present.is_some(),
+        "expired session row must still exist"
+    );
 }

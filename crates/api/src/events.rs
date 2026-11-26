@@ -28,6 +28,7 @@ pub struct AppEvent {
     pub data: Value,
     pub permission: Option<Permission>,
     pub target_user: Option<String>,
+    pub target_api_key: Option<i32>,
 }
 
 /// Broadcast bus shared by every connected SSE client.
@@ -70,6 +71,8 @@ struct FilterState {
     api_key: Option<i32>,
     session_id: Option<String>,
     permissions: Option<EffectivePermissions>,
+    key_permissions: Option<BTreeSet<String>>,
+    next_revocation_check: Instant,
 }
 
 impl FilterState {
@@ -94,10 +97,17 @@ impl FilterState {
     /// Checks that the identity behind the stream is still valid right now:
     /// the account is enabled and the API key, when one authenticated the
     /// stream, is still live and still owned by the same user.
-    async fn revoked(&self) -> bool {
+    async fn revoked(&mut self) -> bool {
         if self.policy.is_disabled(&self.user_id) {
             return true;
         }
+        if self.session_id.is_none() && self.api_key.is_none() {
+            return false;
+        }
+        if Instant::now() < self.next_revocation_check {
+            return false;
+        }
+        self.next_revocation_check = Instant::now() + Duration::from_secs(15);
         if let Some(id) = &self.session_id {
             use better_auth::seaorm::sea_orm::EntityTrait;
 
@@ -105,7 +115,9 @@ impl FilterState {
                 .one(&self.db)
                 .await
             {
-                Ok(Some(session)) if session.user_id == self.user_id => {}
+                Ok(Some(session))
+                    if session.user_id == self.user_id
+                        && session.expires_at > chrono::Utc::now() => {}
                 Ok(_) => return true,
                 Err(error) => {
                     tracing::error!(%error, session = %id, "failed to load SSE session");
@@ -127,16 +139,19 @@ impl FilterState {
     }
 
     /// The permissions the API key narrows the user's grants to, if any.
-    async fn key_permissions(&self) -> Option<BTreeSet<String>> {
+    async fn key_permissions(&mut self) -> Option<&BTreeSet<String>> {
         let id = self.api_key?;
-        match db::api_keys::find(&self.db, id).await {
-            Ok(Some(key)) => Some(key.permissions),
-            Ok(None) => Some(BTreeSet::new()),
-            Err(error) => {
-                tracing::error!(%error, key = id, "failed to load SSE API key");
-                Some(BTreeSet::new())
-            }
+        if self.key_permissions.is_none() {
+            self.key_permissions = Some(match db::api_keys::find(&self.db, id).await {
+                Ok(Some(key)) => key.permissions,
+                Ok(None) => BTreeSet::new(),
+                Err(error) => {
+                    tracing::error!(%error, key = id, "failed to load SSE API key");
+                    BTreeSet::new()
+                }
+            });
         }
+        self.key_permissions.as_ref()
     }
 }
 
@@ -159,15 +174,14 @@ pub fn filtered(
         api_key,
         session_id,
         permissions: None,
+        key_permissions: None,
+        next_revocation_check: Instant::now(),
     };
     stream::unfold(state, |mut state| async move {
-        let mut session_check = tokio::time::interval_at(
-            Instant::now() + Duration::from_secs(15),
-            Duration::from_secs(15),
-        );
         loop {
             let received = tokio::select! {
-                _ = session_check.tick(), if state.session_id.is_some() => {
+                _ = tokio::time::sleep_until(state.next_revocation_check),
+                    if state.session_id.is_some() || state.api_key.is_some() => {
                     if state.revoked().await {
                         return None;
                     }
@@ -182,6 +196,12 @@ pub fn filtered(
                     }
                     if event.kind == "permissions.changed" && !state.refresh().await {
                         return None;
+                    }
+                    if let Some(target_key) = event.target_api_key {
+                        if Some(target_key) == state.api_key {
+                            return None;
+                        }
+                        continue;
                     }
                     if let Some(target) = &event.target_user
                         && target != &state.user_id

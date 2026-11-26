@@ -66,6 +66,7 @@ impl AppState {
             data: serde_json::json!({ "id": id }),
             permission: Some(unseen_core::permission::Permission::LibraryRead),
             target_user: None,
+            target_api_key: None,
         });
     }
 
@@ -76,6 +77,7 @@ impl AppState {
             data: serde_json::Value::String(user_id.to_owned()),
             permission: None,
             target_user: Some(user_id.to_owned()),
+            target_api_key: None,
         });
     }
 
@@ -86,6 +88,7 @@ impl AppState {
             data: serde_json::json!({ "id": id, "progress": progress }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
             target_user: None,
+            target_api_key: None,
         });
     }
 
@@ -96,6 +99,7 @@ impl AppState {
             data: serde_json::json!({ "id": id, "state": state }),
             permission: Some(unseen_core::permission::Permission::QueueRead),
             target_user: None,
+            target_api_key: None,
         });
     }
 
@@ -106,6 +110,7 @@ impl AppState {
             data: serde_json::json!({ "name": name, "status": status }),
             permission: Some(unseen_core::permission::Permission::SystemTasks),
             target_user: None,
+            target_api_key: None,
         });
     }
     /// `db` must be migrated: the auth instance reads its tables.
