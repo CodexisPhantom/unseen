@@ -489,8 +489,8 @@ pub async fn import_custom_formats(
     };
 
     let is_batch = raw_items.len() > 1;
-    let mut prepared = Vec::with_capacity(raw_items.len());
-    let mut seen_names = HashSet::with_capacity(raw_items.len());
+    let mut prepared = Vec::new();
+    let mut seen_names = HashSet::new();
     for (idx, item) in raw_items.into_iter().enumerate() {
         let parsed: RadarrCustomFormat = serde_json::from_value(item).map_err(|err| {
             Problem::validation(&format!("items[{idx}]"), &format!("invalid format: {err}"))

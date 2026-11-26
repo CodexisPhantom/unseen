@@ -84,7 +84,7 @@ pub async fn create_many(
     items: Vec<Values>,
 ) -> Result<Vec<custom_formats::Model>, CustomFormatError> {
     let tx = db.begin().await?;
-    let mut created = Vec::with_capacity(items.len());
+    let mut created = Vec::new();
     for values in items {
         let now = crate::now();
         let model = custom_formats::ActiveModel {
