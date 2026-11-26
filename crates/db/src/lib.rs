@@ -15,10 +15,12 @@ pub mod api_keys;
 pub mod audit;
 pub mod backfill;
 pub mod collections;
+pub mod custom_formats;
 pub mod download_clients;
 pub mod downloads;
 pub mod entities;
 pub mod indexers;
+pub mod libraries;
 mod migration;
 pub mod movies;
 pub mod profiles;
@@ -115,6 +117,7 @@ mod tests {
             "indexer_tags",
             "indexers",
             "language_profiles",
+            "libraries",
             "movie_files",
             "movie_profiles",
             "movie_tags",
@@ -131,7 +134,9 @@ mod tests {
             "settings",
             "twoFactor",
             "user",
+            "user_permission_libraries",
             "user_permissions",
+            "user_role_libraries",
             "user_roles",
             "verification",
         ] {
@@ -320,5 +325,46 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(left.try_get::<i64>("", "n").unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn migrates_existing_root_folders_and_grants_into_default_library() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = open(dir.path()).await.unwrap();
+        migration::Migrator::up(&db, Some(14)).await.unwrap();
+        testing::insert_user(&db, "u1").await;
+        let backend = db.get_database_backend();
+        db.execute_raw(Statement::from_string(
+            backend,
+            "INSERT INTO root_folders (path, created_at) VALUES ('/movies', '2026-01-01T00:00:00.000Z'); \
+             INSERT INTO movies (tmdb_id, title, sort_title, year, status, root_folder_id, folder_name, monitored, minimum_availability, added_at, updated_at) \
+             SELECT 603, 'The Matrix', 'matrix', 1999, 'released', id, 'The Matrix (1999)', 1, 'released', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z' FROM root_folders WHERE path = '/movies'; \
+             INSERT INTO roles (name, is_owner, created_at, updated_at) VALUES ('Member', 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'); \
+             INSERT INTO role_permissions (role_id, permission) SELECT id, 'library:read' FROM roles WHERE name = 'Member'; \
+             INSERT INTO user_roles (user_id, role_id) SELECT 'u1', id FROM roles WHERE name = 'Member'; \
+             INSERT INTO user_permissions (user_id, permission) VALUES ('u1', 'queue:read');"
+                .to_owned(),
+        ))
+        .await
+        .unwrap();
+        db.close().await.unwrap();
+
+        let db = connect(dir.path()).await.unwrap();
+        let libs = libraries::list(&db).await.unwrap();
+        assert_eq!(libs.len(), 1);
+        assert_eq!(libs[0].library.name, "Default");
+        assert_eq!(libs[0].root_folder_ids.len(), 1);
+
+        let folders = root_folders::list(&db).await.unwrap();
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0].library_id, libs[0].library.id);
+
+        let grants = access::grants_of_user(&db, "u1").await.unwrap();
+        let eff = unseen_core::permission::EffectivePermissions::from_scoped(
+            grants.is_owner,
+            grants.scoped_permissions,
+        );
+        assert!(eff.has_all_libraries(unseen_core::permission::Permission::LibraryRead));
+        assert!(eff.has_all_libraries(unseen_core::permission::Permission::QueueRead));
     }
 }

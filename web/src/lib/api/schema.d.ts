@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assignable-libraries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Libraries available for scoping user roles and direct grants, for callers
+         *     with `users:manage`.
+         */
+        get: operations["list_assignable_libraries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assignable-roles": {
         parameters: {
             query?: never;
@@ -116,6 +136,114 @@ export interface paths {
          *     availability of the collection. Send it again to retry after a failure.
          */
         patch: operations["update_collection"];
+        trace?: never;
+    };
+    "/api/v1/custom-formats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every custom format, ordered by name. */
+        get: operations["list_custom_formats"];
+        put?: never;
+        /** Creates a custom format. */
+        post: operations["create_custom_format"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exports every custom format in Radarr's JSON format (without ids). */
+        get: operations["export_custom_formats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Imports one or many custom formats from Radarr's JSON format. */
+        post: operations["import_custom_formats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tests a release name against all custom formats and computes the score for
+         *     every quality profile.
+         */
+        post: operations["test_custom_formats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-formats/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One custom format. */
+        get: operations["get_custom_format"];
+        put?: never;
+        post?: never;
+        /** Deletes a custom format and removes its scores from every quality profile. */
+        delete: operations["delete_custom_format"];
+        options?: never;
+        head?: never;
+        /** Updates a custom format. */
+        patch: operations["update_custom_format"];
+        trace?: never;
+    };
+    "/api/v1/custom-formats/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exports one custom format in Radarr's JSON format (without id). */
+        get: operations["export_custom_format"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/download-clients": {
@@ -331,6 +459,45 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/libraries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every library visible to the caller, ordered by name. */
+        get: operations["list_libraries"];
+        put?: never;
+        /** Creates a new library. Requires server-wide `settings:manage`. */
+        post: operations["create_library"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/libraries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Deletes an empty library. Any scoped user grants referencing this library
+         *     lose access to it without escalating to all libraries.
+         */
+        delete: operations["delete_library"];
+        options?: never;
+        head?: never;
+        /** Renames a library. */
+        patch: operations["update_library"];
         trace?: never;
     };
     "/api/v1/library/adopt": {
@@ -894,7 +1061,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every root folder with its free space and unmapped folders. */
+        /**
+         * Every root folder visible to the caller, with its free space and unmapped
+         *     folders.
+         */
         get: operations["list_root_folders"];
         put?: never;
         /** Adds a root folder after checking the path on disk. */
@@ -919,7 +1089,8 @@ export interface paths {
         delete: operations["delete_root_folder"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Moves a root folder to another library. */
+        patch: operations["update_root_folder"];
         trace?: never;
     };
     "/api/v1/settings/naming": {
@@ -1295,11 +1466,45 @@ export interface components {
             /** @description The key. This is the only response that carries it. */
             key: string;
         };
+        CustomFormat: {
+            createdAt: string;
+            /** Format: int32 */
+            id: number;
+            includeCustomFormatWhenRenaming: boolean;
+            name: string;
+            specifications: components["schemas"]["CustomFormatSpecification"][];
+            trashId?: string | null;
+            trashSynced: boolean;
+            updatedAt: string;
+        };
+        CustomFormatPatch: {
+            includeCustomFormatWhenRenaming?: boolean | null;
+            name?: string | null;
+            specifications?: components["schemas"]["CustomFormatSpecification"][] | null;
+        };
+        /** @description One condition of a custom format. */
+        CustomFormatSpecification: {
+            fields?: components["schemas"]["SpecificationField"][];
+            implementation: string;
+            name?: string;
+            negate?: boolean;
+            required?: boolean;
+        };
+        CustomFormatTestResult: {
+            matchedFormats: components["schemas"]["MatchedCustomFormat"][];
+            parsed: components["schemas"]["ParsedReleaseSummary"];
+            profileScores: components["schemas"]["ProfileScoreResult"][];
+        };
         /** @enum {string} */
         DatabaseStatus: "ok" | "error";
         DirectGrants: {
-            /** @description Replaces the direct grants. */
-            permissions: components["schemas"]["Permission"][];
+            /** @description Replaces the direct grants (all libraries). */
+            permissions?: components["schemas"]["Permission"][];
+            /**
+             * @description Replaces the direct grants with explicit library scopes. Takes
+             *     precedence over `permissions` when provided.
+             */
+            scopedPermissions?: components["schemas"]["ScopedGrant"][] | null;
         };
         DownloadClient: {
             /**
@@ -1380,6 +1585,8 @@ export interface components {
             /** @description Version of the running binary. */
             version: string;
         };
+        /** @description One Radarr custom format object or an array of them. */
+        ImportCustomFormatsRequest: components["schemas"]["RadarrCustomFormat"][] | components["schemas"]["RadarrCustomFormat"];
         Indexer: {
             /** @description A key is stored but cannot be decrypted: enter it again. */
             apiKeyMustBeReentered: boolean;
@@ -1469,6 +1676,17 @@ export interface components {
             name: string;
             updatedAt: string;
         };
+        Library: {
+            createdAt: string;
+            /** Format: int32 */
+            id: number;
+            name: string;
+            rootFolderIds: number[];
+            updatedAt: string;
+        };
+        LibraryBody: {
+            name: string;
+        };
         /** @description One structured log entry written to a daily file and returned by the API. */
         LogEntry: {
             /** @description Structured fields attached to the event. */
@@ -1510,6 +1728,19 @@ export interface components {
              */
             retentionDays: number;
         };
+        MatchedCustomFormat: {
+            /** Format: int32 */
+            id: number;
+            includeCustomFormatWhenRenaming: boolean;
+            name: string;
+        };
+        MatchedFormatScore: {
+            /** Format: int32 */
+            formatId: number;
+            formatName: string;
+            /** Format: int32 */
+            score: number;
+        };
         Me: {
             /** @description The user holds the Owner role. */
             isOwner: boolean;
@@ -1520,12 +1751,19 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
             /** @description Ordered by name. */
             roles: components["schemas"]["MeRole"][];
+            /** @description Effective permissions with their library scopes, in catalog order. */
+            scopedPermissions: components["schemas"]["ScopedPermission"][];
             user: components["schemas"]["MeUser"];
         };
         MeRole: {
             /** Format: int32 */
             id: number;
             isOwner: boolean;
+            /**
+             * @description `null` means all libraries; a list restricts the role assignment to
+             *     those libraries.
+             */
+            libraryIds?: number[] | null;
             name: string;
         };
         MeUser: {
@@ -1735,6 +1973,11 @@ export interface components {
             name: string;
             permissions: components["schemas"]["Permission"][];
         };
+        NewCustomFormat: {
+            includeCustomFormatWhenRenaming?: boolean;
+            name: string;
+            specifications?: components["schemas"]["CustomFormatSpecification"][];
+        };
         NewDownloadClient: {
             /**
              * @description Stored encrypted and never returned. qBittorrent 5.2 or later;
@@ -1810,6 +2053,11 @@ export interface components {
         };
         NewRootFolder: {
             /**
+             * Format: int32
+             * @description Library to place this root folder in. Defaults to the default library.
+             */
+            libraryId?: number | null;
+            /**
              * @description An absolute path on the server. It must exist, be a directory that
              *     Unseen can write to, and not lie inside or contain another root folder.
              */
@@ -1819,7 +2067,23 @@ export interface components {
             email: string;
             name: string;
             password: string;
+            /** @description Scoped role assignments. When provided, takes precedence over `roleIds`. */
+            roleAssignments?: components["schemas"]["RoleAssignment"][] | null;
             roleIds?: number[];
+        };
+        ParsedReleaseSummary: {
+            edition?: string | null;
+            languages: string[];
+            /** Format: int32 */
+            qualityModifier: number;
+            releaseGroup?: string | null;
+            /** Format: int32 */
+            resolution?: number | null;
+            /** Format: int32 */
+            source: number;
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
         };
         /**
          * @description One entry of the permission catalog, `resource:action`.
@@ -1861,6 +2125,18 @@ export interface components {
             qualityIds: number[];
             /** @enum {string} */
             type: "group";
+        };
+        ProfileScoreResult: {
+            /** Format: int32 */
+            cutoffFormatScore: number;
+            formatScores: components["schemas"]["MatchedFormatScore"][];
+            /** Format: int32 */
+            minFormatScore: number;
+            /** Format: int32 */
+            profileId: number;
+            profileName: string;
+            /** Format: int32 */
+            totalScore: number;
         };
         ProxySettings: {
             /**
@@ -2020,6 +2296,12 @@ export interface components {
             /** @description `queued`, `downloading`, `paused`, `completed`, `importing`, `importFailed`. */
             state: string;
         };
+        /** @description Custom format in Radarr's import/export JSON shape (without database ids). */
+        RadarrCustomFormat: {
+            includeCustomFormatWhenRenaming?: boolean;
+            name: string;
+            specifications?: components["schemas"]["CustomFormatSpecification"][];
+        };
         /** @description One parsed and scored release returned from a manual search. */
         Release: {
             accepted: boolean;
@@ -2127,6 +2409,15 @@ export interface components {
              */
             users: number;
         };
+        RoleAssignment: {
+            /**
+             * @description Absent or `null` means all libraries; a list restricts the role to those
+             *     libraries.
+             */
+            libraryIds?: number[] | null;
+            /** Format: int32 */
+            roleId: number;
+        };
         RolePatch: {
             /** @description An empty text clears the description. */
             description?: string | null;
@@ -2146,9 +2437,15 @@ export interface components {
             freeSpace?: number | null;
             /** Format: int32 */
             id: number;
+            /** Format: int32 */
+            libraryId: number;
             path: string;
             /** @description Sub-folders on disk that no movie uses, sorted. */
             unmappedFolders: string[];
+        };
+        RootFolderPatch: {
+            /** Format: int32 */
+            libraryId: number;
         };
         /** @description A video file of a folder. */
         ScanFile: {
@@ -2185,6 +2482,22 @@ export interface components {
         };
         /** @enum {string} */
         ScanStatus: "matched" | "unmatched" | "duplicate" | "noVideo";
+        ScopedGrant: {
+            /**
+             * @description Absent or `null` means all libraries; a list restricts the grant to
+             *     those libraries.
+             */
+            libraryIds?: number[] | null;
+            permission: components["schemas"]["Permission"];
+        };
+        ScopedPermission: {
+            /**
+             * @description `null` means all libraries; a list restricts the permission to those
+             *     libraries.
+             */
+            libraryIds?: number[] | null;
+            permission: components["schemas"]["Permission"];
+        };
         SetupRequest: {
             email: string;
             name: string;
@@ -2199,6 +2512,14 @@ export interface components {
             email: string;
             id: string;
             name: string;
+        };
+        /**
+         * @description One field of a custom format specification. Preserves extra Radarr metadata
+         *     fields so imported formats round-trip unchanged.
+         */
+        SpecificationField: {
+            name: string;
+            value: Record<string, never>;
         };
         /** @description A subtitle file of a movie file. */
         Subtitle: {
@@ -2241,6 +2562,14 @@ export interface components {
         TagBody: {
             /** @description Lower case letters, digits and `-`. Upper case is lowered. */
             label: string;
+        };
+        TestCustomFormatsRequest: {
+            indexerFlags?: number[];
+            /** Format: int32 */
+            movieYear?: number | null;
+            releaseName: string;
+            /** Format: int64 */
+            sizeBytes?: number | null;
         };
         TestResult: {
             /** @description The client version, for example `v4.6.2` or `4.3.2`. */
@@ -2288,6 +2617,8 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
             /** @description Ordered by name. */
             roles: components["schemas"]["MeRole"][];
+            /** @description Direct grants with their library scopes, in catalog order. */
+            scopedPermissions: components["schemas"]["ScopedPermission"][];
         };
         UserPatch: {
             /** @description Disabling signs the user out everywhere. */
@@ -2296,7 +2627,12 @@ export interface components {
             name?: string | null;
             /** @description Signs the user out everywhere. */
             password?: string | null;
-            /** @description Replaces the roles. */
+            /**
+             * @description Replaces the roles with explicit library scopes. Takes precedence over
+             *     `roleIds` when provided.
+             */
+            roleAssignments?: components["schemas"]["RoleAssignment"][] | null;
+            /** @description Replaces the roles (all libraries). */
             roleIds?: number[] | null;
         };
     };
@@ -2367,6 +2703,35 @@ export interface operations {
             };
             /** @description No such key */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_assignable_libraries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The libraries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2609,6 +2974,392 @@ export interface operations {
             };
             /** @description TMDB failed or refused the key */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The custom formats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewCustomFormat"];
+            };
+        };
+        responses: {
+            /** @description The new custom format */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exported custom formats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadarrCustomFormat"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    import_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportCustomFormatsRequest"];
+            };
+        };
+        responses: {
+            /** @description The imported custom formats */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A format name is already taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    test_custom_formats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestCustomFormatsRequest"];
+            };
+        };
+        responses: {
+            /** @description Matching formats and profile scores */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormatTestResult"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The custom format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFormatPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated custom format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_custom_format: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Custom format id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exported custom format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadarrCustomFormat"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such custom format */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3422,6 +4173,197 @@ export interface operations {
             };
             /** @description A movie uses the profile */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_libraries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The libraries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_library: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryBody"];
+            };
+        };
+        responses: {
+            /** @description The new library */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_library: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Library id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A root folder belongs to this library */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_library: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Library id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryBody"];
+            };
+        };
+        responses: {
+            /** @description The renamed library */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5206,6 +6148,15 @@ export interface operations {
                     "application/json": components["schemas"]["Problem"];
                 };
             };
+            /** @description No such library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
             /** @description The folder is already a root folder */
             409: {
                 headers: {
@@ -5265,6 +6216,60 @@ export interface operations {
             };
             /** @description A movie lives in the root folder */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_root_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Root folder id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RootFolderPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated root folder */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootFolder"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such root folder or library */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

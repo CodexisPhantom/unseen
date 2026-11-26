@@ -14,7 +14,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::MethodRouter;
 use better_auth::integrations::axum::OptionalSession;
 use db::auth_schema::AppAuthSchema;
-use unseen_core::permission::{EffectivePermissions, Permission};
+use unseen_core::permission::{EffectivePermissions, LibraryScope, Permission};
 use utoipa::openapi::extensions::Extensions;
 use utoipa::openapi::path::{Operation, PathItem};
 use utoipa::openapi::{Components, OpenApi};
@@ -102,9 +102,70 @@ impl Caller {
     }
 
     #[must_use]
+    pub fn scope(&self, permission: Permission) -> Option<&LibraryScope> {
+        self.permissions.scope(permission)
+    }
+
+    #[must_use]
+    pub fn allows_in_library(&self, permission: Permission, library_id: i32) -> bool {
+        self.permissions.allows_in_library(permission, library_id)
+    }
+
+    #[must_use]
+    pub fn has_all_libraries(&self, permission: Permission) -> bool {
+        self.permissions.has_all_libraries(permission)
+    }
+
+    #[must_use]
     pub fn is_owner(&self) -> bool {
         self.permissions.is_owner()
     }
+}
+
+/// Returns `Ok(None)` when `caller` holds `permission` across all libraries, or
+/// `Ok(Some(allowed_root_folder_ids))` when restricted to specific libraries.
+pub(crate) async fn allowed_root_folders(
+    state: &AppState,
+    caller: &Caller,
+    permission: Permission,
+) -> Result<Option<BTreeSet<i32>>, Problem> {
+    if caller.has_all_libraries(permission) {
+        return Ok(None);
+    }
+    let map = db::libraries::root_folder_library_map(&state.db)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "failed to load root folder library map");
+            Problem::internal()
+        })?;
+    let allowed = map
+        .into_iter()
+        .filter(|&(_, library_id)| caller.allows_in_library(permission, library_id))
+        .map(|(folder_id, _)| folder_id)
+        .collect();
+    Ok(Some(allowed))
+}
+
+/// Checks that `caller` holds `permission` for the library owning
+/// `root_folder_id`. Returns `404 Not Found` (never `403`) when the folder or
+/// its library is outside the caller's scope (ADR 0012).
+pub(crate) async fn ensure_root_folder_access(
+    state: &AppState,
+    caller: &Caller,
+    permission: Permission,
+    root_folder_id: i32,
+) -> Result<i32, Problem> {
+    let library_id = db::libraries::library_of_root_folder(&state.db, root_folder_id)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, root_folder_id, "failed to resolve library of root folder");
+            Problem::internal()
+        })?
+        .ok_or_else(Problem::not_found)?;
+    if !caller.allows_in_library(permission, library_id) {
+        return Err(Problem::not_found());
+    }
+    Ok(library_id)
 }
 
 impl FromRequestParts<AppState> for Caller {
@@ -168,16 +229,18 @@ pub(crate) async fn caller_from_api_key(
     let grants = db::access::grants_of_user(&state.db, &owner.user_id)
         .await
         .map_err(failed)?;
-    let user = EffectivePermissions::new(grants.is_owner, &grants.permissions);
+    let user = EffectivePermissions::from_scoped(grants.is_owner, grants.scoped_permissions);
     let narrowed = owner
         .permissions
         .iter()
         .filter_map(|name| name.parse::<Permission>().ok())
-        .filter(|permission| user.has(*permission))
-        .map(Permission::as_str);
+        .filter_map(|permission| {
+            user.scope(permission)
+                .map(|scope| (permission.as_str(), scope.clone()))
+        });
     Ok(Caller {
         user_id: owner.user_id.clone(),
-        permissions: EffectivePermissions::new(false, narrowed),
+        permissions: EffectivePermissions::from_scoped(false, narrowed),
         api_key: Some(owner.key_id),
         session_id: None,
     })
@@ -224,7 +287,7 @@ async fn from_session(parts: &mut Parts, state: &AppState) -> Result<Caller, Pro
 
     Ok(Caller {
         user_id: user_id.to_owned(),
-        permissions: EffectivePermissions::new(grants.is_owner, &grants.permissions),
+        permissions: EffectivePermissions::from_scoped(grants.is_owner, grants.scoped_permissions),
         api_key: None,
         session_id: Some(session_id.to_owned()),
     })

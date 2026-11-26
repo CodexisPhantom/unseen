@@ -70,8 +70,10 @@ its own queries.
 |---|---|---|
 | `roles` | `id` int PK, `name` text, `description` text null, `is_owner` bool default false, `created_at`, `updated_at` | unique(`name`); partial unique index where `is_owner` = 1 |
 | `role_permissions` | `role_id` int FK roles cascade, `permission` text | PK(`role_id`, `permission`) |
-| `user_roles` | `user_id` text FK user cascade, `role_id` int FK roles cascade | PK(`user_id`, `role_id`); index(`role_id`) |
-| `user_permissions` | `user_id` text FK user cascade, `permission` text | PK(`user_id`, `permission`) |
+| `user_roles` | `user_id` text FK user cascade, `role_id` int FK roles cascade, `all_libraries` bool default true | PK(`user_id`, `role_id`); index(`role_id`) |
+| `user_role_libraries` | `user_id` text, `role_id` int, `library_id` int FK libraries cascade | PK(`user_id`, `role_id`, `library_id`); FK(`user_id`, `role_id`) to `user_roles` cascade; index(`library_id`) |
+| `user_permissions` | `user_id` text FK user cascade, `permission` text, `all_libraries` bool default true | PK(`user_id`, `permission`) |
+| `user_permission_libraries` | `user_id` text, `permission` text, `library_id` int FK libraries cascade | PK(`user_id`, `permission`, `library_id`); FK(`user_id`, `permission`) to `user_permissions` cascade; index(`library_id`) |
 | `audit_log` | `id` int PK, `created_at`, `actor_user_id` text null FK user set null, `actor_name` text, `api_key_id` int null FK api_keys set null, `action` text, `target_kind` text null, `target_id` text null, `data` json null (never secrets), `ip_address` null | index(`created_at`); index(`actor_user_id`); index(`target_kind`, `target_id`) |
 | `api_keys` | `id` int PK, `user_id` text FK user cascade, `name`, `key_hash` text, `key_prefix` text, `last_used_at` null, `created_at`, `revoked_at` null | unique(`key_hash`); index(`user_id`) |
 | `api_key_permissions` | `api_key_id` int FK api_keys cascade, `permission` text | PK(`api_key_id`, `permission`) |
@@ -92,7 +94,8 @@ permission shape (ADR 0006, check 5).
 
 | Table | Columns | Keys and constraints |
 |---|---|---|
-| `root_folders` | `id` int PK, `path` text, `created_at` | unique(`path`) |
+| `libraries` | `id` int PK, `name` text, `created_at`, `updated_at` | unique(`name`); seeded with `Default` by `m0015_libraries` |
+| `root_folders` | `id` int PK, `path` text, `library_id` int FK libraries restrict, `created_at` | unique(`path`); index(`library_id`) |
 | `quality_profiles` | `id` int PK, `name`, `upgrade_allowed` bool, `cutoff_quality_id` int, `items` json (ordered qualities and groups, allowed flag), `language` text default `any`, `min_format_score` int default 0, `cutoff_format_score` int default 0, `min_upgrade_format_score` int default 1, `trash_id` text null, `created_at`, `updated_at` | unique(`name`) |
 | `quality_definitions` | `quality_id` int PK, `title` text, `min_size` real, `preferred_size` real null, `max_size` real null (megabytes per minute) | seeded with Radarr's defaults |
 | `custom_formats` | `id` int PK, `name`, `include_when_renaming` bool default false, `specifications` json (conditions, Radarr's format), `trash_id` text null, `trash_synced` bool default false, `created_at`, `updated_at` | unique(`name`); unique(`trash_id`) |

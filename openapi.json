@@ -91,6 +91,41 @@
         "x-permission": "apikeys:manage"
       }
     },
+    "/api/v1/assignable-libraries": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Libraries available for scoping user roles and direct grants, for callers\nwith `users:manage`.",
+        "operationId": "list_assignable_libraries",
+        "responses": {
+          "200": {
+            "description": "The libraries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Library"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "users:manage"
+      }
+    },
     "/api/v1/assignable-roles": {
       "get": {
         "tags": [
@@ -443,6 +478,488 @@
           }
         },
         "x-permission": "library:edit"
+      }
+    },
+    "/api/v1/custom-formats": {
+      "get": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Every custom format, ordered by name.",
+        "operationId": "list_custom_formats",
+        "responses": {
+          "200": {
+            "description": "The custom formats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomFormat"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
+      },
+      "post": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Creates a custom format.",
+        "operationId": "create_custom_format",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewCustomFormat"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFormat"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      }
+    },
+    "/api/v1/custom-formats/export": {
+      "get": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Exports every custom format in Radarr's JSON format (without ids).",
+        "operationId": "export_custom_formats",
+        "responses": {
+          "200": {
+            "description": "Exported custom formats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RadarrCustomFormat"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
+      }
+    },
+    "/api/v1/custom-formats/import": {
+      "post": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Imports one or many custom formats from Radarr's JSON format.",
+        "operationId": "import_custom_formats",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportCustomFormatsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The imported custom formats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomFormat"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A format name is already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      }
+    },
+    "/api/v1/custom-formats/test": {
+      "post": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Tests a release name against all custom formats and computes the score for\nevery quality profile.",
+        "operationId": "test_custom_formats",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestCustomFormatsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Matching formats and profile scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFormatTestResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
+      }
+    },
+    "/api/v1/custom-formats/{id}": {
+      "get": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "One custom format.",
+        "operationId": "get_custom_format",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Custom format id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFormat"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
+      },
+      "delete": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Deletes a custom format and removes its scores from every quality profile.",
+        "operationId": "delete_custom_format",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Custom format id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      },
+      "patch": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Updates a custom format.",
+        "operationId": "update_custom_format",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Custom format id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomFormatPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFormat"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:manage"
+      }
+    },
+    "/api/v1/custom-formats/{id}/export": {
+      "get": {
+        "tags": [
+          "custom-formats"
+        ],
+        "summary": "Exports one custom format in Radarr's JSON format (without id).",
+        "operationId": "export_custom_format",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Custom format id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadarrCustomFormat"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such custom format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "profiles:read"
       }
     },
     "/api/v1/download-clients": {
@@ -1442,6 +1959,240 @@
           }
         },
         "x-permission": "subtitles:manage"
+      }
+    },
+    "/api/v1/libraries": {
+      "get": {
+        "tags": [
+          "libraries"
+        ],
+        "summary": "Every library visible to the caller, ordered by name.",
+        "operationId": "list_libraries",
+        "responses": {
+          "200": {
+            "description": "The libraries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Library"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:read"
+      },
+      "post": {
+        "tags": [
+          "libraries"
+        ],
+        "summary": "Creates a new library. Requires server-wide `settings:manage`.",
+        "operationId": "create_library",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Library"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      }
+    },
+    "/api/v1/libraries/{id}": {
+      "delete": {
+        "tags": [
+          "libraries"
+        ],
+        "summary": "Deletes an empty library. Any scoped user grants referencing this library\nlose access to it without escalating to all libraries.",
+        "operationId": "delete_library",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Library id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A root folder belongs to this library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      },
+      "patch": {
+        "tags": [
+          "libraries"
+        ],
+        "summary": "Renames a library.",
+        "operationId": "update_library",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Library id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Library"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
       }
     },
     "/api/v1/library/adopt": {
@@ -3642,7 +4393,7 @@
         "tags": [
           "root-folders"
         ],
-        "summary": "Every root folder with its free space and unmapped folders.",
+        "summary": "Every root folder visible to the caller, with its free space and unmapped\nfolders.",
         "operationId": "list_root_folders",
         "responses": {
           "200": {
@@ -3700,6 +4451,16 @@
           },
           "403": {
             "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such library",
             "content": {
               "application/json": {
                 "schema": {
@@ -3777,6 +4538,78 @@
           },
           "409": {
             "description": "A movie lives in the root folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "settings:manage"
+      },
+      "patch": {
+        "tags": [
+          "root-folders"
+        ],
+        "summary": "Moves a root folder to another library.",
+        "operationId": "update_root_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Root folder id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RootFolderPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated root folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RootFolder"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such root folder or library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -5314,6 +6147,129 @@
           }
         }
       },
+      "CustomFormat": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "includeCustomFormatWhenRenaming",
+          "specifications",
+          "trashSynced",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "includeCustomFormatWhenRenaming": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomFormatSpecification"
+            }
+          },
+          "trashId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "trashSynced": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "CustomFormatPatch": {
+        "type": "object",
+        "properties": {
+          "includeCustomFormatWhenRenaming": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "specifications": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CustomFormatSpecification"
+            }
+          }
+        }
+      },
+      "CustomFormatSpecification": {
+        "type": "object",
+        "description": "One condition of a custom format.",
+        "required": [
+          "implementation"
+        ],
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpecificationField"
+            }
+          },
+          "implementation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "negate": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CustomFormatTestResult": {
+        "type": "object",
+        "required": [
+          "parsed",
+          "matchedFormats",
+          "profileScores"
+        ],
+        "properties": {
+          "matchedFormats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchedCustomFormat"
+            }
+          },
+          "parsed": {
+            "$ref": "#/components/schemas/ParsedReleaseSummary"
+          },
+          "profileScores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileScoreResult"
+            }
+          }
+        }
+      },
       "DatabaseStatus": {
         "type": "string",
         "enum": [
@@ -5323,16 +6279,23 @@
       },
       "DirectGrants": {
         "type": "object",
-        "required": [
-          "permissions"
-        ],
         "properties": {
           "permissions": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Permission"
             },
-            "description": "Replaces the direct grants."
+            "description": "Replaces the direct grants (all libraries)."
+          },
+          "scopedPermissions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ScopedGrant"
+            },
+            "description": "Replaces the direct grants with explicit library scopes. Takes\nprecedence over `permissions` when provided."
           }
         }
       },
@@ -5570,6 +6533,20 @@
             "description": "Version of the running binary."
           }
         }
+      },
+      "ImportCustomFormatsRequest": {
+        "oneOf": [
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RadarrCustomFormat"
+            }
+          },
+          {
+            "$ref": "#/components/schemas/RadarrCustomFormat"
+          }
+        ],
+        "description": "One Radarr custom format object or an array of them."
       },
       "Indexer": {
         "type": "object",
@@ -5837,6 +6814,49 @@
           }
         }
       },
+      "Library": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "rootFolderIds",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rootFolderIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "LibraryBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "LogEntry": {
         "type": "object",
         "description": "One structured log entry written to a daily file and returned by the API.",
@@ -5936,13 +6956,55 @@
           }
         }
       },
+      "MatchedCustomFormat": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "includeCustomFormatWhenRenaming"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "includeCustomFormatWhenRenaming": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "MatchedFormatScore": {
+        "type": "object",
+        "required": [
+          "formatId",
+          "formatName",
+          "score"
+        ],
+        "properties": {
+          "formatId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "formatName": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "Me": {
         "type": "object",
         "required": [
           "user",
           "roles",
           "isOwner",
-          "permissions"
+          "permissions",
+          "scopedPermissions"
         ],
         "properties": {
           "isOwner": {
@@ -5963,6 +7025,13 @@
             },
             "description": "Ordered by name."
           },
+          "scopedPermissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopedPermission"
+            },
+            "description": "Effective permissions with their library scopes, in catalog order."
+          },
           "user": {
             "$ref": "#/components/schemas/MeUser"
           }
@@ -5982,6 +7051,17 @@
           },
           "isOwner": {
             "type": "boolean"
+          },
+          "libraryIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "`null` means all libraries; a list restricts the role assignment to\nthose libraries."
           },
           "name": {
             "type": "string"
@@ -6598,6 +7678,26 @@
           }
         }
       },
+      "NewCustomFormat": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "includeCustomFormatWhenRenaming": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomFormatSpecification"
+            }
+          }
+        }
+      },
       "NewDownloadClient": {
         "type": "object",
         "required": [
@@ -6862,6 +7962,14 @@
           "path"
         ],
         "properties": {
+          "libraryId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Library to place this root folder in. Defaults to the default library."
+          },
           "path": {
             "type": "string",
             "description": "An absolute path on the server. It must exist, be a directory that\nUnseen can write to, and not lie inside or contain another root folder."
@@ -6885,12 +7993,77 @@
           "password": {
             "type": "string"
           },
+          "roleAssignments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RoleAssignment"
+            },
+            "description": "Scoped role assignments. When provided, takes precedence over `roleIds`."
+          },
           "roleIds": {
             "type": "array",
             "items": {
               "type": "integer",
               "format": "int32"
             }
+          }
+        }
+      },
+      "ParsedReleaseSummary": {
+        "type": "object",
+        "required": [
+          "title",
+          "source",
+          "qualityModifier",
+          "languages"
+        ],
+        "properties": {
+          "edition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "qualityModifier": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "releaseGroup": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolution": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "source": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -7055,6 +8228,44 @@
           }
         ],
         "description": "One entry of the ordered list, lowest quality first."
+      },
+      "ProfileScoreResult": {
+        "type": "object",
+        "required": [
+          "profileId",
+          "profileName",
+          "totalScore",
+          "minFormatScore",
+          "cutoffFormatScore",
+          "formatScores"
+        ],
+        "properties": {
+          "cutoffFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "formatScores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchedFormatScore"
+            }
+          },
+          "minFormatScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "profileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "profileName": {
+            "type": "string"
+          },
+          "totalScore": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       },
       "ProxySettings": {
         "type": "object",
@@ -7461,6 +8672,27 @@
           }
         }
       },
+      "RadarrCustomFormat": {
+        "type": "object",
+        "description": "Custom format in Radarr's import/export JSON shape (without database ids).",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "includeCustomFormatWhenRenaming": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomFormatSpecification"
+            }
+          }
+        }
+      },
       "Release": {
         "type": "object",
         "description": "One parsed and scored release returned from a manual search.",
@@ -7709,6 +8941,29 @@
           }
         }
       },
+      "RoleAssignment": {
+        "type": "object",
+        "required": [
+          "roleId"
+        ],
+        "properties": {
+          "libraryIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Absent or `null` means all libraries; a list restricts the role to those\nlibraries."
+          },
+          "roleId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "RolePatch": {
         "type": "object",
         "properties": {
@@ -7742,6 +8997,7 @@
         "required": [
           "id",
           "path",
+          "libraryId",
           "accessible",
           "unmappedFolders",
           "createdAt"
@@ -7767,6 +9023,10 @@
             "type": "integer",
             "format": "int32"
           },
+          "libraryId": {
+            "type": "integer",
+            "format": "int32"
+          },
           "path": {
             "type": "string"
           },
@@ -7776,6 +9036,18 @@
               "type": "string"
             },
             "description": "Sub-folders on disk that no movie uses, sorted."
+          }
+        }
+      },
+      "RootFolderPatch": {
+        "type": "object",
+        "required": [
+          "libraryId"
+        ],
+        "properties": {
+          "libraryId": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -7894,6 +9166,50 @@
           "noVideo"
         ]
       },
+      "ScopedGrant": {
+        "type": "object",
+        "required": [
+          "permission"
+        ],
+        "properties": {
+          "libraryIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Absent or `null` means all libraries; a list restricts the grant to\nthose libraries."
+          },
+          "permission": {
+            "$ref": "#/components/schemas/Permission"
+          }
+        }
+      },
+      "ScopedPermission": {
+        "type": "object",
+        "required": [
+          "permission"
+        ],
+        "properties": {
+          "libraryIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "`null` means all libraries; a list restricts the permission to those\nlibraries."
+          },
+          "permission": {
+            "$ref": "#/components/schemas/Permission"
+          }
+        }
+      },
       "SetupRequest": {
         "type": "object",
         "required": [
@@ -7942,6 +9258,22 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "SpecificationField": {
+        "type": "object",
+        "description": "One field of a custom format specification. Preserves extra Radarr metadata\nfields so imported formats round-trip unchanged.",
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "object"
           }
         }
       },
@@ -8045,6 +9377,38 @@
           }
         }
       },
+      "TestCustomFormatsRequest": {
+        "type": "object",
+        "required": [
+          "releaseName"
+        ],
+        "properties": {
+          "indexerFlags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "movieYear": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "releaseName": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "TestResult": {
         "type": "object",
         "required": [
@@ -8140,6 +9504,7 @@
           "isOwner",
           "roles",
           "permissions",
+          "scopedPermissions",
           "createdAt"
         ],
         "properties": {
@@ -8178,6 +9543,13 @@
               "$ref": "#/components/schemas/MeRole"
             },
             "description": "Ordered by name."
+          },
+          "scopedPermissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopedPermission"
+            },
+            "description": "Direct grants with their library scopes, in catalog order."
           }
         }
       },
@@ -8210,6 +9582,16 @@
             ],
             "description": "Signs the user out everywhere."
           },
+          "roleAssignments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RoleAssignment"
+            },
+            "description": "Replaces the roles with explicit library scopes. Takes precedence over\n`roleIds` when provided."
+          },
           "roleIds": {
             "type": [
               "array",
@@ -8219,7 +9601,7 @@
               "type": "integer",
               "format": "int32"
             },
-            "description": "Replaces the roles."
+            "description": "Replaces the roles (all libraries)."
           }
         }
       }

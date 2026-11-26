@@ -22,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0012CustomFormats),
             Box::new(M0013AuthTwoFactorPasskeys),
             Box::new(M0014DownloadsAndBlocklist),
+            Box::new(M0015Libraries),
         ]
     }
 }
@@ -740,6 +741,85 @@ impl MigrationTrait for M0014DownloadsAndBlocklist {
         manager
             .get_connection()
             .execute_unprepared(M0014_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0015Libraries;
+
+impl MigrationName for M0015Libraries {
+    fn name(&self) -> &str {
+        "m0015_libraries"
+    }
+}
+
+/// Libraries as named groups of root folders and per-library access scoping
+/// (docs/04-database.md, docs/15-permissions.md, ADR 0012).
+///
+/// Seeds one `Default` library and puts every existing root folder into it.
+/// Existing role assignments and direct grants keep `all_libraries = TRUE`, so
+/// upgraded installs behave identically.
+const M0015_UP: &str = r#"
+PRAGMA foreign_keys = OFF;
+BEGIN;
+
+CREATE TABLE libraries (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    name text NOT NULL UNIQUE,
+    created_at text NOT NULL,
+    updated_at text NOT NULL
+);
+
+INSERT INTO libraries (name, created_at, updated_at)
+VALUES ('Default',
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+CREATE TABLE root_folders_new (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    path text NOT NULL UNIQUE,
+    library_id integer NOT NULL DEFAULT 1 REFERENCES libraries (id) ON DELETE RESTRICT,
+    created_at text NOT NULL
+);
+INSERT INTO root_folders_new (id, path, library_id, created_at)
+SELECT id, path, 1, created_at FROM root_folders;
+DROP TABLE root_folders;
+ALTER TABLE root_folders_new RENAME TO root_folders;
+CREATE INDEX root_folders_library_id_idx ON root_folders (library_id);
+
+ALTER TABLE user_roles ADD COLUMN all_libraries boolean NOT NULL DEFAULT TRUE;
+
+CREATE TABLE user_role_libraries (
+    user_id text NOT NULL,
+    role_id integer NOT NULL,
+    library_id integer NOT NULL REFERENCES libraries (id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, role_id, library_id),
+    FOREIGN KEY (user_id, role_id) REFERENCES user_roles (user_id, role_id) ON DELETE CASCADE
+);
+CREATE INDEX user_role_libraries_library_id_idx ON user_role_libraries (library_id);
+
+ALTER TABLE user_permissions ADD COLUMN all_libraries boolean NOT NULL DEFAULT TRUE;
+
+CREATE TABLE user_permission_libraries (
+    user_id text NOT NULL,
+    permission text NOT NULL,
+    library_id integer NOT NULL REFERENCES libraries (id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, permission, library_id),
+    FOREIGN KEY (user_id, permission) REFERENCES user_permissions (user_id, permission) ON DELETE CASCADE
+);
+CREATE INDEX user_permission_libraries_library_id_idx ON user_permission_libraries (library_id);
+
+COMMIT;
+PRAGMA foreign_keys = ON;
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0015Libraries {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0015_UP)
             .await?;
         Ok(())
     }

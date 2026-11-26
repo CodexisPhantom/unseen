@@ -25,6 +25,7 @@ pub struct QueuedDownload {
     pub download: downloads::Model,
     pub movie_title: String,
     pub movie_year: i32,
+    pub movie_root_folder_id: i32,
     pub client: Option<download_clients::Model>,
 }
 
@@ -119,6 +120,7 @@ pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<QueuedDownload>,
             Some(QueuedDownload {
                 movie_title: movie.title.clone(),
                 movie_year: movie.year,
+                movie_root_folder_id: movie.root_folder_id,
                 client,
                 download,
             })

@@ -20,13 +20,15 @@ use crate::auth::Policy;
 use crate::error::Problem;
 
 /// One event published on the bus. `permission` is checked against the
-/// recipient's live grants when the event is sent; `target_user` limits an
-/// event to one user.
+/// recipient's live grants when the event is sent; `library_id` additionally
+/// restricts delivery to recipients who hold `permission` in that library;
+/// `target_user` limits an event to one user.
 #[derive(Debug, Clone)]
 pub struct AppEvent {
     pub kind: String,
     pub data: Value,
     pub permission: Option<Permission>,
+    pub library_id: Option<i32>,
     pub target_user: Option<String>,
     pub target_api_key: Option<i32>,
 }
@@ -81,9 +83,9 @@ impl FilterState {
     async fn refresh(&mut self) -> bool {
         match db::access::grants_of_user(&self.db, &self.user_id).await {
             Ok(grants) => {
-                self.permissions = Some(EffectivePermissions::new(
+                self.permissions = Some(EffectivePermissions::from_scoped(
                     grants.is_owner,
-                    &grants.permissions,
+                    grants.scoped_permissions,
                 ));
                 true
             }
@@ -215,7 +217,13 @@ pub fn filtered(
                         let Some(permissions) = &state.permissions else {
                             continue;
                         };
-                        if !permissions.has(permission) {
+                        let allowed = match event.library_id {
+                            Some(library_id) => {
+                                permissions.allows_in_library(permission, library_id)
+                            }
+                            None => permissions.has(permission),
+                        };
+                        if !allowed {
                             continue;
                         }
                         if let Some(key) = state.key_permissions().await

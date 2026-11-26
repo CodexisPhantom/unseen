@@ -9,7 +9,23 @@ use sea_orm::{
 };
 
 use crate::auth_schema::{account, session, user};
-use crate::entities::{roles, user_permissions, user_roles};
+use crate::entities::{
+    roles, user_permission_libraries, user_permissions, user_role_libraries, user_roles,
+};
+
+/// A role assignment with its library scope (`None` = all libraries).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoleAssignment {
+    pub role_id: i32,
+    pub library_ids: Option<BTreeSet<i32>>,
+}
+
+/// A direct permission grant with its library scope (`None` = all libraries).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PermissionGrant {
+    pub permission: String,
+    pub library_ids: Option<BTreeSet<i32>>,
+}
 
 /// A user with the roles and direct grants stored for them.
 #[derive(Debug, Clone)]
@@ -18,8 +34,14 @@ pub struct UserDetail {
     pub disabled: bool,
     /// Ordered by name.
     pub roles: Vec<roles::Model>,
+    /// Per-role library scope (`None` = all libraries, `Some(ids)` = those
+    /// libraries sorted).
+    pub role_scopes: BTreeMap<i32, Option<Vec<i32>>>,
     /// The direct grants, not the effective set.
     pub permissions: BTreeSet<String>,
+    /// Per-permission library scope (`None` = all libraries, `Some(ids)` =
+    /// those libraries sorted).
+    pub permission_scopes: BTreeMap<String, Option<Vec<i32>>>,
 }
 
 #[derive(Debug)]
@@ -78,31 +100,80 @@ pub async fn list(db: &DatabaseConnection) -> Result<Vec<UserDetail>, DbErr> {
         .into_iter()
         .map(|role| (role.id, role))
         .collect();
-    let mut role_ids: BTreeMap<String, Vec<i32>> = BTreeMap::new();
+    let mut role_rows: BTreeMap<String, Vec<user_roles::Model>> = BTreeMap::new();
     for row in user_roles::Entity::find().all(db).await? {
-        role_ids.entry(row.user_id).or_default().push(row.role_id);
+        role_rows.entry(row.user_id.clone()).or_default().push(row);
     }
-    let mut grants: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for row in user_permissions::Entity::find().all(db).await? {
-        grants
-            .entry(row.user_id)
+    let mut role_libs: BTreeMap<(String, i32), Vec<i32>> = BTreeMap::new();
+    for row in user_role_libraries::Entity::find()
+        .order_by_asc(user_role_libraries::Column::LibraryId)
+        .all(db)
+        .await?
+    {
+        role_libs
+            .entry((row.user_id, row.role_id))
             .or_default()
-            .insert(row.permission);
+            .push(row.library_id);
+    }
+    let mut grant_rows: BTreeMap<String, Vec<user_permissions::Model>> = BTreeMap::new();
+    for row in user_permissions::Entity::find().all(db).await? {
+        grant_rows.entry(row.user_id.clone()).or_default().push(row);
+    }
+    let mut grant_libs: BTreeMap<(String, String), Vec<i32>> = BTreeMap::new();
+    for row in user_permission_libraries::Entity::find()
+        .order_by_asc(user_permission_libraries::Column::LibraryId)
+        .all(db)
+        .await?
+    {
+        grant_libs
+            .entry((row.user_id, row.permission))
+            .or_default()
+            .push(row.library_id);
     }
     Ok(users
         .into_iter()
         .map(|user| {
-            let mut roles: Vec<_> = role_ids
-                .remove(&user.id)
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|id| all_roles.get(&id).cloned())
-                .collect();
+            let mut roles = Vec::new();
+            let mut role_scopes = BTreeMap::new();
+            for assignment in role_rows.remove(&user.id).unwrap_or_default() {
+                if let Some(role) = all_roles.get(&assignment.role_id) {
+                    let scope = if role.is_owner || assignment.all_libraries {
+                        None
+                    } else {
+                        Some(
+                            role_libs
+                                .remove(&(user.id.clone(), assignment.role_id))
+                                .unwrap_or_default(),
+                        )
+                    };
+                    role_scopes.insert(role.id, scope);
+                    roles.push(role.clone());
+                }
+            }
             roles.sort_by(|a, b| a.name.cmp(&b.name));
+
+            let mut permissions = BTreeSet::new();
+            let mut permission_scopes = BTreeMap::new();
+            for grant in grant_rows.remove(&user.id).unwrap_or_default() {
+                let scope = if grant.all_libraries {
+                    None
+                } else {
+                    Some(
+                        grant_libs
+                            .remove(&(user.id.clone(), grant.permission.clone()))
+                            .unwrap_or_default(),
+                    )
+                };
+                permission_scopes.insert(grant.permission.clone(), scope);
+                permissions.insert(grant.permission);
+            }
+
             UserDetail {
                 disabled: disabled.contains(&user.id),
-                permissions: grants.remove(&user.id).unwrap_or_default(),
                 roles,
+                role_scopes,
+                permissions,
+                permission_scopes,
                 user,
             }
         })
@@ -149,24 +220,58 @@ pub async fn update_profile(
     Ok(())
 }
 
-/// Replaces the roles of a user.
+/// Replaces the roles of a user, each scoped to all libraries.
 pub async fn set_roles(
     db: &DatabaseConnection,
     id: &str,
     role_ids: &BTreeSet<i32>,
+) -> Result<(), DbErr> {
+    let assignments: Vec<RoleAssignment> = role_ids
+        .iter()
+        .map(|&role_id| RoleAssignment {
+            role_id,
+            library_ids: None,
+        })
+        .collect();
+    set_role_assignments(db, id, &assignments).await
+}
+
+/// Replaces the roles of a user with their per-library scopes.
+pub async fn set_role_assignments(
+    db: &DatabaseConnection,
+    id: &str,
+    assignments: &[RoleAssignment],
 ) -> Result<(), DbErr> {
     let txn = db.begin().await?;
     user_roles::Entity::delete_many()
         .filter(user_roles::Column::UserId.eq(id))
         .exec(&txn)
         .await?;
-    if !role_ids.is_empty() {
-        user_roles::Entity::insert_many(role_ids.iter().map(|role_id| user_roles::ActiveModel {
+    if !assignments.is_empty() {
+        user_roles::Entity::insert_many(assignments.iter().map(|entry| user_roles::ActiveModel {
             user_id: Set(id.to_owned()),
-            role_id: Set(*role_id),
+            role_id: Set(entry.role_id),
+            all_libraries: Set(entry.library_ids.is_none()),
         }))
         .exec(&txn)
         .await?;
+        let mut library_rows = Vec::new();
+        for entry in assignments {
+            if let Some(libs) = &entry.library_ids {
+                for &library_id in libs {
+                    library_rows.push(user_role_libraries::ActiveModel {
+                        user_id: Set(id.to_owned()),
+                        role_id: Set(entry.role_id),
+                        library_id: Set(library_id),
+                    });
+                }
+            }
+        }
+        if !library_rows.is_empty() {
+            user_role_libraries::Entity::insert_many(library_rows)
+                .exec(&txn)
+                .await?;
+        }
     }
     txn.commit().await
 }
@@ -208,6 +313,7 @@ pub async fn transfer_owner(
         user_roles::ActiveModel {
             user_id: Set(to.to_owned()),
             role_id: Set(owner_role.id),
+            all_libraries: Set(true),
         }
         .insert(&txn)
         .await?;
@@ -221,6 +327,7 @@ pub async fn transfer_owner(
         user_roles::ActiveModel {
             user_id: Set(from.to_owned()),
             role_id: Set(role_id),
+            all_libraries: Set(true),
         }
         .insert(&txn)
         .await?;
@@ -228,26 +335,60 @@ pub async fn transfer_owner(
     txn.commit().await
 }
 
-/// Replaces the direct grants of a user.
+/// Replaces the direct grants of a user, each scoped to all libraries.
 pub async fn set_permissions(
     db: &DatabaseConnection,
     id: &str,
     permissions: &BTreeSet<String>,
+) -> Result<(), DbErr> {
+    let grants: Vec<PermissionGrant> = permissions
+        .iter()
+        .map(|permission| PermissionGrant {
+            permission: permission.clone(),
+            library_ids: None,
+        })
+        .collect();
+    set_scoped_permissions(db, id, &grants).await
+}
+
+/// Replaces the direct grants of a user with their per-library scopes.
+pub async fn set_scoped_permissions(
+    db: &DatabaseConnection,
+    id: &str,
+    grants: &[PermissionGrant],
 ) -> Result<(), DbErr> {
     let txn = db.begin().await?;
     user_permissions::Entity::delete_many()
         .filter(user_permissions::Column::UserId.eq(id))
         .exec(&txn)
         .await?;
-    if !permissions.is_empty() {
-        user_permissions::Entity::insert_many(permissions.iter().map(|permission| {
+    if !grants.is_empty() {
+        user_permissions::Entity::insert_many(grants.iter().map(|entry| {
             user_permissions::ActiveModel {
                 user_id: Set(id.to_owned()),
-                permission: Set(permission.clone()),
+                permission: Set(entry.permission.clone()),
+                all_libraries: Set(entry.library_ids.is_none()),
             }
         }))
         .exec(&txn)
         .await?;
+        let mut library_rows = Vec::new();
+        for entry in grants {
+            if let Some(libs) = &entry.library_ids {
+                for &library_id in libs {
+                    library_rows.push(user_permission_libraries::ActiveModel {
+                        user_id: Set(id.to_owned()),
+                        permission: Set(entry.permission.clone()),
+                        library_id: Set(library_id),
+                    });
+                }
+            }
+        }
+        if !library_rows.is_empty() {
+            user_permission_libraries::Entity::insert_many(library_rows)
+                .exec(&txn)
+                .await?;
+        }
     }
     txn.commit().await
 }

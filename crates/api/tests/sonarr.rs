@@ -211,6 +211,7 @@ impl App {
         user_roles::ActiveModel {
             user_id: Set(user_id),
             role_id: Set(role.id),
+            all_libraries: Set(true),
         }
         .insert(&self.state.db)
         .await

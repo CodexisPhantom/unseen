@@ -618,3 +618,36 @@ fn regexes_against_a_missing_group_or_edition_do_not_match() {
     assert!(!group.matches(&release));
     assert!(!edition.matches(&release));
 }
+
+#[test]
+fn validate_rejects_empty_name_and_invalid_regex_with_position() {
+    let empty_name = CustomFormat {
+        include_custom_format_when_renaming: false,
+        name: "   ".to_owned(),
+        specifications: Vec::new(),
+    };
+    let err = empty_name.validate().unwrap_err();
+    assert_eq!(err.field, "name");
+
+    let bad_regex = test_format(vec![test_specification(
+        "ReleaseTitleSpecification",
+        true,
+        false,
+        fields(&[("value", string("abc[def"))]),
+    )]);
+    let err = bad_regex.validate().unwrap_err();
+    assert_eq!(err.field, "specifications[0].fields.value");
+    assert!(
+        err.message.contains("position 7"),
+        "expected position 7 in: {}",
+        err.message
+    );
+
+    let good_lookbehind = test_format(vec![test_specification(
+        "ReleaseTitleSpecification",
+        true,
+        false,
+        fields(&[("value", string(r"(?<!WEB[-_. ]?)\b(DL)\b"))]),
+    )]);
+    assert!(good_lookbehind.validate().is_ok());
+}

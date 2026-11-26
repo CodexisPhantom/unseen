@@ -25,6 +25,105 @@ pub struct ScoredFormat {
     pub score: i32,
 }
 
+/// Validation error for a custom format definition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidationError {
+    pub field: String,
+    pub message: String,
+}
+
+/// Converts a parsed release [`Source`] to its Radarr custom format source id.
+#[must_use]
+pub const fn source_id(source: Source) -> i32 {
+    match source {
+        Source::Unknown => 0,
+        Source::Cam => 1,
+        Source::Telesync => 2,
+        Source::Telecine => 3,
+        Source::Workprint => 4,
+        Source::Dvd => 5,
+        Source::Tv => 6,
+        Source::WebDl => 7,
+        Source::WebRip => 8,
+        Source::Bluray => 9,
+    }
+}
+
+/// Converts a parsed release [`Resolution`] to its Radarr custom format resolution id.
+#[must_use]
+pub const fn resolution_id(resolution: Resolution) -> i32 {
+    match resolution {
+        Resolution::R480p => 480,
+        Resolution::R576p => 576,
+        Resolution::R720p => 720,
+        Resolution::R1080p => 1080,
+        Resolution::R2160p => 2160,
+    }
+}
+
+/// Converts a parsed release [`Modifier`] to its Radarr custom format quality modifier id.
+#[must_use]
+pub const fn modifier_id(modifier: Modifier) -> i32 {
+    match modifier {
+        Modifier::None => 0,
+        Modifier::Regional => 1,
+        Modifier::Screener => 2,
+        Modifier::RawHd => 3,
+        Modifier::BrDisk => 4,
+        Modifier::Remux => 5,
+    }
+}
+
+/// Converts a parsed release [`Language`] to its Radarr language id, if one exists.
+#[must_use]
+pub const fn language_id(language: Language) -> Option<i32> {
+    match language {
+        Language::English => Some(1),
+        Language::French => Some(2),
+        Language::Spanish => Some(3),
+        Language::German => Some(4),
+        Language::Italian => Some(5),
+        Language::Danish => Some(6),
+        Language::Dutch => Some(7),
+        Language::Japanese => Some(8),
+        Language::Chinese => Some(10),
+        Language::Russian => Some(11),
+        Language::Polish => Some(12),
+        Language::Swedish => Some(14),
+        Language::Norwegian => Some(15),
+        Language::Finnish => Some(16),
+        Language::Portuguese => Some(18),
+        Language::Korean => Some(21),
+        Language::Hindi => Some(26),
+        Language::Multi => None,
+    }
+}
+
+/// Builds a [`ReleaseInfo`] from a raw release title and its parsed fields.
+#[must_use]
+pub fn release_info<'a>(
+    title: &'a str,
+    parsed: &'a ParsedRelease,
+    languages: &'a [i32],
+    size_bytes: i64,
+    indexer_flags: &'a [i32],
+    movie_year: Option<i32>,
+) -> ReleaseInfo<'a> {
+    ReleaseInfo {
+        title,
+        release_group: parsed.release_group.as_deref(),
+        edition: parsed.edition.as_deref(),
+        languages,
+        source: Some(source_id(parsed.source)),
+        resolution: parsed.resolution.map(resolution_id),
+        quality_modifier: Some(modifier_id(parsed.modifier)),
+        size_bytes,
+        indexer_flags,
+        year: parsed.year.map(i32::from),
+        movie_year,
+    }
+}
+
 /// A custom format as Radarr and the TRaSH guides export it.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CustomFormat {
@@ -103,6 +202,86 @@ impl CustomFormat {
             value => Ok(vec![serde_json::from_value(value)?]),
         }
     }
+
+    /// Checks the format's name and specifications, including regex syntax.
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        if self.name.trim().is_empty() {
+            return Err(ValidationError {
+                field: "name".to_owned(),
+                message: "must not be empty".to_owned(),
+            });
+        }
+        for (index, specification) in self.specifications.iter().enumerate() {
+            if specification.implementation.trim().is_empty() {
+                return Err(ValidationError {
+                    field: format!("specifications[{index}].implementation"),
+                    message: "must not be empty".to_owned(),
+                });
+            }
+            match specification.implementation.as_str() {
+                "ReleaseTitleSpecification"
+                | "ReleaseGroupSpecification"
+                | "EditionSpecification" => {
+                    if let Some(pattern) = text_field(specification, "value")
+                        && !pattern.trim().is_empty()
+                        && let Err(message) = validate_regex(pattern)
+                    {
+                        return Err(ValidationError {
+                            field: format!("specifications[{index}].fields.value"),
+                            message,
+                        });
+                    }
+                }
+                "SizeSpecification" => {
+                    let min = number_field(specification, "min").unwrap_or(0.0);
+                    let max = number_field(specification, "max").unwrap_or(0.0);
+                    if min < 0.0 {
+                        return Err(ValidationError {
+                            field: format!("specifications[{index}].fields.min"),
+                            message: "must be 0 or greater".to_owned(),
+                        });
+                    }
+                    if max < 0.0 {
+                        return Err(ValidationError {
+                            field: format!("specifications[{index}].fields.max"),
+                            message: "must be 0 or greater".to_owned(),
+                        });
+                    }
+                    if max > 0.0 && min > max {
+                        return Err(ValidationError {
+                            field: format!("specifications[{index}].fields.max"),
+                            message: "must be greater than or equal to min".to_owned(),
+                        });
+                    }
+                }
+                "YearSpecification" => {
+                    let min = integer_field(specification, "min").unwrap_or(0);
+                    let max = integer_field(specification, "max").unwrap_or(0);
+                    if min > 0 && max > 0 && min > max {
+                        return Err(ValidationError {
+                            field: format!("specifications[{index}].fields.max"),
+                            message: "must be greater than or equal to min".to_owned(),
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Validates a `fancy_regex` pattern, reporting the position on failure.
+pub fn validate_regex(pattern: &str) -> Result<(), String> {
+    if let Err(error) = Regex::new(pattern) {
+        return Err(match error {
+            fancy_regex::Error::ParseError(pos, inner) => {
+                format!("invalid regex at position {pos}: {inner}")
+            }
+            other => format!("invalid regex at position 0: {other}"),
+        });
+    }
+    Ok(())
 }
 
 impl Specification {
@@ -192,48 +371,6 @@ fn regex_matches(pattern: Option<&str>, text: Option<&str>) -> bool {
         .unwrap_or(false)
 }
 
-/// Radarr's numeric source id for custom format specifications.
-#[must_use]
-pub const fn source_id(source: Source) -> i32 {
-    match source {
-        Source::Unknown => 0,
-        Source::Cam => 1,
-        Source::Telesync => 2,
-        Source::Telecine => 3,
-        Source::Workprint => 4,
-        Source::Dvd => 5,
-        Source::Tv => 6,
-        Source::WebDl => 7,
-        Source::WebRip => 8,
-        Source::Bluray => 9,
-    }
-}
-
-/// Radarr's numeric resolution for custom format specifications.
-#[must_use]
-pub const fn resolution_id(resolution: Resolution) -> i32 {
-    match resolution {
-        Resolution::R480p => 480,
-        Resolution::R576p => 576,
-        Resolution::R720p => 720,
-        Resolution::R1080p => 1080,
-        Resolution::R2160p => 2160,
-    }
-}
-
-/// Radarr's numeric quality modifier id for custom format specifications.
-#[must_use]
-pub const fn modifier_id(modifier: Modifier) -> i32 {
-    match modifier {
-        Modifier::None => 0,
-        Modifier::Regional => 1,
-        Modifier::Screener => 2,
-        Modifier::RawHd => 3,
-        Modifier::BrDisk => 4,
-        Modifier::Remux => 5,
-    }
-}
-
 /// Radarr's numeric language id for an ISO 639-1 code (or `"original"` / `"any"`).
 #[must_use]
 pub fn language_code_id(code: &str) -> Option<i32> {
@@ -296,31 +433,6 @@ pub fn language_code_id(code: &str) -> Option<i32> {
         "ka" => 57,
         "ga" => 58,
         _ => return None,
-    })
-}
-
-/// Radarr's numeric language id for a parsed release [`Language`].
-#[must_use]
-pub const fn language_id(language: Language) -> Option<i32> {
-    Some(match language {
-        Language::English => 1,
-        Language::French => 2,
-        Language::Spanish => 3,
-        Language::German => 4,
-        Language::Italian => 5,
-        Language::Danish => 6,
-        Language::Dutch => 7,
-        Language::Japanese => 8,
-        Language::Chinese => 10,
-        Language::Russian => 11,
-        Language::Polish => 12,
-        Language::Swedish => 14,
-        Language::Norwegian => 15,
-        Language::Finnish => 16,
-        Language::Portuguese => 18,
-        Language::Korean => 21,
-        Language::Hindi => 26,
-        Language::Multi => return None,
     })
 }
 

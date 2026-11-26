@@ -179,6 +179,7 @@ async fn revoke(
         kind: "api_key.revoked".to_owned(),
         data: serde_json::Value::Null,
         permission: None,
+        library_id: None,
         target_user: None,
         target_api_key: Some(key.id),
     });
