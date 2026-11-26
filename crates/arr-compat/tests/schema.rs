@@ -355,6 +355,11 @@ fn view() -> MovieView {
             media_info: None,
             added_at: "2026-11-17T08:00:00.000Z".to_owned(),
         }),
+        collection: Some(MovieCollectionResource {
+            title: "The Matrix Collection".to_owned(),
+            tmdb_id: 2344,
+        }),
+        genres: vec!["Action".to_owned()],
     }
 }
 
@@ -434,11 +439,47 @@ fn a_movie_with_a_file_has_every_field() {
 fn a_movie_without_a_file_or_a_collection_has_every_field() {
     let mut bare = view();
     bare.file = None;
+    bare.collection = None;
     bare.imdb_id = None;
     bare.poster_path = None;
     assert_valid("MovieResource", &movie_resource(&bare, "2026-11-25"));
     assert_valid("MovieResource", &MovieResource::default());
     assert_valid("MovieFileResource", &MovieFileResource::default());
+}
+
+#[test]
+fn lookup_movie_omits_id_only_when_outside_the_library() {
+    let in_library = lookup_movie_resource(&view(), "2026-11-25");
+    let in_library_json = serde_json::to_value(&in_library).unwrap();
+    assert_eq!(in_library_json["id"], 7);
+    assert_valid("MovieResource", &in_library);
+
+    let external = lookup_movie_resource(
+        &MovieView {
+            tmdb_id: 603,
+            title: "The Matrix".to_owned(),
+            sort_title: "matrix".to_owned(),
+            year: 1999,
+            status: "released".to_owned(),
+            minimum_availability: "released".to_owned(),
+            ..MovieView::default()
+        },
+        "2026-11-25",
+    );
+    let external_json = serde_json::to_value(&external).unwrap();
+    assert!(external_json.get("id").is_none());
+    assert_eq!(external_json["path"], "");
+    assert_eq!(external_json["folderName"], "");
+    assert_eq!(external_json["added"], "0001-01-01T00:00:00Z");
+    assert!(
+        Checker::new(false)
+            .problems("MovieResource", &external_json)
+            .is_empty()
+    );
+    assert_eq!(
+        Checker::new(true).problems("MovieResource", &external_json),
+        ["MovieResource.id: missing"]
+    );
 }
 
 #[test]

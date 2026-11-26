@@ -23,6 +23,7 @@ mod profiles;
 mod proxy;
 mod quality_definitions;
 pub mod radarr;
+mod radarr_movies;
 mod releases;
 mod roles;
 mod root_folders;

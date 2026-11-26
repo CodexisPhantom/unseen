@@ -204,10 +204,12 @@ pub struct Timestamp(pub String);
 
 impl Timestamp {
     /// Accepts a date (`2021-09-15`) or a date-time. A date becomes midnight
-    /// UTC.
+    /// UTC; an empty string becomes the .NET minimum.
     pub fn parse(text: &str) -> Self {
         let text = text.trim();
-        if text.len() == 10 {
+        if text.is_empty() {
+            Self::default()
+        } else if text.len() == 10 {
             Self(format!("{text}T00:00:00Z"))
         } else {
             Self(text.to_owned())
@@ -578,6 +580,25 @@ pub struct MovieResource {
     pub last_search_time: Option<Timestamp>,
     #[serde(deserialize_with = "null_as_default")]
     pub statistics: MovieStatisticsResource,
+}
+
+/// A [`MovieResource`] returned by `GET /movie/lookup`. Movies in the library
+/// keep their positive `id`; movies outside the library (`id <= 0`) omit the
+/// `id` key so companion tools such as Seerr can tell them apart.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct LookupMovieResource(pub MovieResource);
+
+impl Serialize for LookupMovieResource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if self.0.id > 0 {
+            return self.0.serialize(serializer);
+        }
+        let mut value = serde_json::to_value(&self.0).map_err(serde::ser::Error::custom)?;
+        if let Some(map) = value.as_object_mut() {
+            map.remove("id");
+        }
+        value.serialize(serializer)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

@@ -218,6 +218,7 @@ async fn insert_profile(
 enum Scope {
     Library,
     Movie(i32),
+    Tmdb(i32),
     Collection(i32),
 }
 
@@ -227,6 +228,7 @@ async fn load(db: &DatabaseConnection, scope: Scope) -> Result<Vec<Movie>, DbErr
     match scope {
         Scope::Library => {}
         Scope::Movie(id) => query = query.filter(movies::Column::Id.eq(id)),
+        Scope::Tmdb(tmdb_id) => query = query.filter(movies::Column::TmdbId.eq(tmdb_id)),
         Scope::Collection(id) => query = query.filter(movies::Column::CollectionId.eq(id)),
     }
     let models = query.all(db).await?;
@@ -293,6 +295,29 @@ pub async fn list(db: &DatabaseConnection) -> Result<Vec<Movie>, DbErr> {
 
 pub async fn find(db: &DatabaseConnection, id: i32) -> Result<Option<Movie>, DbErr> {
     Ok(load(db, Scope::Movie(id)).await?.pop())
+}
+
+/// Loads one movie with its tags and profiles by TMDB id.
+pub async fn find_movie_by_tmdb_id(
+    db: &DatabaseConnection,
+    tmdb_id: i32,
+) -> Result<Option<Movie>, DbErr> {
+    Ok(load(db, Scope::Tmdb(tmdb_id)).await?.pop())
+}
+
+/// Loads movie files by their primary keys.
+pub async fn files_by_ids(
+    db: &DatabaseConnection,
+    ids: &[i32],
+) -> Result<HashMap<i32, movie_files::Model>, DbErr> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows = movie_files::Entity::find()
+        .filter(movie_files::Column::Id.is_in(ids.iter().copied()))
+        .all(db)
+        .await?;
+    Ok(rows.into_iter().map(|file| (file.id, file)).collect())
 }
 
 /// The movies of one collection that are in the library, by sort title.

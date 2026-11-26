@@ -1,7 +1,11 @@
 //! Radarr v3 compatibility API mounted at `/radarr/api/v3`
 //! (docs/14-compatibility.md, section D).
 
+use axum::http::Method;
+use unseen_core::permission::Permission;
+
 use crate::compat::CompatRouter;
+use crate::radarr_movies;
 
 /// Mount prefix for the Radarr v3 compatibility router.
 pub const API_BASE: &str = "/radarr/api/v3";
@@ -13,6 +17,24 @@ pub const API_BASE: &str = "/radarr/api/v3";
 #[must_use]
 pub fn routes() -> CompatRouter {
     CompatRouter::with_base(API_BASE)
+        .require(
+            Permission::LibraryRead,
+            Method::GET,
+            "/movie",
+            radarr_movies::list_movies,
+        )
+        .require(
+            Permission::LibraryRead,
+            Method::GET,
+            "/movie/lookup",
+            radarr_movies::lookup_movie,
+        )
+        .require(
+            Permission::LibraryRead,
+            Method::GET,
+            "/movie/{id}",
+            radarr_movies::get_movie,
+        )
 }
 
 #[cfg(test)]
