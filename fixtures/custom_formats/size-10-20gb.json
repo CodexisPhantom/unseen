@@ -1,0 +1,16 @@
+{
+  "name": "Size 10-20 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "10-20 GB",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  ]
+}

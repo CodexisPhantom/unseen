@@ -12,7 +12,7 @@ in the UI. There is no config file.
 |---|---|---|
 | `UNSEEN_DATA_DIR` | `/config` | Holds `unseen.db`, `backups/`, `logs/` and the generated secret |
 | `UNSEEN_BIND` | `0.0.0.0:7979` | Listen address |
-| `UNSEEN_BASE_URL` | none | Public URL, for example `https://unseen.example.com`. Needed for secure cookies behind a proxy. |
+| `UNSEEN_BASE_URL` | none | Public URL, for example `https://unseen.example.com`. It may include a sub-path, for example `https://unseen.example.com/unseen`; the app then serves every route, the API, auth and the UI under that prefix. Needed for secure cookies behind a proxy. |
 | `UNSEEN_SECRET` | generated and stored in the data dir on first run | Root secret. The auth signing key and the key that encrypts integration secrets are derived from it. Without it the stored integration secrets cannot be read. |
 | `UNSEEN_TRUSTED_PROXIES` | none | CIDRs whose `X-Forwarded-*` headers are trusted |
 | `UNSEEN_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug`, `trace` |

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::http::check_url_text;
 use unseen_core::qbittorrent::{QbAuth, QbClient, QbError};
+use unseen_core::sabnzbd::{SabClient, SabError};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -18,8 +19,9 @@ use crate::access::{ClientsManage, ClientsRead, Require};
 use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 
-/// The only download client in V1.
+/// The download clients in V1.
 const QBITTORRENT: &str = "qbittorrent";
+const SABNZBD: &str = "sabnzbd";
 /// The category Radarr uses, so an existing qBittorrent setup keeps working.
 const DEFAULT_CATEGORY: &str = "radarr";
 
@@ -28,9 +30,9 @@ const DEFAULT_CATEGORY: &str = "radarr";
 pub struct DownloadClient {
     id: i32,
     name: String,
-    /// `qbittorrent`.
+    /// `qbittorrent` or `sabnzbd`.
     kind: String,
-    /// The WebUI address, for example `http://qbittorrent:8080`.
+    /// The address, for example `http://qbittorrent:8080` or `http://sabnzbd:8080`.
     url: String,
     username: Option<String>,
     /// The password itself is never returned.
@@ -38,11 +40,13 @@ pub struct DownloadClient {
     /// A password is stored but cannot be decrypted: enter it again.
     password_must_be_reentered: bool,
     /// The API key (qBittorrent 5.2 or later) is never returned. When one is
-    /// set, Unseen uses it and ignores the username and password.
+    /// set, Unseen uses it and ignores the username and password. SABnzbd
+    /// requires one.
     has_api_key: bool,
-    /// An API key is stored but cannot be decrypted: enter it again.
+    /// An API key is stored but cannot be decrypted: enter it again. SABnzbd
+    /// requires one.
     api_key_must_be_reentered: bool,
-    /// The qBittorrent category of the torrents Unseen adds.
+    /// The category of the torrents or NZBs Unseen adds.
     category: String,
     /// Remote path mapping: a path as the client sees it ...
     remote_path: Option<String>,
@@ -77,7 +81,8 @@ pub struct NewDownloadClient {
     username: Option<String>,
     /// Stored encrypted and never returned.
     password: Option<String>,
-    /// Stored encrypted and never returned. qBittorrent 5.2 or later.
+    /// Stored encrypted and never returned. qBittorrent 5.2 or later;
+    /// required for SABnzbd.
     api_key: Option<String>,
     #[serde(default = "default_category")]
     category: String,
@@ -109,7 +114,7 @@ pub struct DownloadClientPatch {
 
 #[derive(Serialize, ToSchema)]
 pub struct TestResult {
-    /// The qBittorrent version, for example `v4.6.2`.
+    /// The client version, for example `v4.6.2` or `4.3.2`.
     version: String,
 }
 
@@ -181,8 +186,15 @@ fn checked(
     if name.is_empty() {
         return Err(Problem::validation("name", "must not be empty"));
     }
-    if new.kind != QBITTORRENT {
-        return Err(Problem::validation("kind", "must be `qbittorrent`"));
+    if new.kind != QBITTORRENT && new.kind != SABNZBD {
+        return Err(Problem::validation(
+            "kind",
+            "must be `qbittorrent` or `sabnzbd`",
+        ));
+    }
+    let is_sabnzbd = new.kind == SABNZBD;
+    if is_sabnzbd && api_key.is_none() {
+        return Err(Problem::validation("apiKey", "is required for SABnzbd"));
     }
     let url = new.url.trim().to_owned();
     if let Err(error) = check_url_text(&url) {
@@ -203,8 +215,8 @@ fn checked(
         name,
         kind: new.kind,
         url,
-        username: text(new.username),
-        password,
+        username: if is_sabnzbd { None } else { text(new.username) },
+        password: if is_sabnzbd { None } else { password },
         api_key,
         category,
         remote_path,
@@ -408,6 +420,22 @@ fn test_error(error: QbError) -> Problem {
     problem
 }
 
+fn sab_test_error(error: SabError) -> Problem {
+    let (code, title) = match &error {
+        SabError::ApiKey => (
+            "client_api_key_rejected",
+            "The download client refused the API key",
+        ),
+        SabError::Url(_) | SabError::Unavailable(_) => {
+            ("client_unavailable", "The download client is not available")
+        }
+    };
+    tracing::warn!(%error, "download client test");
+    let mut problem = Problem::new(StatusCode::BAD_GATEWAY, code, title);
+    problem.detail = Some(error.to_string());
+    problem
+}
+
 /// Authenticates to the saved download client (with its API key when it has
 /// one, else with the username and password) and reports its version.
 #[utoipa::path(
@@ -430,6 +458,28 @@ pub async fn test_client(
 ) -> Result<Json<TestResult>, Problem> {
     let model = load(&state, id).await?.model;
     let unreadable = |code: &str, title: &str| Problem::conflict(code, title);
+    if model.kind == SABNZBD {
+        let stored = model.api_key.as_deref().ok_or_else(|| {
+            unreadable(
+                "client_api_key_missing",
+                "The SABnzbd client has no API key; enter one",
+            )
+        })?;
+        let key = decrypt(&state.secrets, stored)
+            .map_err(|_| {
+                unreadable(
+                    "client_api_key_unreadable",
+                    "The stored API key cannot be read; enter it again",
+                )
+            })?
+            .expose()
+            .to_owned();
+        let version = SabClient::new(state.http.clone(), &model.url, &key)
+            .test()
+            .await
+            .map_err(sab_test_error)?;
+        return Ok(Json(TestResult { version }));
+    }
     let auth = match (&model.api_key, &model.password) {
         (Some(stored), _) => QbAuth::ApiKey(
             decrypt(&state.secrets, stored)

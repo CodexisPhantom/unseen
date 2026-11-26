@@ -1,0 +1,117 @@
+[
+  {
+    "enableRss": true,
+    "enableAutomaticSearch": true,
+    "enableInteractiveSearch": true,
+    "supportsRss": true,
+    "supportsSearch": true,
+    "protocol": "torrent",
+    "priority": 25,
+    "downloadClientId": 0,
+    "name": "Prowlarr Torznab",
+    "fields": [
+      {
+        "order": 0,
+        "name": "baseUrl",
+        "label": "URL",
+        "value": "http://prowlarr:9696/1/",
+        "type": "textbox",
+        "advanced": false,
+        "privacy": "normal",
+        "isFloat": false
+      },
+      {
+        "order": 1,
+        "name": "apiPath",
+        "label": "API Path",
+        "helpText": "Path to the api, usually /api",
+        "value": "/api",
+        "type": "textbox",
+        "advanced": true,
+        "privacy": "normal",
+        "isFloat": false
+      },
+      {
+        "order": 2,
+        "name": "apiKey",
+        "label": "API Key",
+        "value": "********",
+        "type": "textbox",
+        "advanced": false,
+        "privacy": "apiKey",
+        "isFloat": false
+      },
+      {
+        "order": 3,
+        "name": "categories",
+        "label": "Categories",
+        "helpText": "Drop down list, leave blank to disable standard/daily shows",
+        "value": [
+          2000,
+          2040
+        ],
+        "type": "select",
+        "advanced": false,
+        "privacy": "normal",
+        "isFloat": false
+      },
+      {
+        "order": 4,
+        "name": "minimumSeeders",
+        "label": "Minimum Seeders",
+        "value": 5,
+        "type": "number",
+        "advanced": true,
+        "privacy": "normal",
+        "isFloat": false
+      }
+    ],
+    "implementationName": "Torznab",
+    "implementation": "Torznab",
+    "configContract": "TorznabSettings",
+    "infoLink": "https://wiki.servarr.com/radarr/supported#torznab",
+    "tags": [
+      1
+    ],
+    "id": 1
+  },
+  {
+    "enableRss": true,
+    "enableAutomaticSearch": true,
+    "enableInteractiveSearch": false,
+    "supportsRss": true,
+    "supportsSearch": true,
+    "protocol": "usenet",
+    "priority": 30,
+    "downloadClientId": 0,
+    "name": "NZBgeek",
+    "fields": [
+      {
+        "order": 0,
+        "name": "baseUrl",
+        "label": "URL",
+        "value": "https://api.nzbgeek.info",
+        "type": "textbox",
+        "advanced": false,
+        "privacy": "normal",
+        "isFloat": false
+      },
+      {
+        "order": 1,
+        "name": "apiKey",
+        "label": "API Key",
+        "value": "********",
+        "type": "textbox",
+        "advanced": false,
+        "privacy": "apiKey",
+        "isFloat": false
+      }
+    ],
+    "implementationName": "Newznab",
+    "implementation": "Newznab",
+    "configContract": "NewznabSettings",
+    "infoLink": "https://wiki.servarr.com/radarr/supported#newznab",
+    "tags": [],
+    "id": 2
+  }
+]

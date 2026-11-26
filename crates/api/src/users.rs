@@ -425,6 +425,9 @@ pub async fn update_user(
             .map_err(failed)?;
     }
     let updated = load(&state, &id).await?;
+    if role_ids(&target) != role_ids(&updated) {
+        state.publish_permissions_changed(&id);
+    }
     let mut changed = Changes::new()
         .field("name", &target.user.name, &updated.user.name)
         .field("email", &target.user.email, &updated.user.email)
@@ -508,6 +511,9 @@ pub async fn set_user_permissions(
         .await
         .map_err(failed)?;
     let updated = load(&state, &id).await?;
+    if current != wanted {
+        state.publish_permissions_changed(&id);
+    }
     let event = Event::new("user.permissions_changed")
         .target("user", &id)
         .data(

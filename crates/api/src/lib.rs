@@ -4,9 +4,11 @@ pub mod access;
 mod api_keys;
 pub mod audit;
 pub mod auth;
+pub mod base_path;
 mod collections;
 mod download_clients;
 pub mod error;
+pub mod events;
 mod health;
 mod indexers;
 mod library;
@@ -18,6 +20,7 @@ mod owner;
 mod profiles;
 mod proxy;
 mod quality_definitions;
+mod releases;
 mod roles;
 mod root_folders;
 pub mod setup;
@@ -41,7 +44,10 @@ use crate::error::Problem;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub events: events::EventBus,
     pub db: DatabaseConnection,
+    /// The mount prefix from UNSEEN_BASE_URL; empty at the root.
+    pub base_path: String,
     pub auth: auth::Auth,
     pub policy: auth::Policy,
     pub setup: setup::Setup,
@@ -54,15 +60,73 @@ pub struct AppState {
     /// Settings given as `UNSEEN_SETTING_<KEY>`: they win over the table and
     /// cannot be changed through the API (docs/10-configuration.md).
     pub settings_overrides: db::settings::Overrides,
+    /// Short-lived cache of manual search results, keyed by release id, so
+    /// grab requests can look up a searched release without re-querying.
+    pub search_cache: unseen_core::search::SearchCache,
 }
 
 impl AppState {
+    /// Tells connected clients that a movie row changed.
+    pub fn publish_movie_changed(&self, id: i32) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "movie.updated".to_owned(),
+            data: serde_json::json!({ "id": id }),
+            permission: Some(unseen_core::permission::Permission::LibraryRead),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
+
+    /// Re-reads grants for one user: sent only to that user.
+    pub fn publish_permissions_changed(&self, user_id: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "permissions.changed".to_owned(),
+            data: serde_json::Value::String(user_id.to_owned()),
+            permission: None,
+            target_user: Some(user_id.to_owned()),
+            target_api_key: None,
+        });
+    }
+
+    /// A download's progress moved, visible to `queue:read` holders.
+    pub fn publish_download_progress(&self, id: i32, progress: f64) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.progress".to_owned(),
+            data: serde_json::json!({ "id": id, "progress": progress }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
+
+    /// A download changed state, visible to `queue:read` holders.
+    pub fn publish_download_state(&self, id: i32, state: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "download.state".to_owned(),
+            data: serde_json::json!({ "id": id, "state": state }),
+            permission: Some(unseen_core::permission::Permission::QueueRead),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
+
+    /// A background task changed status, visible to `system:tasks` holders.
+    pub fn publish_task_status(&self, name: &str, status: &str) {
+        self.events.publish(crate::events::AppEvent {
+            kind: "task.status".to_owned(),
+            data: serde_json::json!({ "name": name, "status": status }),
+            permission: Some(unseen_core::permission::Permission::SystemTasks),
+            target_user: None,
+            target_api_key: None,
+        });
+    }
     /// `db` must be migrated: the auth instance reads its tables.
     pub async fn new(
         db: DatabaseConnection,
         secret: &str,
         base_url: Option<&str>,
     ) -> AuthResult<Self> {
+        let base_path = base_path::from_url(base_url);
         let (auth, policy) = auth::build(db.clone(), secret, base_url).await?;
         let disabled = db::users::disabled_ids(&db)
             .await
@@ -71,7 +135,9 @@ impl AppState {
             policy.disable(id);
         }
         Ok(Self {
+            events: events::EventBus::new(),
             db,
+            base_path,
             auth,
             policy,
             setup: setup::Setup::default(),
@@ -80,6 +146,7 @@ impl AppState {
                 .map_err(|error| AuthError::internal(format!("build http client: {error}")))?,
             tmdb_base_url: unseen_core::tmdb::DEFAULT_BASE_URL.to_owned(),
             settings_overrides: db::settings::Overrides::from_env(),
+            search_cache: unseen_core::search::SearchCache::new(),
         })
     }
 }
@@ -102,6 +169,7 @@ pub fn routes() -> ApiRouter {
         .public(routes!(health::health))
         .public(routes!(setup::status, setup::create))
         .authenticated(routes!(me::me))
+        .authenticated(routes!(events::stream_events))
         .authenticated(routes!(owner::transfer))
         .authenticated(routes!(roles::list_permissions))
         .authenticated(routes!(api_keys::list_own, api_keys::create_own))
@@ -155,6 +223,7 @@ pub fn routes() -> ApiRouter {
         .require(Permission::LibraryDelete, routes!(movies::remove_profile))
         .require(Permission::LibraryRead, routes!(movies::list_files))
         .require(Permission::LibraryDelete, routes!(movies::delete_file))
+        .require(Permission::SearchRun, routes!(releases::search_movie))
         .require(
             Permission::LibraryRead,
             routes!(subtitles::list_language_profiles),
@@ -278,6 +347,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 }
 
 pub fn router(state: AppState) -> Router {
+    let base_path = state.base_path.clone();
     let api = routes().into_router(&state);
     // The auth routes are the library's own; they are not in our OpenAPI
     // document.
@@ -290,11 +360,17 @@ pub fn router(state: AppState) -> Router {
                 state.clone(),
                 audit::auth_events,
             ));
-    api.nest("/api/auth", auth)
+    let app = api
+        .nest("/api/auth", auth)
         .fallback(web::serve)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             setup::gate,
         ))
-        .with_state(state)
+        .with_state(state);
+    if base_path.is_empty() {
+        app
+    } else {
+        Router::new().nest(&base_path, app)
+    }
 }

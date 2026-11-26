@@ -1,0 +1,111 @@
+[
+  {
+    "id": 1,
+    "name": "x265 (HD)",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      {
+        "name": "x265",
+        "implementation": "ReleaseTitleSpecification",
+        "implementationName": "Release Title",
+        "infoLink": "https://wiki.servarr.com/radarr/settings#custom-formats-2",
+        "negate": false,
+        "required": true,
+        "fields": [
+          {
+            "order": 0,
+            "name": "value",
+            "label": "Regular Expression",
+            "helpText": "Custom Format RegEx is Case Insensitive",
+            "value": "(((x|h)[ ._-]?265)|(hevc))",
+            "type": "textbox",
+            "advanced": false,
+            "privacy": "normal",
+            "isFloat": false
+          }
+        ]
+      },
+      {
+        "name": "Not 2160p",
+        "implementation": "ResolutionSpecification",
+        "implementationName": "Resolution",
+        "infoLink": "https://wiki.servarr.com/radarr/settings#custom-formats-2",
+        "negate": true,
+        "required": true,
+        "fields": [
+          {
+            "order": 0,
+            "name": "value",
+            "label": "Resolution",
+            "value": 2160,
+            "type": "select",
+            "advanced": false,
+            "selectOptions": [
+              {
+                "value": 1080,
+                "name": "1080p",
+                "order": 1080,
+                "dividerAfter": false
+              },
+              {
+                "value": 2160,
+                "name": "2160p",
+                "order": 2160,
+                "dividerAfter": false
+              }
+            ],
+            "privacy": "normal",
+            "isFloat": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Remux Tier 01",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      {
+        "name": "Remux",
+        "implementation": "QualityModifierSpecification",
+        "implementationName": "Quality Modifier",
+        "infoLink": "https://wiki.servarr.com/radarr/settings#custom-formats-2",
+        "negate": false,
+        "required": true,
+        "fields": [
+          {
+            "order": 0,
+            "name": "value",
+            "label": "Quality Modifier",
+            "value": 5,
+            "type": "select",
+            "advanced": false,
+            "privacy": "normal",
+            "isFloat": false
+          }
+        ]
+      },
+      {
+        "name": "FraMeSToR",
+        "implementation": "ReleaseGroupSpecification",
+        "implementationName": "Release Group",
+        "infoLink": "https://wiki.servarr.com/radarr/settings#custom-formats-2",
+        "negate": false,
+        "required": false,
+        "fields": [
+          {
+            "order": 0,
+            "name": "value",
+            "label": "Regular Expression",
+            "value": "^(FraMeSToR)$",
+            "type": "textbox",
+            "advanced": false,
+            "privacy": "normal",
+            "isFloat": false
+          }
+        ]
+      }
+    ]
+  }
+]

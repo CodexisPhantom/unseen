@@ -3,6 +3,7 @@
 
 pub mod audit_log;
 pub mod collections;
+pub mod custom_formats;
 pub mod download_client_tags;
 pub mod download_clients;
 pub mod indexer_tags;
@@ -13,6 +14,7 @@ pub mod movie_profiles;
 pub mod movie_tags;
 pub mod movies;
 pub mod quality_definitions;
+pub mod quality_profile_custom_formats;
 pub mod quality_profiles;
 pub mod role_permissions;
 pub mod roles;

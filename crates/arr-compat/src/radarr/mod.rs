@@ -1,8 +1,12 @@
 //! The Radarr v3 API as companion tools see it (docs/14-compatibility.md,
-//! section D): the resources in [`dto`] and the mapping in [`map`].
+//! section D) and the read-only client for importing from a running Radarr
+//! instance (docs/08-integrations.md, "Radarr as import source (M6)").
 
+pub mod client;
 pub mod dto;
 pub mod map;
+
+pub use client::{RadarrClient, RadarrError};
 
 /// The Radarr release whose OpenAPI document is pinned in
 /// `fixtures/radarr/openapi-<version>.json`. `GET /system/status` reports it.
