@@ -21,15 +21,15 @@ use crate::error::Problem;
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RootFolder {
-    id: i32,
-    path: String,
+    pub(crate) id: i32,
+    pub(crate) path: String,
     /// False when the folder is missing or cannot be read right now.
-    accessible: bool,
+    pub(crate) accessible: bool,
     /// Bytes available to Unseen on the filesystem of the folder. Absent when
     /// the folder is not accessible.
-    free_space: Option<u64>,
+    pub(crate) free_space: Option<u64>,
     /// Sub-folders on disk that no movie uses, sorted.
-    unmapped_folders: Vec<String>,
+    pub(crate) unmapped_folders: Vec<String>,
     created_at: String,
 }
 
@@ -159,10 +159,27 @@ fn inspect(path: &Path) -> Result<PathBuf, &'static str> {
     std::fs::canonicalize(path).map_err(|_| "cannot be read")
 }
 
-async fn known_names(state: &AppState, id: i32) -> Result<Vec<String>, Problem> {
-    db::root_folders::movie_folder_names(&state.db, id)
+/// Loads every root folder from the database and inspects it on disk off the
+/// async runtime.
+pub(crate) async fn load_all(state: &AppState) -> Result<Vec<RootFolder>, String> {
+    let mut folders = Vec::new();
+    for model in db::root_folders::list(&state.db)
         .await
-        .map_err(failed)
+        .map_err(|error| error.to_string())?
+    {
+        let known = db::root_folders::movie_folder_names(&state.db, model.id)
+            .await
+            .map_err(|error| error.to_string())?;
+        folders.push((model, known));
+    }
+    tokio::task::spawn_blocking(move || {
+        folders
+            .into_iter()
+            .map(|(model, known)| describe(model, &known))
+            .collect()
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// Every root folder with its free space and unmapped folders.
@@ -179,19 +196,7 @@ pub async fn list_root_folders(
     _: Require<SettingsRead>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<RootFolder>>, Problem> {
-    let mut folders = Vec::new();
-    for model in db::root_folders::list(&state.db).await.map_err(failed)? {
-        let known = known_names(&state, model.id).await?;
-        folders.push((model, known));
-    }
-    let described = blocking(move || {
-        folders
-            .into_iter()
-            .map(|(model, known)| describe(model, &known))
-            .collect()
-    })
-    .await?;
-    Ok(Json(described))
+    load_all(&state).await.map_err(failed).map(Json)
 }
 
 /// Adds a root folder after checking the path on disk.
