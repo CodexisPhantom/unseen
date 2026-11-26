@@ -4,6 +4,7 @@ pub mod access;
 mod api_keys;
 pub mod audit;
 pub mod auth;
+pub mod base_path;
 mod collections;
 mod download_clients;
 pub mod error;
@@ -42,6 +43,8 @@ use crate::error::Problem;
 #[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
+    /// The mount prefix from UNSEEN_BASE_URL; empty at the root.
+    pub base_path: String,
     pub auth: auth::Auth,
     pub policy: auth::Policy,
     pub setup: setup::Setup,
@@ -63,6 +66,7 @@ impl AppState {
         secret: &str,
         base_url: Option<&str>,
     ) -> AuthResult<Self> {
+        let base_path = base_path::from_url(base_url);
         let (auth, policy) = auth::build(db.clone(), secret, base_url).await?;
         let disabled = db::users::disabled_ids(&db)
             .await
@@ -72,6 +76,7 @@ impl AppState {
         }
         Ok(Self {
             db,
+            base_path,
             auth,
             policy,
             setup: setup::Setup::default(),
@@ -278,6 +283,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 }
 
 pub fn router(state: AppState) -> Router {
+    let base_path = state.base_path.clone();
     let api = routes().into_router(&state);
     // The auth routes are the library's own; they are not in our OpenAPI
     // document.
@@ -290,11 +296,17 @@ pub fn router(state: AppState) -> Router {
                 state.clone(),
                 audit::auth_events,
             ));
-    api.nest("/api/auth", auth)
+    let app = api
+        .nest("/api/auth", auth)
         .fallback(web::serve)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             setup::gate,
         ))
-        .with_state(state)
+        .with_state(state);
+    if base_path.is_empty() {
+        app
+    } else {
+        Router::new().nest(&base_path, app)
+    }
 }
