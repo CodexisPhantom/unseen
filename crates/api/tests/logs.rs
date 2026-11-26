@@ -545,6 +545,73 @@ async fn pages_large_log_files_from_the_end_with_byte_offset_cursors() {
     assert_eq!(messages, ["entry-29996", "entry-29995", "entry-29994"]);
 }
 
+#[tokio::test]
+async fn pages_empty_unterminated_and_split_utf8_log_lines_with_correct_cursors() {
+    let app = App::new().await;
+    std::fs::create_dir_all(&app.logs_dir).unwrap();
+
+    std::fs::write(app.logs_dir.join("unseen-2026-11-24.log"), "").unwrap();
+    let unterminated = entry_line(
+        "2026-11-25T10:00:00.000Z",
+        "info",
+        "api::cursor",
+        "without trailing newline",
+        json!({}),
+    );
+    std::fs::write(app.logs_dir.join("unseen-2026-11-25.log"), &unterminated).unwrap();
+
+    let base = entry_line(
+        "2026-11-26T10:00:00.000Z",
+        "info",
+        "api::utf8",
+        "é",
+        json!({}),
+    );
+    let marker = base.find('é').unwrap();
+    let padding = "a".repeat(8191 - marker);
+    let older = format!("{}{padding}{}", &base[..marker], &base[marker..]);
+    assert_eq!(older.as_bytes()[8191], "é".as_bytes()[0]);
+    assert_eq!(older.as_bytes()[8192], "é".as_bytes()[1]);
+    let newer = entry_line(
+        "2026-11-26T11:00:00.000Z",
+        "info",
+        "api::utf8",
+        "newer entry",
+        json!({}),
+    );
+    let split_content = format!("{older}\n{newer}\n");
+    std::fs::write(app.logs_dir.join("unseen-2026-11-26.log"), &split_content).unwrap();
+
+    let (status, empty_page) = app.owner("/api/v1/logs?limit=1").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(empty_page["files"].as_array().unwrap().len(), 3);
+    assert_eq!(empty_page["files"][2]["sizeBytes"], 0);
+    assert_eq!(empty_page["items"][0]["message"], "newer entry");
+    let cursor = empty_page["nextBefore"].as_str().unwrap();
+    assert_eq!(cursor, format!("2026-11-26:{}", older.len() + 1));
+
+    let (status, older_page) = app
+        .owner(&format!("/api/v1/logs?limit=1&before={cursor}"))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(older_page["items"].as_array().unwrap().len(), 1);
+    assert_eq!(older_page["items"][0]["message"], format!("{padding}é"));
+    assert_eq!(older_page["nextBefore"], "2026-11-26:0");
+
+    let (status, unterminated_page) = app
+        .owner(&format!(
+            "/api/v1/logs?before={}&limit=1",
+            older_page["nextBefore"].as_str().unwrap()
+        ))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        unterminated_page["items"][0]["message"],
+        "without trailing newline"
+    );
+    assert_eq!(unterminated_page["nextBefore"], Value::Null);
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn listing_and_paging_ignore_symlinks_outside_the_logs_directory() {

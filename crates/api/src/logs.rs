@@ -14,12 +14,14 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
 use axum::Json;
+use axum::body::Body;
 use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, NaiveDate, SecondsFormat, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio_util::io::ReaderStream;
 use tracing::field::{Field, Visit};
 use tracing::{Event, Subscriber};
 use tracing_subscriber::Layer;
@@ -889,16 +891,37 @@ pub async fn download(
     }
 
     let path = state.logs_dir.join(&name);
-    let bytes = tokio::task::spawn_blocking(move || -> io::Result<Option<Vec<u8>>> {
+    let file = tokio::task::spawn_blocking(move || -> io::Result<Option<File>> {
+        #[cfg(windows)]
         let meta = match std::fs::symlink_metadata(&path) {
             Ok(meta) => meta,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
+        #[cfg(windows)]
         if !meta.file_type().is_file() {
             return Ok(None);
         }
-        std::fs::read(&path).map(Some)
+
+        let mut options = OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(libc::O_NOFOLLOW);
+        }
+        // On Windows the pre-open symlink check can race with a path swap; this residual race is Windows-only.
+        let file = match options.open(&path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            #[cfg(unix)]
+            Err(error) if error.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if !file.metadata()?.is_file() {
+            return Ok(None);
+        }
+        Ok(Some(file))
     })
     .await
     .map_err(|error| {
@@ -921,7 +944,7 @@ pub async fn download(
             (header::CONTENT_TYPE, content_type),
             (header::CONTENT_DISPOSITION, disposition),
         ],
-        bytes,
+        Body::from_stream(ReaderStream::new(tokio::fs::File::from_std(file))),
     )
         .into_response())
 }
