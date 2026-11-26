@@ -13,6 +13,7 @@ services:
       - PGID=1000
       - TZ=Europe/Paris
       # - UNSEEN_BASE_URL=https://unseen.example.com
+      # Sub-path hosting: - UNSEEN_BASE_URL=https://unseen.example.com/unseen
     volumes:
       - ./config/unseen:/config
       - /data:/data

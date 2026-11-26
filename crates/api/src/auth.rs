@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
+use crate::base_path;
 use async_trait::async_trait;
 use better_auth::plugins::endpoint_context::EndpointContext;
 use better_auth::plugins::user_admission::{
@@ -186,7 +187,7 @@ pub async fn build(
     config.advanced.use_secure_cookies =
         Some(base_url.is_some_and(|url| url.starts_with("https://")));
     if let Some(url) = base_url {
-        config = config.base_url(url);
+        config = config.base_url(base_path::origin(url).unwrap_or_else(|| url.to_owned()));
     }
 
     let policy = Policy::default();
