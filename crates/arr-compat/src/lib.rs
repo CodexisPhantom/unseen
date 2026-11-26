@@ -1,4 +1,5 @@
 pub mod radarr;
+pub mod sonarr;
 
 #[cfg(test)]
 mod tests {

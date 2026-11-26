@@ -154,6 +154,17 @@ Notes:
   (#88).
 - `/series` with a `PUT` body carries the whole resource. Seerr changes only
   `monitored`, `tags` and the season list; Unseen applies those three.
+- The pinned Sonarr OpenAPI document is `v5.0.0.3041` (commit `03f822c`,
+  `src/Sonarr.Api.V3/openapi.json`), stored as
+  `fixtures/sonarr/openapi-5.0.0.3041.json`. `SONARR_VERSION` in
+  `arr-compat::sonarr` matches that version, DTOs live in
+  `arr-compat::sonarr::dto`, mapping in `arr-compat::sonarr::map`, and
+  `crates/arr-compat/tests/sonarr_schema.rs` checks every serialised resource
+  against the pinned schema (with `EpisodeResource.episodeFile`,
+  `EpisodeResource.series`, `QueueResource.series`, `QueueResource.episode`,
+  and `QualityProfileQualityItemResource.quality` allowed as `null` when
+  absent). Quality ids translate bidirectionally across the four differing TV
+  qualities listed in [07-release-scoring.md](07-release-scoring.md).
 
 ## Field mapping: Radarr MovieResource
 
