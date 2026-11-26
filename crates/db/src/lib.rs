@@ -91,6 +91,7 @@ mod tests {
             "api_key_permissions",
             "audit_log",
             "collections",
+            "custom_formats",
             "download_client_tags",
             "download_clients",
             "api_keys",
@@ -102,6 +103,7 @@ mod tests {
             "movie_tags",
             "movies",
             "quality_profiles",
+            "quality_profile_custom_formats",
             "role_permissions",
             "roles",
             "root_folders",
@@ -177,5 +179,126 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(owner.try_get::<i64>("", "n").unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn custom_formats_enforce_uniqueness_and_cascades() {
+        let (db, _dir) = testing::temp_db().await;
+        let backend = db.get_database_backend();
+        let exec = |sql: &str| db.execute_raw(Statement::from_string(backend, sql.to_owned()));
+        let one = |sql: &str| db.query_one_raw(Statement::from_string(backend, sql.to_owned()));
+
+        exec(
+            "INSERT INTO custom_formats (name, specifications, created_at, updated_at) \
+             VALUES ('CF1', '[]', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
+        )
+        .await
+        .unwrap();
+        let row = one(
+            "SELECT include_when_renaming AS i, trash_synced AS s, specifications AS specs \
+             FROM custom_formats WHERE name = 'CF1'",
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(!row.try_get::<bool>("", "i").unwrap());
+        assert!(!row.try_get::<bool>("", "s").unwrap());
+        assert_eq!(
+            row.try_get::<serde_json::Value>("", "specs").unwrap(),
+            serde_json::json!([])
+        );
+
+        assert!(
+            exec(
+                "INSERT INTO custom_formats (name, specifications, created_at, updated_at) \
+                 VALUES ('CF1', '[]', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
+            )
+            .await
+            .is_err()
+        );
+
+        for name in ["CF2", "CF3"] {
+            exec(&format!(
+                "INSERT INTO custom_formats (name, specifications, created_at, updated_at) \
+                 VALUES ('{name}', '[]', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
+            ))
+            .await
+            .unwrap();
+        }
+        assert!(
+            exec("UPDATE custom_formats SET trash_id = 't1' WHERE name = 'CF2'")
+                .await
+                .is_ok()
+        );
+        assert!(
+            exec("UPDATE custom_formats SET trash_id = 't1' WHERE name = 'CF3'")
+                .await
+                .is_err()
+        );
+
+        let profile = crate::profiles::create(
+            &db,
+            crate::profiles::Values {
+                name: "CF profile".into(),
+                upgrade_allowed: false,
+                cutoff_quality_id: 7,
+                items: serde_json::json!([
+                    { "type": "quality", "qualityId": 7, "allowed": true }
+                ]),
+                language: "any".into(),
+                min_format_score: 0,
+                cutoff_format_score: 0,
+                min_upgrade_format_score: 1,
+            },
+        )
+        .await
+        .unwrap();
+        let cf1: i64 = one("SELECT id FROM custom_formats WHERE name = 'CF1'")
+            .await
+            .unwrap()
+            .unwrap()
+            .try_get("", "id")
+            .unwrap();
+        exec(&format!(
+            "INSERT INTO quality_profile_custom_formats \
+             (quality_profile_id, custom_format_id, score) VALUES ({}, {cf1}, 10)",
+            profile.id
+        ))
+        .await
+        .unwrap();
+
+        exec(&format!("DELETE FROM custom_formats WHERE id = {cf1}"))
+            .await
+            .unwrap();
+        let left = one("SELECT count(*) AS n FROM quality_profile_custom_formats")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(left.try_get::<i64>("", "n").unwrap(), 0);
+
+        let cf2: i64 = one("SELECT id FROM custom_formats WHERE name = 'CF2'")
+            .await
+            .unwrap()
+            .unwrap()
+            .try_get("", "id")
+            .unwrap();
+        exec(&format!(
+            "INSERT INTO quality_profile_custom_formats \
+             (quality_profile_id, custom_format_id, score) VALUES ({}, {cf2}, 5)",
+            profile.id
+        ))
+        .await
+        .unwrap();
+        exec(&format!(
+            "DELETE FROM quality_profiles WHERE id = {}",
+            profile.id
+        ))
+        .await
+        .unwrap();
+        let left = one("SELECT count(*) AS n FROM quality_profile_custom_formats")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(left.try_get::<i64>("", "n").unwrap(), 0);
     }
 }

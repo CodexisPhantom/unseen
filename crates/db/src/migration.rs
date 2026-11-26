@@ -19,6 +19,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0009QualityDefinitions),
             Box::new(M0010Subtitles),
             Box::new(M0011Collections),
+            Box::new(M0012CustomFormats),
         ]
     }
 }
@@ -578,6 +579,48 @@ impl MigrationTrait for M0011Collections {
         manager
             .get_connection()
             .execute_unprepared(M0011_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+/// Custom formats and their scores per quality profile
+/// (docs/04-database.md). A format has at most one Trash Guide id; two rows
+/// with no id are allowed. Deleting a format or a profile deletes its link
+/// rows.
+const M0012_UP: &str = r#"
+CREATE TABLE custom_formats (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    name text NOT NULL UNIQUE,
+    include_when_renaming boolean NOT NULL DEFAULT FALSE,
+    specifications json NOT NULL,
+    trash_id text UNIQUE,
+    trash_synced boolean NOT NULL DEFAULT FALSE,
+    created_at text NOT NULL,
+    updated_at text NOT NULL
+);
+CREATE TABLE quality_profile_custom_formats (
+    quality_profile_id integer NOT NULL REFERENCES quality_profiles (id) ON DELETE CASCADE,
+    custom_format_id integer NOT NULL REFERENCES custom_formats (id) ON DELETE CASCADE,
+    score integer NOT NULL,
+    PRIMARY KEY (quality_profile_id, custom_format_id)
+);
+"#;
+
+struct M0012CustomFormats;
+
+impl MigrationName for M0012CustomFormats {
+    fn name(&self) -> &str {
+        "m0012_custom_formats"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0012CustomFormats {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0012_UP)
             .await?;
         Ok(())
     }
