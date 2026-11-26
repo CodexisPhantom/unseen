@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
+use crate::base_path;
 use async_trait::async_trait;
 use better_auth::plugins::endpoint_context::EndpointContext;
 use better_auth::plugins::user_admission::{
@@ -89,6 +90,13 @@ impl Policy {
     /// Lets the user sign in again.
     pub fn enable(&self, user_id: &str) {
         self.disabled.write().unwrap().remove(user_id);
+    }
+
+    /// Whether the account was disabled since the process started. Open
+    /// streams consult this so they stop without waiting for a new request.
+    #[must_use]
+    pub fn is_disabled(&self, user_id: &str) -> bool {
+        self.disabled.read().unwrap().contains(user_id)
     }
 }
 
@@ -186,7 +194,7 @@ pub async fn build(
     config.advanced.use_secure_cookies =
         Some(base_url.is_some_and(|url| url.starts_with("https://")));
     if let Some(url) = base_url {
-        config = config.base_url(url);
+        config = config.base_url(base_path::origin(url).unwrap_or_else(|| url.to_owned()));
     }
 
     let policy = Policy::default();

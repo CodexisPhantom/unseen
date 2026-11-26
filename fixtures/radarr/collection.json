@@ -1,0 +1,87 @@
+[
+  {
+    "title": "The Matrix Collection",
+    "sortTitle": "matrix collection",
+    "tmdbId": 2344,
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/Collections/2344/poster.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/bV9qTVHTVf0gkW0j7p7M0ILD4pG.jpg"
+      }
+    ],
+    "overview": "The Matrix collection depicts a complex science fiction story incorporating many philosophical elements.",
+    "monitored": true,
+    "rootFolderPath": "/movies",
+    "qualityProfileId": 1,
+    "searchOnAdd": false,
+    "minimumAvailability": "released",
+    "movies": [
+      {
+        "tmdbId": 603,
+        "imdbId": "tt0133093",
+        "title": "The Matrix",
+        "cleanTitle": "thematrix",
+        "sortTitle": "matrix",
+        "status": "released",
+        "overview": "Set in the 22nd century, The Matrix tells the story of a computer hacker.",
+        "runtime": 136,
+        "images": [
+          {
+            "coverType": "poster",
+            "url": "/MediaCover/1/poster.jpg",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg"
+          }
+        ],
+        "year": 1999,
+        "ratings": {
+          "tmdb": {
+            "votes": 25100,
+            "value": 8.215,
+            "type": "user"
+          }
+        },
+        "genres": [
+          "Action",
+          "Science Fiction"
+        ],
+        "folder": "The Matrix (1999)",
+        "isExisting": true,
+        "isExcluded": false
+      },
+      {
+        "tmdbId": 604,
+        "imdbId": "tt0234215",
+        "title": "The Matrix Reloaded",
+        "cleanTitle": "thematrixreloaded",
+        "sortTitle": "matrix reloaded",
+        "status": "released",
+        "overview": "Six months after the events depicted in The Matrix, Neo has proved to be a good omen for the free humans.",
+        "runtime": 138,
+        "images": [],
+        "year": 2003,
+        "ratings": {
+          "tmdb": {
+            "votes": 10600,
+            "value": 7.05,
+            "type": "user"
+          }
+        },
+        "genres": [
+          "Adventure",
+          "Action",
+          "Thriller",
+          "Science Fiction"
+        ],
+        "folder": "The Matrix Reloaded (2003)",
+        "isExisting": false,
+        "isExcluded": false
+      }
+    ],
+    "missingMovies": 1,
+    "tags": [
+      1
+    ],
+    "id": 1
+  }
+]

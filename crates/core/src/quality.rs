@@ -163,9 +163,98 @@ impl Quality {
         self.row().4
     }
 
+    /// Every quality allowed for TV shows in Sonarr's default order, lowest to
+    /// highest (`docs/07-release-scoring.md`, "Qualities for TV").
+    pub const TV_DEFAULT_ORDER: [Self; 22] = [
+        Self::Unknown,
+        Self::Sdtv,
+        Self::WebRip480p,
+        Self::WebDl480p,
+        Self::Dvd,
+        Self::Bluray480p,
+        Self::Bluray576p,
+        Self::Hdtv720p,
+        Self::Hdtv1080p,
+        Self::RawHd,
+        Self::WebRip720p,
+        Self::WebDl720p,
+        Self::Bluray720p,
+        Self::WebRip1080p,
+        Self::WebDl1080p,
+        Self::Bluray1080p,
+        Self::Remux1080p,
+        Self::Hdtv2160p,
+        Self::WebRip2160p,
+        Self::WebDl2160p,
+        Self::Bluray2160p,
+        Self::Remux2160p,
+    ];
+
     /// The quality with this Radarr id, if any.
     pub fn from_id(id: i32) -> Option<Self> {
         Self::ALL.into_iter().find(|quality| quality.id() == id)
+    }
+
+    /// Whether this quality is allowed for TV shows. Excludes the movie-only
+    /// qualities (`WORKPRINT`, `CAM`, `TELESYNC`, `TELECINE`, `REGIONAL`,
+    /// `DVDSCR`, `DVD-R`, `BR-DISK`).
+    pub const fn is_tv(self) -> bool {
+        self.sonarr_id().is_some()
+    }
+
+    /// Qualities allowed for TV shows in Sonarr's default ranking order,
+    /// lowest to highest.
+    pub const fn tv_default_order() -> &'static [Self] {
+        &Self::TV_DEFAULT_ORDER
+    }
+
+    /// Sonarr's quality id, or `None` for movie-only qualities.
+    ///
+    /// Four qualities differ from Unseen's stored Radarr ids: `Bluray-480p`
+    /// (13), `Bluray-576p` (22), `Remux-1080p` (20) and `Remux-2160p` (21).
+    pub const fn sonarr_id(self) -> Option<i32> {
+        match self {
+            Self::Workprint
+            | Self::Cam
+            | Self::Telesync
+            | Self::Telecine
+            | Self::Regional
+            | Self::DvdScr
+            | Self::DvdR
+            | Self::BrDisk => None,
+            Self::Bluray480p => Some(13),
+            Self::Bluray576p => Some(22),
+            Self::Remux1080p => Some(20),
+            Self::Remux2160p => Some(21),
+            _ => Some(self.id()),
+        }
+    }
+
+    /// Sonarr's quality name, or `None` for movie-only qualities.
+    ///
+    /// Differs from Radarr's name for the two remux qualities (`Bluray-1080p
+    /// Remux` and `Bluray-2160p Remux`).
+    pub const fn sonarr_name(self) -> Option<&'static str> {
+        match self {
+            Self::Workprint
+            | Self::Cam
+            | Self::Telesync
+            | Self::Telecine
+            | Self::Regional
+            | Self::DvdScr
+            | Self::DvdR
+            | Self::BrDisk => None,
+            Self::Remux1080p => Some("Bluray-1080p Remux"),
+            Self::Remux2160p => Some("Bluray-2160p Remux"),
+            _ => Some(self.name()),
+        }
+    }
+
+    /// The quality with this Sonarr id, if any.
+    pub fn from_sonarr_id(id: i32) -> Option<Self> {
+        Self::TV_DEFAULT_ORDER
+            .into_iter()
+            .find(|quality| quality.sonarr_id() == Some(id))
     }
 }
 
@@ -394,5 +483,120 @@ mod tests {
             .replace("\r\n", "\n");
         let names: Vec<_> = Quality::ALL.iter().map(|q| q.name()).collect();
         assert_eq!(names, documented_names(&doc));
+    }
+
+    /// Sonarr's qualities, transcribed from `Quality.cs` (Sonarr `develop`):
+    /// Sonarr id, Sonarr name, and Unseen `Quality` variant, in the order of
+    /// `DefaultQualityDefinitions` weights.
+    const SONARR: [(i32, &str, Quality); 22] = [
+        (0, "Unknown", Quality::Unknown),
+        (1, "SDTV", Quality::Sdtv),
+        (12, "WEBRip-480p", Quality::WebRip480p),
+        (8, "WEBDL-480p", Quality::WebDl480p),
+        (2, "DVD", Quality::Dvd),
+        (13, "Bluray-480p", Quality::Bluray480p),
+        (22, "Bluray-576p", Quality::Bluray576p),
+        (4, "HDTV-720p", Quality::Hdtv720p),
+        (9, "HDTV-1080p", Quality::Hdtv1080p),
+        (10, "Raw-HD", Quality::RawHd),
+        (14, "WEBRip-720p", Quality::WebRip720p),
+        (5, "WEBDL-720p", Quality::WebDl720p),
+        (6, "Bluray-720p", Quality::Bluray720p),
+        (15, "WEBRip-1080p", Quality::WebRip1080p),
+        (3, "WEBDL-1080p", Quality::WebDl1080p),
+        (7, "Bluray-1080p", Quality::Bluray1080p),
+        (20, "Bluray-1080p Remux", Quality::Remux1080p),
+        (16, "HDTV-2160p", Quality::Hdtv2160p),
+        (17, "WEBRip-2160p", Quality::WebRip2160p),
+        (18, "WEBDL-2160p", Quality::WebDl2160p),
+        (19, "Bluray-2160p", Quality::Bluray2160p),
+        (21, "Bluray-2160p Remux", Quality::Remux2160p),
+    ];
+
+    #[test]
+    fn matches_sonarr_ids_names_and_default_order() {
+        let actual: Vec<_> = Quality::tv_default_order()
+            .iter()
+            .map(|&q| {
+                (
+                    q.sonarr_id().expect("tv quality has sonarr id"),
+                    q.sonarr_name().expect("tv quality has sonarr name"),
+                    q,
+                )
+            })
+            .collect();
+        assert_eq!(actual, SONARR);
+    }
+
+    #[test]
+    fn movie_only_qualities_are_excluded_from_tv() {
+        let movie_only = [
+            Quality::Workprint,
+            Quality::Cam,
+            Quality::Telesync,
+            Quality::Telecine,
+            Quality::Regional,
+            Quality::DvdScr,
+            Quality::DvdR,
+            Quality::BrDisk,
+        ];
+        for q in movie_only {
+            assert!(!q.is_tv(), "{q:?} should not be a TV quality");
+            assert_eq!(q.sonarr_id(), None, "{q:?}");
+            assert_eq!(q.sonarr_name(), None, "{q:?}");
+            assert!(!Quality::tv_default_order().contains(&q), "{q:?}");
+        }
+        let tv_count = Quality::ALL.iter().filter(|q| q.is_tv()).count();
+        assert_eq!(tv_count, 22);
+        assert_eq!(tv_count + movie_only.len(), Quality::ALL.len());
+    }
+
+    #[test]
+    fn from_sonarr_id_round_trips_and_rejects_non_tv_ids() {
+        for &(id, _, quality) in &SONARR {
+            assert_eq!(Quality::from_sonarr_id(id), Some(quality));
+        }
+        // Sonarr skips 11 and has no ids above 22 (Radarr's 23..=31 are movie-only or remapped).
+        for id in [-1, 11, 23, 24, 25, 30, 31, 32] {
+            assert_eq!(Quality::from_sonarr_id(id), None, "id {id}");
+        }
+        // Verify the four remapped ids explicitly.
+        assert_eq!(Quality::from_sonarr_id(13), Some(Quality::Bluray480p));
+        assert_eq!(Quality::from_sonarr_id(22), Some(Quality::Bluray576p));
+        assert_eq!(Quality::from_sonarr_id(20), Some(Quality::Remux1080p));
+        assert_eq!(Quality::from_sonarr_id(21), Some(Quality::Remux2160p));
+    }
+
+    #[test]
+    fn tv_default_order_matches_the_design_doc() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/07-release-scoring.md"
+        );
+        let doc = std::fs::read_to_string(path)
+            .expect("read docs/07")
+            .replace("\r\n", "\n");
+        let section = doc
+            .split("\n### Qualities for TV\n")
+            .nth(1)
+            .expect("tv qualities section");
+        let order_para = section
+            .split("Default order of a new show profile")
+            .nth(1)
+            .expect("default order paragraph")
+            .split(". The order differs")
+            .next()
+            .expect("order list");
+        let after_colon = order_para.split("): ").nth(1).expect("after colon");
+        let documented: Vec<&str> = after_colon
+            .split([',', '/'])
+            .map(|token| token.trim().trim_matches('`'))
+            .filter(|token| !token.is_empty())
+            .collect();
+        let actual: Vec<&str> = Quality::tv_default_order()
+            .iter()
+            .map(|q| q.name())
+            .collect();
+        assert_eq!(actual, documented);
     }
 }

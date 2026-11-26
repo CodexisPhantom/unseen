@@ -160,6 +160,4 @@ are in use since the health page.
   dirty state without own code. `Field` for layout outside validated forms.
 - Data fetching: TanStack Query. Caching, request deduplication and
   invalidation from SSE events would otherwise be written by hand.
-- Sub-path hosting: not in V1. SvelteKit fixes the base path at build time
-  and the UI is embedded in the binary, so a runtime base path needs extra
-  work. Use a subdomain. Planned for M11.
+- Sub-path hosting: supported. The runtime base path is read from the injected `<meta name="unseen-base">`; the server rewrites index.html asset URLs and the SvelteKit base literal at serve time; the API client and auth client prefix their requests; OpenAPI paths stay unprefixed.

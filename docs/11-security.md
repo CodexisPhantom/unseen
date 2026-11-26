@@ -25,7 +25,7 @@ clients themselves.
 
 Handled by Better Auth RS (ADR 0006). Required settings:
 
-- Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` when `UNSEEN_BASE_URL` is https.
+- Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` when `UNSEEN_BASE_URL` is https. The session cookie uses `Path=/` so it is sent under any sub-path.
 - Session lifetime 30 days, sliding. Configurable.
 - Sessions of a disabled user are deleted at once.
 - Permissions are loaded per request, never stored in the session.

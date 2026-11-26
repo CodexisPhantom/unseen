@@ -9,6 +9,7 @@ use db::secret::{Secret, decrypt, encrypt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::http::check_url_text;
+use unseen_core::newznab::{NewznabClient, NewznabError};
 use unseen_core::torznab::{TorznabClient, TorznabError};
 use utoipa::ToSchema;
 
@@ -18,8 +19,9 @@ use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::proxy::indexer_client;
 
-/// The only indexer protocol in V1.
+/// Supported indexer protocols.
 const TORZNAB: &str = "torznab";
+const NEWZNAB: &str = "newznab";
 const DEFAULT_PRIORITY: i32 = 25;
 
 #[derive(Serialize, ToSchema)]
@@ -27,14 +29,14 @@ const DEFAULT_PRIORITY: i32 = 25;
 pub struct Indexer {
     id: i32,
     name: String,
-    /// `torznab`.
+    /// `torznab` or `newznab`.
     kind: String,
     url: String,
     /// The key itself is never returned.
     has_api_key: bool,
     /// A key is stored but cannot be decrypted: enter it again.
     api_key_must_be_reentered: bool,
-    /// Torznab category ids to search, for example `2000` for movies.
+    /// Torznab or Newznab category ids to search, for example `2000` for movies.
     categories: Vec<i32>,
     /// 1 to 50. The lower number wins when two releases tie.
     priority: i32,
@@ -63,6 +65,7 @@ fn default_true() -> bool {
 #[serde(rename_all = "camelCase")]
 pub struct NewIndexer {
     name: String,
+    /// `torznab` or `newznab`. Defaults to `torznab`.
     #[serde(default = "default_kind")]
     kind: String,
     url: String,
@@ -141,8 +144,11 @@ fn checked(new: NewIndexer, api_key: String) -> Result<Values, Problem> {
     if name.is_empty() {
         return Err(Problem::validation("name", "must not be empty"));
     }
-    if new.kind != TORZNAB {
-        return Err(Problem::validation("kind", "must be `torznab`"));
+    if !matches!(new.kind.as_str(), TORZNAB | NEWZNAB) {
+        return Err(Problem::validation(
+            "kind",
+            "must be `torznab` or `newznab`",
+        ));
     }
     let url = new.url.trim().to_owned();
     if let Err(error) = check_url_text(&url) {
@@ -242,7 +248,7 @@ pub async fn create_indexer(
         .map_err(indexer_error)?;
     let event = Event::new("indexer.created")
         .target("indexer", created.model.id)
-        .data(json!({ "name": created.model.name }));
+        .data(json!({ "name": created.model.name, "kind": created.model.kind }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
     Ok((StatusCode::CREATED, Json(response(&state, created)?)))
 }
@@ -359,6 +365,13 @@ pub struct IndexerTestCategory {
     name: String,
 }
 
+fn test_problem(code: &'static str, title: &'static str, error: impl std::fmt::Display) -> Problem {
+    tracing::warn!(%error, "indexer test");
+    let mut problem = Problem::new(StatusCode::BAD_GATEWAY, code, title);
+    problem.detail = Some(error.to_string());
+    problem
+}
+
 fn test_error(error: TorznabError) -> Problem {
     let (code, title) = match &error {
         TorznabError::ApiKey => (
@@ -373,10 +386,24 @@ fn test_error(error: TorznabError) -> Problem {
             ("indexer_unavailable", "The indexer is not available")
         }
     };
-    tracing::warn!(%error, "indexer test");
-    let mut problem = Problem::new(StatusCode::BAD_GATEWAY, code, title);
-    problem.detail = Some(error.to_string());
-    problem
+    test_problem(code, title, error)
+}
+
+fn newznab_test_error(error: NewznabError) -> Problem {
+    let (code, title) = match &error {
+        NewznabError::ApiKey => (
+            "indexer_api_key_rejected",
+            "The indexer refused the API key",
+        ),
+        NewznabError::RateLimited { .. } => (
+            "indexer_rate_limited",
+            "The indexer is rate limiting this server",
+        ),
+        NewznabError::Url(_) | NewznabError::Indexer { .. } | NewznabError::Unavailable(_) => {
+            ("indexer_unavailable", "The indexer is not available")
+        }
+    };
+    test_problem(code, title, error)
 }
 
 /// Reads the capabilities of the saved indexer and asks it for one item, so
@@ -407,21 +434,49 @@ pub async fn test_indexer(
         )
     })?;
     let http = indexer_client(&state, model.use_proxy).await?;
-    let client = TorznabClient::new(http, &model.url, key.expose());
-    let caps = client.test().await.map_err(test_error)?;
-    let movie = caps.movie_search.as_ref();
-    Ok(Json(IndexerTestResult {
-        movie_search: movie.is_some(),
-        text_search: caps.search.is_some(),
-        imdb_id: movie.is_some_and(|mode| mode.supports("imdbid")),
-        tmdb_id: movie.is_some_and(|mode| mode.supports("tmdbid")),
-        categories: caps
-            .categories
-            .into_iter()
-            .map(|c| IndexerTestCategory {
-                id: c.id,
-                name: c.name,
-            })
-            .collect(),
-    }))
+    let result = match model.kind.as_str() {
+        NEWZNAB => {
+            let caps = NewznabClient::new(http, &model.url, key.expose())
+                .test()
+                .await
+                .map_err(newznab_test_error)?;
+            let movie = caps.movie_search.as_ref();
+            IndexerTestResult {
+                movie_search: movie.is_some(),
+                text_search: caps.search.is_some(),
+                imdb_id: movie.is_some_and(|mode| mode.supports("imdbid")),
+                tmdb_id: movie.is_some_and(|mode| mode.supports("tmdbid")),
+                categories: caps
+                    .categories
+                    .into_iter()
+                    .map(|c| IndexerTestCategory {
+                        id: c.id,
+                        name: c.name,
+                    })
+                    .collect(),
+            }
+        }
+        _ => {
+            let caps = TorznabClient::new(http, &model.url, key.expose())
+                .test()
+                .await
+                .map_err(test_error)?;
+            let movie = caps.movie_search.as_ref();
+            IndexerTestResult {
+                movie_search: movie.is_some(),
+                text_search: caps.search.is_some(),
+                imdb_id: movie.is_some_and(|mode| mode.supports("imdbid")),
+                tmdb_id: movie.is_some_and(|mode| mode.supports("tmdbid")),
+                categories: caps
+                    .categories
+                    .into_iter()
+                    .map(|c| IndexerTestCategory {
+                        id: c.id,
+                        name: c.name,
+                    })
+                    .collect(),
+            }
+        }
+    };
+    Ok(Json(result))
 }

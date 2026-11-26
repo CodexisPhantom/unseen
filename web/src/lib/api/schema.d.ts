@@ -177,6 +177,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Server-sent event stream (`text/event-stream`). Each event is checked
+         *     against the caller's live permissions before it is sent.
+         */
+        get: operations["stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/filesystem": {
         parameters: {
             query?: never;
@@ -568,6 +588,27 @@ export interface paths {
          *     primary profile cannot be removed while another exists.
          */
         delete: operations["remove_profile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/movies/{id}/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Queries all enabled indexers in parallel for releases of a movie, parses
+         *     and scores each result against one of the movie's quality profiles, and
+         *     caches the results so a grab can reference them by id.
+         */
+        get: operations["search_movie"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1260,7 +1301,7 @@ export interface components {
         Indexer: {
             /** @description A key is stored but cannot be decrypted: enter it again. */
             apiKeyMustBeReentered: boolean;
-            /** @description Torznab category ids to search, for example `2000` for movies. */
+            /** @description Torznab or Newznab category ids to search, for example `2000` for movies. */
             categories: number[];
             createdAt: string;
             enabled: boolean;
@@ -1268,7 +1309,7 @@ export interface components {
             hasApiKey: boolean;
             /** Format: int32 */
             id: number;
-            /** @description `torznab`. */
+            /** @description `torznab` or `newznab`. */
             kind: string;
             name: string;
             /**
@@ -1297,6 +1338,13 @@ export interface components {
             tags?: number[] | null;
             url?: string | null;
             useProxy?: boolean | null;
+        };
+        /** @description A failure from one indexer during a manual search. */
+        IndexerSearchError: {
+            /** Format: int32 */
+            indexerId: number;
+            indexerName: string;
+            message: string;
         };
         IndexerTestCategory: {
             /** Format: int32 */
@@ -1490,6 +1538,19 @@ export interface components {
             /** Format: int32 */
             qualityProfileId: number;
         };
+        /** @description Result of a manual release search for one movie and one movie profile. */
+        MovieReleases: {
+            /** @description Per-indexer failures; a failing indexer does not fail the search. */
+            indexerErrors: components["schemas"]["IndexerSearchError"][];
+            /** Format: int32 */
+            movieId: number;
+            /** Format: int32 */
+            movieProfileId: number;
+            /** Format: int32 */
+            qualityProfileId: number;
+            /** @description Accepted releases first, then rejected releases, sorted best-first. */
+            releases: components["schemas"]["Release"][];
+        };
         MovieSubtitles: {
             /**
              * Format: int32
@@ -1568,6 +1629,7 @@ export interface components {
             apiKey: string;
             categories?: number[];
             enabled?: boolean;
+            /** @description `torznab` or `newznab`. Defaults to `torznab`. */
             kind?: string;
             name: string;
             /** Format: int32 */
@@ -1775,6 +1837,100 @@ export interface components {
             minUpgradeFormatScore?: number | null;
             name?: string | null;
             upgradeAllowed?: boolean | null;
+        };
+        /** @description One parsed and scored release returned from a manual search. */
+        Release: {
+            accepted: boolean;
+            /**
+             * Format: double
+             * @description Age in hours since `publishedAt`.
+             */
+            ageHours?: number | null;
+            edition?: string | null;
+            guid: string;
+            /** @description Short-lived cache reference id to pass to grab. */
+            id: string;
+            /** Format: int32 */
+            indexerId: number;
+            indexerName: string;
+            /** @description Lowercase ISO 639-1 language codes (or `multi`) parsed from the title. */
+            languages: string[];
+            /** Format: int32 */
+            leechers?: number | null;
+            proper: boolean;
+            /** @description Download protocol (`torrent`). */
+            protocol: string;
+            /** @description UTC ISO 8601 publish timestamp, if reported by the indexer. */
+            publishedAt?: string | null;
+            /**
+             * Format: int32
+             * @description Radarr quality id (`0` is `Unknown`).
+             */
+            qualityId: number;
+            /** @description Radarr quality name, e.g. `Bluray-1080p`. */
+            qualityName: string;
+            /** @description Empty when `accepted` is true; otherwise every broken rule in order. */
+            rejections: components["schemas"]["ReleaseRejection"][];
+            releaseGroup?: string | null;
+            repack: boolean;
+            score: components["schemas"]["ReleaseScore"];
+            /** Format: int32 */
+            seeders?: number | null;
+            /**
+             * Format: int64
+             * @description Size in bytes, if reported by the indexer.
+             */
+            size?: number | null;
+            title: string;
+        };
+        /** @description Why a release was rejected by the profile or movie rules. */
+        ReleaseRejection: {
+            /** @description Stable machine-readable rejection code, e.g. `quality_not_allowed`. */
+            code: string;
+            /** @description Human-readable explanation. */
+            reason: string;
+        };
+        /** @description The factors used to rank a release (docs/07-release-scoring.md, "Scoring"). */
+        ReleaseScore: {
+            /**
+             * Format: int32
+             * @description Total custom format score for the profile (0 until custom formats are
+             *     evaluated).
+             */
+            customFormatScore: number;
+            /**
+             * Format: int32
+             * @description Indexer priority (1 to 50; lower wins).
+             */
+            indexerPriority: number;
+            /**
+             * Format: int64
+             * @description Distance in bytes from the quality definition's preferred size, when
+             *     both are known.
+             */
+            preferredSizeDistance?: number | null;
+            /**
+             * Format: int32
+             * @description Position of the quality in the profile, higher is better. Absent when
+             *     the quality is not listed in the profile.
+             */
+            qualityRank?: number | null;
+            /**
+             * Format: int32
+             * @description 1-based position in the sorted list (1 is best).
+             */
+            rank: number;
+            /**
+             * Format: int32
+             * @description Revision number: 1 for a first release, 2 for PROPER/REPACK, and higher
+             *     for subsequent revisions.
+             */
+            revision: number;
+            /**
+             * Format: int32
+             * @description Seeders on a log10 scale (`round(log10(seeders + 1))`).
+             */
+            seederScore: number;
         };
         Role: {
             description?: string | null;
@@ -2513,6 +2669,35 @@ export interface operations {
             };
             /** @description The client refused the login or did not answer */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    stream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-sent event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3849,6 +4034,62 @@ export interface operations {
             };
             /** @description The profile is primary (`primary_profile`) or the last one (`last_profile`) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    search_movie: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Movie profile attachment id (`profiles[].id`). Defaults to the movie's
+                 *     primary profile.
+                 */
+                profileId?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Movie id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scored releases and per-indexer errors */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovieReleases"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such movie */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Invalid profileId */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

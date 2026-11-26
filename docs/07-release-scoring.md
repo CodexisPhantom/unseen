@@ -69,18 +69,24 @@ the preferred size lies between them.
 ## Custom formats
 
 Same model and JSON format as Radarr, so that formats exported from Radarr
-and published by the TRaSH guides load unchanged.
+and published by the TRaSH guides load unchanged. `fields` deserialize from
+both Radarr's list form (`[{"name": "value", "value": 1080}]`) and the TRaSH
+guide map form (`{"value": 1080}`), and serialize in the list form.
 
 - A custom format is a name and a list of conditions (specifications).
 - Each condition has a type, a value, `negate` and `required`.
-- A format matches when every required condition matches and, if there are
-  non-required conditions, at least one of each type matches. Verify the
-  exact rule against Radarr's source before implementing.
+- Matching is Radarr's rule: every required condition must match, and
+  conditions are grouped by their `implementation` string. Each group needs
+  at least one match, and a matching required condition counts toward its
+  group, so a group of required conditions must have all of them match. A
+  format with no conditions matches every release. `negate` flips one
+  condition's own result before grouping.
 - Condition types in V1: release title (regex), release group (regex),
   edition (regex), language, source, resolution, quality modifier (remux and
-  others), size, indexer flag, year. Regex syntax is .NET's upstream; the
-  Rust engine must accept every regex in the TRaSH guide data (a test loads
-  all of them).
+  others), size, indexer flag, year. Regexes use `fancy-regex`, because the
+  guide data uses look-ahead and look-behind. A pattern matches
+  case-insensitively and unanchored; an empty pattern matches nothing, and a
+  pattern that does not compile does not match and does not panic.
 - The total score of a release for a profile is the sum of the scores of the
   matching formats.
 - Formats with `includeWhenRenaming` appear in the `{Custom Formats}` naming
@@ -366,8 +372,11 @@ another episode stays.
 
 ### TV test table
 
-Draft, like the movie table. #90 grows it to at least 80 rows, each verified
-against a real Sonarr.
+Expected values verified against Sonarr's parsing rules (`Parser.cs`,
+`QualityParser.cs`, `ReleaseGroupParser.cs` and `Quality.cs` on Sonarr
+`develop`). In Sonarr, a resolution without a source tag (such as `(1080p)` or
+`[720p]` in anime releases) maps to `HDTV-1080p` / `HDTV-720p` (or `SDTV` for
+480p/540p/576p). Every row is asserted by `crates/core/src/tv_release/tests.rs`.
 
 | Release name | Title | Numbering | Quality | Group | Notes |
 |---|---|---|---|---|---|
@@ -377,31 +386,114 @@ against a real Sonarr.
 | `The.Expanse.S03E04-06.720p.HDTV.x264-GROUP` | The Expanse | S03E04 to E06 | HDTV-720p | GROUP | multi-episode, short range |
 | `The.Expanse.3x04.720p.HDTV.x264-GROUP` | The Expanse | S03E04 | HDTV-720p | GROUP | `3x04` form |
 | `The.Expanse.S03E04.PROPER.1080p.WEB.H264-GROUP` | The Expanse | S03E04 | WEBDL-1080p | GROUP | proper, bare `WEB` |
-| `The.Expanse.S03E04.REPACK.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-GROUP` | The Expanse | S03E04 | WEBDL-2160p | GROUP | repack, DV, HDR10 |
+| `The.Expanse.S03E04.REPACK.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-GROUP` | The Expanse | S03E04 | WEBDL-2160p | GROUP | repack, DV, HDR10, Atmos |
 | `The.Expanse.S03E04.1080p.BluRay.x264-GROUP` | The Expanse | S03E04 | Bluray-1080p | GROUP | |
-| `The.Expanse.S03E04.2160p.UHD.BluRay.REMUX.HDR.HEVC-GROUP` | The Expanse | S03E04 | Remux-2160p | GROUP | Sonarr calls it `Bluray-2160p Remux` |
+| `The.Expanse.S03E04.2160p.UHD.BluRay.REMUX.HDR.HEVC-GROUP` | The Expanse | S03E04 | Remux-2160p | GROUP | HDR10, x265, Sonarr calls it `Bluray-2160p Remux` |
+| `The.Expanse.S03E04.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-GROUP` | The Expanse | S03E04 | Remux-1080p | GROUP | x264, Sonarr calls it `Bluray-1080p Remux` |
 | `The.Expanse.S03E04.HDTV.x264-GROUP` | The Expanse | S03E04 | SDTV | GROUP | |
 | `The.Expanse.S03E04.DVDRip.XviD-GROUP` | The Expanse | S03E04 | DVD | GROUP | |
-| `The.Expanse.S03E04.WEBRip.x264-GROUP` | The Expanse | S03E04 | WEBRip-480p | GROUP | no resolution; check what Sonarr reports |
-| `Doctor.Who.2005.S01E01.1080p.WEB-DL.x264-GROUP` | Doctor Who | S01E01 | WEBDL-1080p | GROUP | year 2005 is the show's year |
+| `The.Expanse.S03E04.WEBRip.x264-GROUP` | The Expanse | S03E04 | WEBRip-480p | GROUP | no resolution |
+| `The.Expanse.S03E04.WEB-DL.x264-GROUP` | The Expanse | S03E04 | WEBDL-480p | GROUP | no resolution |
+| `The.Expanse.S03E04.480p.BluRay.x264-GROUP` | The Expanse | S03E04 | Bluray-480p | GROUP | |
+| `The.Expanse.S03E04.576p.BluRay.x264-GROUP` | The Expanse | S03E04 | Bluray-576p | GROUP | |
+| `The.Expanse.S03E04.720p.BluRay.x264-GROUP` | The Expanse | S03E04 | Bluray-720p | GROUP | |
+| `The.Expanse.S03E04.2160p.UHD.BluRay.x265-GROUP` | The Expanse | S03E04 | Bluray-2160p | GROUP | x265 |
+| `The.Expanse.S03E04.720p.WEBRip.x264-GROUP` | The Expanse | S03E04 | WEBRip-720p | GROUP | |
+| `The.Expanse.S03E04.1080p.AMZN.WEBRip.DDP5.1.x264-NTb` | The Expanse | S03E04 | WEBRip-1080p | NTb | |
+| `The.Expanse.S03E04.2160p.NF.WEBRip.DDP5.1.x265-FLUX` | The Expanse | S03E04 | WEBRip-2160p | FLUX | x265 |
+| `The.Expanse.S03E04.1080p.HDTV.x264-GROUP` | The Expanse | S03E04 | HDTV-1080p | GROUP | |
+| `The.Expanse.S03E04.2160p.HDTV.x265-GROUP` | The Expanse | S03E04 | HDTV-2160p | GROUP | x265 |
+| `The.Expanse.S03E04.1080i.HDTV.DD5.1.MPEG2-TrollHD` | The Expanse | S03E04 | Raw-HD | TrollHD | MPEG2 HDTV |
+| `The.Expanse.S03E04.Raw-HD.ts` | The Expanse | S03E04 | Raw-HD | | Raw-HD tag |
+| `The.Expanse.S03.E04.1080p.WEB-DL.x264-GROUP` | The Expanse | S03E04 | WEBDL-1080p | GROUP | dot between season and episode |
+| `The Expanse - S03 - E04 - 720p.HDTV.x264-GROUP` | The Expanse | S03E04 | HDTV-720p | GROUP | separated season and episode |
+| `The.Expanse.S03.Ep.04.1080p.BluRay.x264-GROUP` | The Expanse | S03E04 | Bluray-1080p | GROUP | `Ep.` form |
+| `The.Expanse.Season.3.Episode.04.1080p.WEB-DL.x264-GROUP` | The Expanse | S03E04 | WEBDL-1080p | GROUP | `Season Episode` form |
+| `The.Expanse.S03.04.1080p.BDRip.x264-GROUP` | The Expanse | S03E04 | Bluray-1080p | GROUP | `S03.04` form |
+| `The.Expanse.103.720p.HDTV.x264-DIMENSION` | The Expanse | S01E03 | HDTV-720p | DIMENSION | SEE numbering |
+| `The.Expanse.1013.720p.HDTV.x264-DIMENSION` | The Expanse | S10E13 | HDTV-720p | DIMENSION | SSEE numbering |
+| `The.Expanse.S2016E14.720p.HDTV.x264-GROUP` | The Expanse | S2016E14 | HDTV-720p | GROUP | 4-digit year season |
+| `The.Expanse.S03E115.DVDRip.XviD-OSiTV` | The Expanse | S03E115 | DVD | OSiTV | 3-digit episode |
+| `S03E09.720p.HDTV.x264-GROUP` | | S03E09 | HDTV-720p | GROUP | no title |
+| `The.Expanse.S03E04.S03E05.720p.HDTV.x264-DIMENSION` | The Expanse | S03E04, E05 | HDTV-720p | DIMENSION | multi-episode, repeated SxxExx |
+| `The.Expanse.S03E04.E05.1080p.WEB-DL.x264-GROUP` | The Expanse | S03E04, E05 | WEBDL-1080p | GROUP | multi-episode, separated E |
+| `The.Expanse.S03E04-05-06.1080p.BluRay.x264-GROUP` | The Expanse | S03E04 to E06 | Bluray-1080p | GROUP | multi-episode, triple dash |
+| `The.Expanse.2x04.2x05.720p.BluRay-FUTV` | The Expanse | S02E04, E05 | Bluray-720p | FUTV | multi-episode, repeated NxEE |
+| `The.Expanse.2x04-06.720p.HDTV.x264-GROUP` | The Expanse | S02E04 to E06 | HDTV-720p | GROUP | multi-episode, NxEE range |
+| `The.Expanse.S01E99-100.1080p.WEB-DL.x264-GROUP` | The Expanse | S01E99, E100 | WEBDL-1080p | GROUP | multi-episode, 2 to 3 digits |
+| `The.Expanse.Season.01.Episode.05-06.720p.WEB-DL.x264-GROUP` | The Expanse | S01E05, E06 | WEBDL-720p | GROUP | multi-episode, word range |
+| `The.Expanse.S01E01A.1080p.WEB-DL.x264-GROUP` | The Expanse | S01E01 | WEBDL-1080p | GROUP | split episode |
+| `The.Expanse.S06E01b.Fade.Out.1080p.DSNP.WEB-DL.AAC2.0.H.264-FLUX` | The Expanse | S06E01 | WEBDL-1080p | FLUX | split episode |
+| `The.Expanse.S01E01.Part.1.1080p.WEB-DL.x264-GROUP` | The Expanse | S01E01 | WEBDL-1080p | GROUP | split episode, part 1 |
+| `The.Expanse.S01E01.Part2.720p.HDTV.x264-GROUP` | The Expanse | S01E01 | HDTV-720p | GROUP | split episode, part 2 |
+| `Doctor.Who.2005.S01E01.1080p.WEB-DL.x264-GROUP` | Doctor Who | S01E01 | WEBDL-1080p | GROUP | year 2005 |
+| `Doctor.Who.(2005).S01E01.1080p.BluRay.x264-GROUP` | Doctor Who | S01E01 | Bluray-1080p | GROUP | year 2005, parenthesised year |
 | `24.S01E01.720p.HDTV.x264-GROUP` | 24 | S01E01 | HDTV-720p | GROUP | numeric title |
+| `1923.S01E01.1080p.WEB-DL.x264-GROUP` | 1923 | S01E01 | WEBDL-1080p | GROUP | year-like numeric title |
+| `1923.2022.S01E01.1080p.WEB-DL.x264-GROUP` | 1923 | S01E01 | WEBDL-1080p | GROUP | year 2022, numeric title with year |
 | `Shameless.US.S02E03.1080p.WEB-DL.x264-GROUP` | Shameless US | S02E03 | WEBDL-1080p | GROUP | country suffix |
+| `Brooklyn.Nine-Nine.S01E01.1080p.BluRay.x264-GROUP` | Brooklyn Nine-Nine | S01E01 | Bluray-1080p | GROUP | hyphenated title |
 | `The.Expanse.S00E01.1080p.WEB-DL.x264-GROUP` | The Expanse | S00E01 | WEBDL-1080p | GROUP | special |
+| `The.Expanse.S00E01E02.1080p.BluRay.x264-GROUP` | The Expanse | S00E01, E02 | Bluray-1080p | GROUP | special, multi-episode |
+| `[Impatience] Show - 0x01 [720p][34073169].mkv` | Show | S00E01 | HDTV-720p | Impatience | special, hash 34073169 |
+| `Series Title S01E11.5 [SP] [1080p].mkv` | Series Title | S01E11 | HDTV-1080p | | special, decimal SP |
+| `[DeadFish] Frieren - 01 - OVA [BD][720p][AAC]` | Frieren | absolute 1 | Bluray-720p | DeadFish | special, OVA |
 | `The.Expanse.S03.1080p.BluRay.x264-GROUP` | The Expanse | S03 | Bluray-1080p | GROUP | season pack |
 | `The.Expanse.Season.3.1080p.BluRay.x264-GROUP` | The Expanse | S03 | Bluray-1080p | GROUP | season pack, `Season.3` form |
 | `The.Expanse.S03.COMPLETE.720p.WEB-DL.x264-GROUP` | The Expanse | S03 | WEBDL-720p | GROUP | season pack |
+| `The.Expanse.Saison.3.FRENCH.720p.HDTV.x264-GROUP` | The Expanse | S03 | HDTV-720p | GROUP | season pack, language French |
+| `The.Expanse.Stagione.3.ITALIAN.720p.HDTV.x264-GROUP` | The Expanse | S03 | HDTV-720p | GROUP | season pack, language Italian |
+| `The.Expanse.S2014.720p.HDTV.x264-ME` | The Expanse | S2014 | HDTV-720p | ME | season pack, 4-digit season |
+| `[Vivid] Frieren S01 [Web][MKV][h264][1080p][AAC 2.0]` | Frieren | S01 | WEBDL-1080p | Vivid | season pack, anime S01 |
+| `[Judas] Frieren (Season 1) [BD 1080p] [Batch]` | Frieren | S01 | Bluray-1080p | Judas | season pack, anime Season 1 |
 | `The.Expanse.S01-S03.1080p.BluRay.x264-GROUP` | The Expanse | S01 to S03 | Bluray-1080p | GROUP | multi-season, hand grab only |
+| `The.Expanse.S01-05.1080p.WEB-DL.x264-GROUP` | The Expanse | S01 to S05 | WEBDL-1080p | GROUP | multi-season, short range |
+| `The.Expanse.Season.01-04.720p.BluRay.x264-GROUP` | The Expanse | S01 to S04 | Bluray-720p | GROUP | multi-season, word range |
+| `The.Expanse.Season.01.-.Season.03.1080p.BluRay.x264-GROUP` | The Expanse | S01 to S03 | Bluray-1080p | GROUP | multi-season, repeated Season |
+| `The.Expanse.S01.S02.S03.1080p.WEB-DL.x264-GROUP` | The Expanse | S01 to S03 | WEBDL-1080p | GROUP | multi-season, explicit list |
+| `[Group] Frieren S01-S03 (BD 1080p)` | Frieren | S01 to S03 | Bluray-1080p | Group | multi-season, anime |
+| `The.Expanse.S02.Part.1.1080p.NF.WEBRip.DD5.1.x264-NTb` | The Expanse | S02 | WEBRip-1080p | NTb | partial season part 1 |
+| `The.Expanse.S07.Vol.1.1080p.BluRay.x264-GROUP` | The Expanse | S07 | Bluray-1080p | GROUP | partial season part 1 |
+| `The.Expanse.S06.P2.1080p.BluRay.x265-GROUP` | The Expanse | S06 | Bluray-1080p | GROUP | partial season part 2 |
 | `The.Daily.Show.2024.05.17.1080p.WEB.h264-GROUP` | The Daily Show | 2024-05-17 | WEBDL-1080p | GROUP | daily |
 | `Late.Night.2024-05-17.720p.HDTV.x264-GROUP` | Late Night | 2024-05-17 | HDTV-720p | GROUP | daily, dashes |
 | `The.Daily.Show.2024.05.17.Guest.Name.720p.HDTV.x264-GROUP` | The Daily Show | 2024-05-17 | HDTV-720p | GROUP | daily with a guest |
-| `[SubsPlease] Frieren - 12 (1080p) [ABCD1234].mkv` | Frieren | absolute 12 | check | SubsPlease | resolution without source; check what Sonarr reports |
-| `[SubsPlease] Frieren - 12v2 (1080p) [ABCD1234].mkv` | Frieren | absolute 12 | check | SubsPlease | version 2 |
-| `[Group] One Piece - 1085 [1080p][HEVC]` | One Piece | absolute 1085 | check | Group | large absolute number |
-| `[Group] Frieren - 05-08 [720p]` | Frieren | absolute 5 to 8 | check | Group | absolute range |
+| `The.Daily.Show.2024.05.17.Part.2.720p.HULU.WEBRip.x264-GROUP` | The Daily Show | 2024-05-17 | WEBRip-720p | GROUP | daily, part 2 |
+| `The.Daily.Show.20240517.720p.WEBRip.x264-GROUP` | The Daily Show | 2024-05-17 | WEBRip-720p | GROUP | daily, compact YYYYMMDD |
+| `The.Daily.Show.140722.720p.HDTV.x264-YesTV` | The Daily Show | 2014-07-22 | HDTV-720p | YesTV | daily, 6-digit YYMMDD |
+| `The.Daily.Show.30-04-2024.HDTV.1080p.H264-GROUP` | The Daily Show | 2024-04-30 | HDTV-1080p | GROUP | daily, DD-MM-YYYY |
+| `The_Series_US_04.28.2014_hdtv.x264-GROUP.mp4` | The Series US | 2014-04-28 | SDTV | GROUP | daily, MM.DD.YYYY |
+| `2020.A.Late.Talk.Show.2012.16.02.PDTV.XviD-C4TV` | 2020 A Late Talk Show | 2012-02-16 | SDTV | C4TV | daily, swapped month/day |
+| `The.Daily.Show.5th.Mar.2025.1080p.WEB-DL.x264-GROUP` | The Daily Show | 2025-03-05 | WEBDL-1080p | GROUP | daily, short month |
+| `[SubsPlease] Frieren - 12 (1080p) [ABCD1234].mkv` | Frieren | absolute 12 | HDTV-1080p | SubsPlease | hash ABCD1234, resolution without source |
+| `[SubsPlease] Frieren - 12v2 (1080p) [ABCD1234].mkv` | Frieren | absolute 12 | HDTV-1080p | SubsPlease | version 2, hash ABCD1234 |
+| `[SubsPlease] Frieren - 12v3 (1080p) [1234ABCD].mkv` | Frieren | absolute 12 | HDTV-1080p | SubsPlease | version 3, hash 1234ABCD |
+| `[Group] One Piece - 1085 [1080p][HEVC]` | One Piece | absolute 1085 | HDTV-1080p | Group | x265, large absolute number |
+| `[Group] Frieren - 05-08 [720p]` | Frieren | absolute 5 to 8 | HDTV-720p | Group | multi-episode, absolute range |
 | `[Group] Frieren (01-28) [BD 1080p] [Batch]` | Frieren | absolute 1 to 28 | Bluray-1080p | Group | batch |
+| `[Erai-raws] Jujutsu Kaisen - 01 ~ 12 [1080p]` | Jujutsu Kaisen | absolute 1 to 12 | HDTV-1080p | Erai-raws | multi-episode, tilde range |
+| `[HatSubs] One Piece (1017-1088) (WEB 1080p)` | One Piece | absolute 1017 to 1088 | WEBDL-1080p | HatSubs | multi-episode, 4-digit range |
+| `[BakeSubs] 86 - 01 [1080p][D40A9E55].mkv` | 86 | absolute 1 | HDTV-1080p | BakeSubs | hash D40A9E55, numeric anime title |
+| `[HorribleSubs] Mob Psycho 100 S2 - 07 [720p].mkv` | Mob Psycho 100 S2 | absolute 7 | HDTV-720p | HorribleSubs | anime season in title |
+| `[Shark-Raws] One Piece #957 (1280x720 x264 AAC).mp4` | One Piece | absolute 957 | HDTV-720p | Shark-Raws | `#` episode form |
+| `[Exiled-Destiny] Bleach Ep01 (D2201EC5).mkv` | Bleach | absolute 1 | HDTV-720p | Exiled-Destiny | hash D2201EC5, extension fallback |
+| `[Kaleido-subs] Frieren - 12 (S01E12) (WEB 1080p HEVC) [1ADD8F6D]` | Frieren | S01E12, absolute 12 | WEBDL-1080p | Kaleido-subs | hash 1ADD8F6D, x265, dual numbering |
+| `[SubDESU]_Show_One_07_(1280x720_x264-AAC)_[6B7FD717]` | Show One | absolute 7 | HDTV-720p | SubDESU | hash 6B7FD717, underscores |
+| `One.Piece.E1135.GERMAN.1080p.WEBRip.x264-GROUP` | One Piece | absolute 1135 | WEBRip-1080p | GROUP | language German, 4-digit E |
 | `Frieren.S01E12.1080p.WEB-DL.AAC2.0.H.264-GROUP` | Frieren | S01E12 | WEBDL-1080p | GROUP | anime with season numbering |
 | `Dix.pour.cent.S05E03.FRENCH.1080p.WEB.H264-GROUP` | Dix pour cent | S05E03 | WEBDL-1080p | GROUP | language French |
-| `Some.Show.S01E01.MULTi.1080p.WEB.H264-GROUP` | Some Show | S01E01 | WEBDL-1080p | GROUP | language multi |
+| `Some.Show.S01E01.MULTi.1080p.WEB.H264-GROUP` | Some Show | S01E01 | WEBDL-1080p | GROUP | language Multi |
+| `Dark.S01E01.GERMAN.1080p.NF.WEB-DL.DDP5.1.H.264-GROUP` | Dark | S01E01 | WEBDL-1080p | GROUP | language German |
+| `The.Expanse.S03E04.REPACK2.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb` | The Expanse | S03E04 | WEBDL-1080p | NTb | repack, version 3 |
+| `The.Expanse.S03E04.RERIP.720p.BluRay.x264-DEMAND` | The Expanse | S03E04 | Bluray-720p | DEMAND | repack, version 2 |
+| `The.Expanse.S03E04.1080p.x264-GROUP` | The Expanse | S03E04 | HDTV-1080p | GROUP | bare 1080p maps to HDTV-1080p |
+| `The.Expanse.S03E04.480p.x264-GROUP` | The Expanse | S03E04 | SDTV | GROUP | bare 480p maps to SDTV |
+| `The.Expanse.S03E04.x264-GROUP` | The Expanse | S03E04 | SDTV | GROUP | bare x264 maps to SDTV |
+| `The.Expanse.S03E04.CAM.XviD-GROUP` | The Expanse | S03E04 | Unknown | GROUP | movie-only CAM ignored |
+| `[www.Torrenting.com] - The.Expanse.S03E04.720p.HDTV.x264-DIMENSION` | The Expanse | S03E04 | HDTV-720p | DIMENSION | website prefix stripped |
+| `The.Expanse.S03E04.1080p.WEB-DL.x264-NTb-Obfuscated` | The Expanse | S03E04 | WEBDL-1080p | NTb | repost suffix stripped |
+| `Band.of.Brothers.Part.01.1080p.BluRay.x264-GROUP` | Band of Brothers | S01E01 | Bluray-1080p | GROUP | mini-series Part 01 |
+| `The.Expanse.S03E04.HC.1080p.WEBRip.AV1-GROUP` | The Expanse | S03E04 | WEBRip-1080p | GROUP | hardcoded subs, AV1 |
 
 ## Decisions (2026-11-15)
 
@@ -410,8 +502,3 @@ against a real Sonarr.
   formats. This keeps instance import and the TRaSH guides lossless; a
   separate preferred list would be a second, incompatible mechanism.
 - Custom formats and the TRaSH guide browser are in V1.
-
-## Open questions
-
-- Regex compatibility: which Rust regex engine accepts all upstream patterns
-  (look-around is used in the guide data)?

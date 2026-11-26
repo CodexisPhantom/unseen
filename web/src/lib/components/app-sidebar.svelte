@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import ImportIcon from '@lucide/svelte/icons/folder-input';
+	import LayersIcon from '@lucide/svelte/icons/layers';
 	import LibraryIcon from '@lucide/svelte/icons/library';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RulerIcon from '@lucide/svelte/icons/ruler';
@@ -21,6 +22,7 @@
 
 	const icons = {
 		library: LibraryIcon,
+		collections: LayersIcon,
 		add: PlusIcon,
 		import: ImportIcon,
 		activity: ActivityIcon,

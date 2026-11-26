@@ -68,7 +68,28 @@ does not apply to it; the check on the URL itself still does.
 
 ## Newznab (M9)
 
-Same as Torznab with NZB enclosures and `newznab:attr`. Details in M9.
+| | |
+|---|---|
+| Endpoints | `?t=caps`, `?t=movie&imdbid=&tmdbid=&q=&extended=1`, `?t=search&q=&extended=1`, RSS: `?t=movie&extended=1` without query |
+| Auth | `apikey` query parameter |
+| Rate limits | Per indexer; back off on HTTP 429 and XML error codes 429, 500 and 501 (honoring `Retry-After` when present) |
+| Failure | Skip the indexer for this search; XML codes 100–109 or HTTP 401/403 map to `ApiKey` |
+| Mock | XML fixtures from two indexers (NZBgeek and DrunkenSlug): caps, movie results with NZB enclosures and `newznab:attr`, credential and rate-limit errors |
+
+Implementation notes (`newznab.rs`):
+
+- Same capability-first rules as Torznab: use only modes and parameters `caps`
+  advertises, preferring `imdbid` (without `tt`), then `tmdbid`, then title
+  search. Passes `extended=1` so indexers include `newznab:attr` metadata.
+- Picks the `application/x-nzb` `<enclosure>` (falling back to an untyped
+  enclosure, then `<link>`) and ignores non-NZB attachments such as cover
+  images. Items without an NZB address are skipped.
+- Parses `newznab:attr` fields (`size`, `category`, `grabs`, `usenetdate`,
+  `imdb`, `tmdbid`, `files`, `poster`, `group`, `password`) and computes
+  `age_hours` / `age_days` from `usenetdate` (falling back to `pubDate`).
+- Indexer rows accept `kind = "newznab"` alongside `"torznab"`, share the same
+  write-only encrypted `api_key` and outbound proxy rules, and validate via
+  `t=caps` followed by an RSS fetch with `limit=1`.
 
 ## qBittorrent (M4)
 
@@ -101,7 +122,23 @@ Rules of the client in `core` (`qbittorrent.rs`):
 
 ## SABnzbd (M9)
 
-`/api?mode=addurl|queue|history|version&output=json&apikey=`. Details in M9.
+| | |
+|---|---|
+| Endpoints (`/api?output=json&apikey=`) | `mode=queue`, `mode=history`, `mode=addurl`, `mode=version` |
+| Auth | API key in the `apikey` query parameter on every call |
+| Rate limits | None; poll while downloads are active, 60 s when idle |
+| Failure | An HTTP 401 names the key; anything else is unavailable |
+| Mock | JSON fixtures per endpoint |
+
+- Add takes an http(s) NZB URL as `name` and the category as `cat`, with
+  `nzbname` only when a display name is given, and returns the first of
+  `nzo_ids`.
+- Queue and history take `cat` and keep only the slots of that category.
+- Delete finds our ids first and deletes queue ids with
+  `mode=queue&name=delete&value=&del_files=`, history ids with
+  `mode=history&name=delete&value=&archive=0&del_files=` (`archive=0` fully
+  removes the slot; the default archives). `del_files=1` when files go too.
+- A wrong key is HTTP 401.
 
 ## Subtitle providers
 

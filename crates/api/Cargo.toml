@@ -18,6 +18,7 @@ axum.workspace = true
 better-auth = { workspace = true, features = ["axum"] }
 chrono.workspace = true
 fs4.workspace = true
+futures-util.workspace = true
 hkdf.workspace = true
 rand.workspace = true
 rust-embed.workspace = true
@@ -30,6 +31,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 utoipa.workspace = true
 utoipa-axum.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

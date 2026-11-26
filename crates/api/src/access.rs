@@ -70,6 +70,8 @@ pub struct Caller {
     permissions: EffectivePermissions,
     /// The API key that authenticated the request, if it was not a session.
     api_key: Option<i32>,
+    /// The better-auth session that authenticated the request, if any.
+    session_id: Option<String>,
 }
 
 impl Caller {
@@ -82,6 +84,11 @@ impl Caller {
     #[must_use]
     pub fn api_key(&self) -> Option<i32> {
         self.api_key
+    }
+
+    #[must_use]
+    pub fn session_id(&self) -> Option<&str> {
+        self.session_id.as_deref()
     }
 
     #[must_use]
@@ -172,6 +179,7 @@ pub(crate) async fn caller_from_api_key(
         user_id: owner.user_id.clone(),
         permissions: EffectivePermissions::new(false, narrowed),
         api_key: Some(owner.key_id),
+        session_id: None,
     })
 }
 
@@ -202,6 +210,10 @@ async fn from_session(parts: &mut Parts, state: &AppState) -> Result<Caller, Pro
         tracing::error!("authenticated user has no string id");
         return Err(Problem::internal());
     };
+    let Some(session_id) = current.session.id.as_str() else {
+        tracing::error!("authenticated session has no string id");
+        return Err(Problem::internal());
+    };
 
     let grants = db::access::grants_of_user(&state.db, user_id)
         .await
@@ -214,6 +226,7 @@ async fn from_session(parts: &mut Parts, state: &AppState) -> Result<Caller, Pro
         user_id: user_id.to_owned(),
         permissions: EffectivePermissions::new(grants.is_owner, &grants.permissions),
         api_key: None,
+        session_id: Some(session_id.to_owned()),
     })
 }
 
