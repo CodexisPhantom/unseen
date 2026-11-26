@@ -688,6 +688,21 @@ fn safe_log_file_path(logs_dir: &Path, name: &str) -> io::Result<Option<PathBuf>
     Ok(Some(canonical_path))
 }
 
+#[cfg(unix)]
+fn same_file_identity(
+    path_metadata: &std::fs::Metadata,
+    file_metadata: &std::fs::Metadata,
+) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    path_metadata.dev() == file_metadata.dev() && path_metadata.ino() == file_metadata.ino()
+}
+
+#[cfg(windows)]
+fn same_file_identity(identity: &same_file::Handle, file: &File) -> io::Result<bool> {
+    same_file::Handle::from_file(file.try_clone()?).map(|opened| identity == &opened)
+}
+
 fn scan_file_backwards(
     file: &mut File,
     date: NaiveDate,
@@ -893,12 +908,18 @@ pub async fn download(
     let path = state.logs_dir.join(&name);
     let file = tokio::task::spawn_blocking(move || -> io::Result<Option<File>> {
         #[cfg(windows)]
+        // Snapshot the path identity before checking its type; a later type check catches a pre-existing symlink,
+        // and comparing the opened handle catches any replacement between the check and open.
+        let path_identity = match same_file::Handle::from_path(&path) {
+            Ok(identity) => identity,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
         let meta = match std::fs::symlink_metadata(&path) {
             Ok(meta) => meta,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
-        #[cfg(windows)]
         if !meta.file_type().is_file() {
             return Ok(None);
         }
@@ -910,7 +931,6 @@ pub async fn download(
             use std::os::unix::fs::OpenOptionsExt;
             options.custom_flags(libc::O_NOFOLLOW);
         }
-        // On Windows the pre-open symlink check can race with a path swap; this residual race is Windows-only.
         let file = match options.open(&path) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -918,7 +938,13 @@ pub async fn download(
             Err(error) if error.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
             Err(error) => return Err(error),
         };
-        if !file.metadata()?.is_file() {
+        let opened_meta = file.metadata()?;
+        // This identity check closes a path-swap race on Windows; Unix also uses O_NOFOLLOW on the final component.
+        #[cfg(unix)]
+        let same_identity = same_file_identity(&meta, &opened_meta);
+        #[cfg(windows)]
+        let same_identity = same_file_identity(&path_identity, &file)?;
+        if !opened_meta.is_file() || !same_identity {
             return Ok(None);
         }
         Ok(Some(file))
