@@ -671,3 +671,53 @@ async fn test_reads_caps_and_checks_key_with_one_rss_item() {
         NewznabError::ApiKey
     );
 }
+
+#[tokio::test]
+async fn caps_error_text_redacts_the_configured_key() {
+    let fixture_key = "distinct-key-3f9c1d7e2b6a4c8d";
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(query_param("apikey", fixture_key))
+        .respond_with(xml(&format!(
+            r#"<error code="202" description="bad apikey={fixture_key}"/>"#
+        )))
+        .mount(&server)
+        .await;
+
+    let error = client(&server, fixture_key).caps().await.unwrap_err();
+    match &error {
+        NewznabError::Indexer { code, description } => {
+            assert_eq!(*code, 202);
+            assert!(description.contains("[redacted]"), "{description}");
+            assert!(!description.contains(fixture_key));
+        }
+        other => panic!("expected an indexer error, got {other:?}"),
+    }
+    assert!(!format!("{error:?}").contains(fixture_key));
+    assert!(!error.to_string().contains(fixture_key));
+}
+
+#[tokio::test]
+async fn http_error_body_redacts_the_configured_key() {
+    let fixture_key = "distinct-key-3f9c1d7e2b6a4c8d";
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(
+            ResponseTemplate::new(500)
+                .insert_header("content-type", "text/plain")
+                .set_body_string(format!("upstream rejected apikey {fixture_key}")),
+        )
+        .mount(&server)
+        .await;
+
+    let error = client(&server, fixture_key).caps().await.unwrap_err();
+    match &error {
+        NewznabError::Unavailable(reason) => {
+            assert!(reason.contains("[redacted]"), "{reason}");
+            assert!(!reason.contains(fixture_key));
+        }
+        other => panic!("expected an unavailable error, got {other:?}"),
+    }
+    assert!(!format!("{error:?}").contains(fixture_key));
+    assert!(!error.to_string().contains(fixture_key));
+}

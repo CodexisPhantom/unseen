@@ -515,6 +515,24 @@ impl NewznabClient {
         }
     }
 
+    /// Replaces the configured key wherever the indexer echoed it back. The key
+    /// travels in the query string and indexer text is untrusted, so error text
+    /// could otherwise leak the key to a caller or a log line.
+    fn scrub_key(&self, error: NewznabError) -> NewznabError {
+        if self.api_key.is_empty() {
+            return error;
+        }
+        let redact = |text: String| text.replace(self.api_key.as_str(), "[redacted]");
+        match error {
+            NewznabError::Indexer { code, description } => NewznabError::Indexer {
+                code,
+                description: redact(description),
+            },
+            NewznabError::Unavailable(reason) => NewznabError::Unavailable(redact(reason)),
+            other => other,
+        }
+    }
+
     async fn get(&self, params: &[(&'static str, String)]) -> Result<String, NewznabError> {
         let response = self
             .http
@@ -523,7 +541,7 @@ impl NewznabClient {
             .query(params)
             .send()
             .await
-            .map_err(unavailable)?;
+            .map_err(|error| self.scrub_key(unavailable(error)))?;
         let status = response.status();
         let retry_after = response
             .headers()
@@ -531,26 +549,30 @@ impl NewznabClient {
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.trim().parse().ok())
             .map(Duration::from_secs);
-        let body = response.text().await.map_err(unavailable)?;
+        let body = response
+            .text()
+            .await
+            .map_err(|error| self.scrub_key(unavailable(error)))?;
         // Indexers put the error element on 200 and on 4xx/5xx alike.
         if let Ok(document) = Document::parse(&body)
             && let Some(error) = error_element(document.root_element(), retry_after)
         {
-            return Err(error);
+            return Err(self.scrub_key(error));
         }
         match status {
             StatusCode::TOO_MANY_REQUESTS => Err(NewznabError::RateLimited { retry_after }),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(NewznabError::ApiKey),
             status if status.is_success() => Ok(body),
-            status => Err(NewznabError::Unavailable(format!(
+            status => Err(self.scrub_key(NewznabError::Unavailable(format!(
                 "answered HTTP {status}: {}",
                 snippet(&body)
-            ))),
+            )))),
         }
     }
 
     pub async fn caps(&self) -> Result<Caps, NewznabError> {
         parse_caps(&self.get(&[("t", "caps".to_owned())]).await?)
+            .map_err(|error| self.scrub_key(error))
     }
 
     pub async fn search_movie(
@@ -559,6 +581,7 @@ impl NewznabClient {
         query: &MovieQuery,
     ) -> Result<Vec<NzbRelease>, NewznabError> {
         parse_feed(&self.get(&movie_params(caps, query)?).await?)
+            .map_err(|error| self.scrub_key(error))
     }
 
     pub async fn search_text(
@@ -568,6 +591,7 @@ impl NewznabClient {
         category_ids: &[i32],
     ) -> Result<Vec<NzbRelease>, NewznabError> {
         parse_feed(&self.get(&text_params(caps, query, category_ids)?).await?)
+            .map_err(|error| self.scrub_key(error))
     }
 
     /// The newest releases, for RSS sync.
@@ -577,6 +601,7 @@ impl NewznabClient {
         category_ids: &[i32],
     ) -> Result<Vec<NzbRelease>, NewznabError> {
         parse_feed(&self.get(&rss_params(caps, category_ids)?).await?)
+            .map_err(|error| self.scrub_key(error))
     }
 
     /// Reads `caps` and then asks for the RSS feed with `limit=1`, because
@@ -586,7 +611,7 @@ impl NewznabClient {
         let caps = self.caps().await?;
         let mut params = rss_params(&caps, &[])?;
         params.push(("limit", "1".to_owned()));
-        parse_feed(&self.get(&params).await?)?;
+        parse_feed(&self.get(&params).await?).map_err(|error| self.scrub_key(error))?;
         Ok(caps)
     }
 }
