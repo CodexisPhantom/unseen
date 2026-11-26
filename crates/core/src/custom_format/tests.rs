@@ -386,6 +386,38 @@ fn required_and_negate_cover_every_type() {
 }
 
 #[test]
+fn except_language_does_not_match_multilingual_release_containing_excluded_language() {
+    let name = "Movie.2019.1080p.BluRay.x264-GROUP";
+    let parsed = release::parse(name);
+    let languages = [4, 1];
+    let release = info(name, &parsed, &languages, 0, &[], None);
+    let except_german = test_format(vec![test_specification(
+        "LanguageSpecification",
+        true,
+        false,
+        fields(&[("value", number(4)), ("exceptLanguage", Value::Bool(true))]),
+    )]);
+
+    assert!(!except_german.matches(&release));
+}
+
+#[test]
+fn except_language_matches_release_without_excluded_language() {
+    let name = "Movie.2019.1080p.BluRay.x264-GROUP";
+    let parsed = release::parse(name);
+    let languages = [1];
+    let release = info(name, &parsed, &languages, 0, &[], None);
+    let except_german = test_format(vec![test_specification(
+        "LanguageSpecification",
+        true,
+        false,
+        fields(&[("value", number(4)), ("exceptLanguage", Value::Bool(true))]),
+    )]);
+
+    assert!(except_german.matches(&release));
+}
+
+#[test]
 fn non_required_specifications_are_grouped_by_implementation() {
     let name = "Movie.2019.1080p.BluRay.x264-GROUP";
     let parsed = release::parse(name);

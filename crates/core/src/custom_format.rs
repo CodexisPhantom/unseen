@@ -106,7 +106,7 @@ impl Specification {
             "LanguageSpecification" => {
                 let value = integer_field(self, "value").unwrap_or(0) as i32;
                 if boolean_field(self, "exceptLanguage").unwrap_or(false) {
-                    release.languages.iter().any(|language| *language != value)
+                    !release.languages.contains(&value)
                 } else {
                     release.languages.contains(&value)
                 }
