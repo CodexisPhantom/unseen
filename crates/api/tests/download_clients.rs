@@ -278,7 +278,8 @@ async fn rejects_bad_input_and_duplicate_names() {
         ("url", json!({ "url": "ftp://x.test/" })),
         ("url", json!({ "url": "http://169.254.169.254/" })),
         ("category", json!({ "category": " " })),
-        ("kind", json!({ "kind": "sabnzbd" })),
+        ("kind", json!({ "kind": "transmission" })),
+        ("apiKey", json!({ "kind": "sabnzbd", "apiKey": "" })),
         ("remotePath", json!({ "remotePath": "/downloads" })),
         ("tags", json!({ "tags": [999] })),
     ] {
@@ -521,4 +522,149 @@ async fn a_refused_api_key_is_reported_and_an_unreadable_one_must_be_entered_aga
         .await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(reply["code"], "client_api_key_unreadable");
+}
+
+const SAB_KEY: &str = "sab-secret-key";
+
+#[tokio::test]
+async fn sabnzbd_is_created_with_its_api_key_write_only_and_tested() {
+    let app = App::new().await;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api"))
+        .and(wiremock::matchers::query_param("mode", "queue"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"queue":{"slots":[]}}"#))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api"))
+        .and(wiremock::matchers::query_param("mode", "version"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"version":"4.3.2"}"#))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let (status, created) = app
+        .owner(
+            Method::POST,
+            PATH,
+            Some(json!({
+                "name": "Sab",
+                "kind": "sabnzbd",
+                "url": server.uri(),
+                "apiKey": SAB_KEY,
+                "username": "ignored",
+                "password": "ignored",
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["kind"], "sabnzbd");
+    assert_eq!(created["hasApiKey"], true);
+    assert_eq!(created["apiKeyMustBeReentered"], false);
+    assert_eq!(created["username"], Value::Null);
+    assert_eq!(created["hasPassword"], false);
+    let id = created["id"].as_i64().unwrap();
+
+    let stored = db::download_clients::find(&app.state.db, id as i32)
+        .await
+        .unwrap()
+        .unwrap()
+        .model;
+    let encrypted_key = stored.api_key.clone().unwrap();
+    assert!(!encrypted_key.contains(SAB_KEY));
+    assert_eq!(
+        db::secret::decrypt(&app.state.secrets, &encrypted_key)
+            .unwrap()
+            .expose(),
+        SAB_KEY
+    );
+    assert_eq!(stored.username, None);
+    assert_eq!(stored.password, None);
+
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert_eq!(reply["version"], "4.3.2");
+
+    let (_, renamed) = app
+        .owner(
+            Method::PATCH,
+            &format!("{PATH}/{id}"),
+            Some(json!({ "name": "Sab2" })),
+        )
+        .await;
+    assert_eq!(renamed["hasApiKey"], true);
+    let (_, listed) = app.owner(Method::GET, PATH, None).await;
+    let (status, audit) = app.owner(Method::GET, "/api/v1/audit-log", None).await;
+    assert_eq!(status, StatusCode::OK);
+    for reply in [&renamed, &listed, &audit] {
+        assert!(!reply.to_string().contains(SAB_KEY), "{reply}");
+    }
+
+    let (status, _) = app
+        .owner(Method::DELETE, &format!("{PATH}/{id}"), None)
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _) = app
+        .owner(Method::DELETE, &format!("{PATH}/{id}"), None)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_sabnzbd_key_is_required_and_a_wrong_one_is_named() {
+    let app = App::new().await;
+
+    let (status, reply) = app
+        .owner(
+            Method::POST,
+            PATH,
+            Some(json!({
+                "name": "NoKey",
+                "kind": "sabnzbd",
+                "url": "http://sabnzbd.test:8080",
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{reply}");
+    assert_eq!(reply["errors"][0]["field"], "apiKey");
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("error: API Key Incorrect"))
+        .mount(&server)
+        .await;
+    let (status, created) = app
+        .owner(
+            Method::POST,
+            PATH,
+            Some(json!({
+                "name": "Sab",
+                "kind": "sabnzbd",
+                "url": server.uri(),
+                "apiKey": "wrong-key",
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    let id = created["id"].as_i64().unwrap();
+    let (status, reply) = app
+        .owner(Method::POST, &format!("{PATH}/{id}/test"), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "{reply}");
+    assert_eq!(reply["code"], "client_api_key_rejected");
+
+    let (status, reply) = app
+        .owner(
+            Method::PATCH,
+            &format!("{PATH}/{id}"),
+            Some(json!({ "apiKey": "" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{reply}");
+    assert_eq!(reply["errors"][0]["field"], "apiKey");
 }
