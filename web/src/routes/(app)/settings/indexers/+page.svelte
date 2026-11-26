@@ -7,7 +7,7 @@
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
-	import { testSummary, type Indexer } from '#lib/indexers.js';
+	import { indexerKindLabel, testSummary, type Indexer } from '#lib/indexers.js';
 	import { session } from '#lib/session.svelte.js';
 
 	const read = $derived(session.can('indexers:read'));
@@ -76,8 +76,8 @@
 		{/if}
 	</div>
 	<p class="mt-1 text-sm text-muted-foreground">
-		Unseen searches these Torznab indexers for releases. A lower priority number wins when two
-		releases tie.
+		Unseen searches these Torznab and Newznab indexers for releases. A lower priority number wins
+		when two releases tie.
 	</p>
 
 	{#if failure}
@@ -95,6 +95,7 @@
 			<Table.Header>
 				<Table.Row>
 					<Table.Head>Name</Table.Head>
+					<Table.Head>Kind</Table.Head>
 					<Table.Head>URL</Table.Head>
 					<Table.Head>Categories</Table.Head>
 					<Table.Head>Priority</Table.Head>
@@ -120,6 +121,9 @@
 									{results[indexer.id].text}
 								</p>
 							{/if}
+						</Table.Cell>
+						<Table.Cell>
+							<Badge variant="outline">{indexerKindLabel(indexer.kind)}</Badge>
 						</Table.Cell>
 						<Table.Cell class="font-mono text-xs">{indexer.url}</Table.Cell>
 						<Table.Cell class="font-mono text-xs">{indexer.categories.join(', ')}</Table.Cell>

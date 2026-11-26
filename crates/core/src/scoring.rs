@@ -8,6 +8,7 @@
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::profile::{Item, LANGUAGE_ANY, LANGUAGE_ORIGINAL, Profile};
 use crate::quality::{Quality, SizeCheck, SizeLimits};
@@ -78,6 +79,46 @@ pub enum Rejection {
     IndexerTags,
 }
 
+impl Rejection {
+    /// Stable machine-readable code for API responses.
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::WrongMovie => "wrong_movie",
+            Self::QualityNotAllowed => "quality_not_allowed",
+            Self::TooSmall => "size_too_small",
+            Self::TooLarge => "size_too_large",
+            Self::Language => "language_not_allowed",
+            Self::UpgradesDisabled => "upgrades_disabled",
+            Self::CutoffMet => "cutoff_met",
+            Self::NotAnUpgrade => "not_an_upgrade",
+            Self::IndexerTags => "indexer_tags_mismatch",
+        }
+    }
+
+    /// Human-readable explanation of why the release was rejected.
+    #[must_use]
+    pub const fn reason(self) -> &'static str {
+        match self {
+            Self::WrongMovie => "Title or year does not match the movie",
+            Self::QualityNotAllowed => "Quality is not allowed in the quality profile",
+            Self::TooSmall => "Size is below the quality definition minimum",
+            Self::TooLarge => "Size is above the quality definition maximum",
+            Self::Language => "Language does not match the quality profile",
+            Self::UpgradesDisabled => "Movie already has a file and upgrades are disabled",
+            Self::CutoffMet => "Existing file already meets the quality profile cutoff",
+            Self::NotAnUpgrade => "Release is not an upgrade over the existing file",
+            Self::IndexerTags => "Indexer tags do not match any tag on the movie",
+        }
+    }
+}
+
+impl fmt::Display for Rejection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.reason())
+    }
+}
+
 /// The verdict on one release.
 #[derive(Debug, Clone)]
 pub struct Decision<'a> {
@@ -96,6 +137,25 @@ pub struct Decision<'a> {
 impl Decision<'_> {
     pub fn accepted(&self) -> bool {
         self.rejections.is_empty()
+    }
+
+    /// Position of the quality in the profile, higher is better.
+    #[must_use]
+    pub fn quality_rank(&self) -> Option<usize> {
+        self.rank
+    }
+
+    /// Seeders bucketed on a log10 scale (`round(log10(seeders + 1))`).
+    #[must_use]
+    pub fn seeder_score(&self) -> u32 {
+        seeder_bucket(self.candidate.release.seeders)
+    }
+
+    /// Distance in bytes from the quality definition's preferred size, when
+    /// both the preferred size and release size are known.
+    #[must_use]
+    pub fn preferred_distance(&self) -> Option<u64> {
+        self.preferred_distance
     }
 }
 
@@ -320,11 +380,23 @@ pub fn rank<'a>(
     ctx: &Context<'a>,
     candidates: impl IntoIterator<Item = Candidate<'a>>,
 ) -> Vec<Decision<'a>> {
-    let mut decisions: Vec<_> = candidates
+    rank_entries(ctx, candidates.into_iter().map(|candidate| ((), candidate)))
         .into_iter()
-        .map(|candidate| evaluate(ctx, candidate))
+        .map(|((), decision)| decision)
+        .collect()
+}
+
+/// Judges and orders items paired with their candidates, best first, keeping
+/// caller metadata alongside each [`Decision`].
+pub fn rank_entries<'a, T>(
+    ctx: &Context<'a>,
+    entries: impl IntoIterator<Item = (T, Candidate<'a>)>,
+) -> Vec<(T, Decision<'a>)> {
+    let mut decisions: Vec<_> = entries
+        .into_iter()
+        .map(|(meta, candidate)| (meta, evaluate(ctx, candidate)))
         .collect();
-    decisions.sort_by(compare);
+    decisions.sort_by(|(_, a), (_, b)| compare(a, b));
     decisions
 }
 

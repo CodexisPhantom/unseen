@@ -743,6 +743,38 @@
         "x-permission": "clients:manage"
       }
     },
+    "/api/v1/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Server-sent event stream (`text/event-stream`). Each event is checked\nagainst the caller's live permissions before it is sent.",
+        "operationId": "stream",
+        "responses": {
+          "200": {
+            "description": "Server-sent event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "authenticated"
+      }
+    },
     "/api/v1/filesystem": {
       "get": {
         "tags": [
@@ -2562,6 +2594,80 @@
           }
         },
         "x-permission": "library:delete"
+      }
+    },
+    "/api/v1/movies/{id}/releases": {
+      "get": {
+        "tags": [
+          "releases"
+        ],
+        "summary": "Queries all enabled indexers in parallel for releases of a movie, parses\nand scores each result against one of the movie's quality profiles, and\ncaches the results so a grab can reference them by id.",
+        "operationId": "search_movie",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "profileId",
+            "in": "query",
+            "description": "Movie profile attachment id (`profiles[].id`). Defaults to the movie's\nprimary profile.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scored releases and per-indexer errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovieReleases"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid profileId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "search:run"
       }
     },
     "/api/v1/movies/{id}/subtitles": {
@@ -5129,11 +5235,11 @@
         "properties": {
           "apiKeyMustBeReentered": {
             "type": "boolean",
-            "description": "An API key is stored but cannot be decrypted: enter it again."
+            "description": "An API key is stored but cannot be decrypted: enter it again. SABnzbd\nrequires one."
           },
           "category": {
             "type": "string",
-            "description": "The qBittorrent category of the torrents Unseen adds."
+            "description": "The category of the torrents or NZBs Unseen adds."
           },
           "createdAt": {
             "type": "string"
@@ -5143,7 +5249,7 @@
           },
           "hasApiKey": {
             "type": "boolean",
-            "description": "The API key (qBittorrent 5.2 or later) is never returned. When one is\nset, Unseen uses it and ignores the username and password."
+            "description": "The API key (qBittorrent 5.2 or later) is never returned. When one is\nset, Unseen uses it and ignores the username and password. SABnzbd\nrequires one."
           },
           "hasPassword": {
             "type": "boolean",
@@ -5155,7 +5261,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`qbittorrent`."
+            "description": "`qbittorrent` or `sabnzbd`."
           },
           "localPath": {
             "type": [
@@ -5188,7 +5294,7 @@
           },
           "url": {
             "type": "string",
-            "description": "The WebUI address, for example `http://qbittorrent:8080`."
+            "description": "The address, for example `http://qbittorrent:8080` or `http://sabnzbd:8080`."
           },
           "username": {
             "type": [
@@ -5354,7 +5460,7 @@
               "type": "integer",
               "format": "int32"
             },
-            "description": "Torznab category ids to search, for example `2000` for movies."
+            "description": "Torznab or Newznab category ids to search, for example `2000` for movies."
           },
           "createdAt": {
             "type": "string"
@@ -5372,7 +5478,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`torznab`."
+            "description": "`torznab` or `newznab`."
           },
           "name": {
             "type": "string"
@@ -5460,6 +5566,27 @@
               "boolean",
               "null"
             ]
+          }
+        }
+      },
+      "IndexerSearchError": {
+        "type": "object",
+        "description": "A failure from one indexer during a manual search.",
+        "required": [
+          "indexerId",
+          "indexerName",
+          "message"
+        ],
+        "properties": {
+          "indexerId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "indexerName": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
           }
         }
       },
@@ -6117,6 +6244,45 @@
           }
         }
       },
+      "MovieReleases": {
+        "type": "object",
+        "description": "Result of a manual release search for one movie and one movie profile.",
+        "required": [
+          "movieId",
+          "movieProfileId",
+          "qualityProfileId",
+          "releases",
+          "indexerErrors"
+        ],
+        "properties": {
+          "indexerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IndexerSearchError"
+            },
+            "description": "Per-indexer failures; a failing indexer does not fail the search."
+          },
+          "movieId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "movieProfileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "qualityProfileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Release"
+            },
+            "description": "Accepted releases first, then rejected releases, sorted best-first."
+          }
+        }
+      },
       "MovieSubtitles": {
         "type": "object",
         "required": [
@@ -6294,7 +6460,7 @@
               "string",
               "null"
             ],
-            "description": "Stored encrypted and never returned. qBittorrent 5.2 or later."
+            "description": "Stored encrypted and never returned. qBittorrent 5.2 or later;\nrequired for SABnzbd."
           },
           "category": {
             "type": "string"
@@ -6368,7 +6534,8 @@
             "type": "boolean"
           },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "description": "`torznab` or `newznab`. Defaults to `torznab`."
           },
           "name": {
             "type": "string"
@@ -6998,6 +7165,213 @@
           }
         }
       },
+      "Release": {
+        "type": "object",
+        "description": "One parsed and scored release returned from a manual search.",
+        "required": [
+          "id",
+          "guid",
+          "title",
+          "indexerId",
+          "indexerName",
+          "qualityId",
+          "qualityName",
+          "protocol",
+          "languages",
+          "proper",
+          "repack",
+          "accepted",
+          "rejections",
+          "score"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "ageHours": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Age in hours since `publishedAt`."
+          },
+          "edition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guid": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "description": "Short-lived cache reference id to pass to grab."
+          },
+          "indexerId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "indexerName": {
+            "type": "string"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Lowercase ISO 639-1 language codes (or `multi`) parsed from the title."
+          },
+          "leechers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "proper": {
+            "type": "boolean"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Download protocol (`torrent`)."
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "UTC ISO 8601 publish timestamp, if reported by the indexer."
+          },
+          "qualityId": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Radarr quality id (`0` is `Unknown`)."
+          },
+          "qualityName": {
+            "type": "string",
+            "description": "Radarr quality name, e.g. `Bluray-1080p`."
+          },
+          "rejections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseRejection"
+            },
+            "description": "Empty when `accepted` is true; otherwise every broken rule in order."
+          },
+          "releaseGroup": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repack": {
+            "type": "boolean"
+          },
+          "score": {
+            "$ref": "#/components/schemas/ReleaseScore"
+          },
+          "seeders": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Size in bytes, if reported by the indexer.",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ReleaseRejection": {
+        "type": "object",
+        "description": "Why a release was rejected by the profile or movie rules.",
+        "required": [
+          "code",
+          "reason"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable rejection code, e.g. `quality_not_allowed`."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation."
+          }
+        }
+      },
+      "ReleaseScore": {
+        "type": "object",
+        "description": "The factors used to rank a release (docs/07-release-scoring.md, \"Scoring\").",
+        "required": [
+          "rank",
+          "customFormatScore",
+          "revision",
+          "indexerPriority",
+          "seederScore"
+        ],
+        "properties": {
+          "customFormatScore": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total custom format score for the profile (0 until custom formats are\nevaluated)."
+          },
+          "indexerPriority": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Indexer priority (1 to 50; lower wins)."
+          },
+          "preferredSizeDistance": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Distance in bytes from the quality definition's preferred size, when\nboth are known.",
+            "minimum": 0
+          },
+          "qualityRank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Position of the quality in the profile, higher is better. Absent when\nthe quality is not listed in the profile.",
+            "minimum": 0
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based position in the sorted list (1 is best).",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Revision number: 1 for a first release, 2 for PROPER/REPACK, and higher\nfor subsequent revisions.",
+            "minimum": 0
+          },
+          "seederScore": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Seeders on a log10 scale (`round(log10(seeders + 1))`).",
+            "minimum": 0
+          }
+        }
+      },
       "Role": {
         "type": "object",
         "required": [
@@ -7383,7 +7757,7 @@
         "properties": {
           "version": {
             "type": "string",
-            "description": "The qBittorrent version, for example `v4.6.2`."
+            "description": "The client version, for example `v4.6.2` or `4.3.2`."
           }
         }
       },

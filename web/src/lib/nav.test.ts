@@ -15,6 +15,12 @@ describe('entryFor', () => {
 		expect(entry?.anyOf).toEqual(['indexers:read']);
 	});
 
+	it('guards the collections pages with library:read', () => {
+		expect(entryFor('collections')?.title).toBe('Collections');
+		expect(entryFor('collections')?.anyOf).toEqual(['library:read']);
+		expect(entryFor('collections/42')?.title).toBe('Collections');
+	});
+
 	it('guards the import page with import:run', () => {
 		expect(entryFor('import')?.anyOf).toEqual(['import:run']);
 	});

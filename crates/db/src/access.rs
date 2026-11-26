@@ -35,6 +35,18 @@ pub async fn roles_of_user(
         .await
 }
 
+/// The ids of the users holding `role_id`, ordered by user id.
+pub async fn users_of_role(db: &DatabaseConnection, role_id: i32) -> Result<Vec<String>, DbErr> {
+    Ok(user_roles::Entity::find()
+        .filter(user_roles::Column::RoleId.eq(role_id))
+        .order_by_asc(user_roles::Column::UserId)
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|row| row.user_id)
+        .collect())
+}
+
 /// The effective grants of a user: all roles plus the direct grants.
 pub async fn grants_of_user(db: &DatabaseConnection, user_id: &str) -> Result<Grants, DbErr> {
     let roles = roles_of_user(db, user_id).await?;
@@ -163,6 +175,23 @@ mod tests {
         .insert(&db)
         .await;
         assert!(second.is_err(), "a second Owner role must be refused");
+    }
+
+    #[tokio::test]
+    async fn users_of_role_lists_every_holder() {
+        let (db, _dir) = temp_db().await;
+        insert_user(&db, "u1").await;
+        insert_user(&db, "u2").await;
+        insert_user(&db, "u3").await;
+        let role = insert_role(&db, "Adder", &["library:add"]).await;
+        assign(&db, "u2", role).await;
+        assign(&db, "u1", role).await;
+
+        assert_eq!(
+            users_of_role(&db, role).await.unwrap(),
+            ["u1".to_owned(), "u2".to_owned()]
+        );
+        assert!(users_of_role(&db, role + 1).await.unwrap().is_empty());
     }
 
     #[tokio::test]

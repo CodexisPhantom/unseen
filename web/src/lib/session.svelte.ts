@@ -1,3 +1,4 @@
+import { api } from './api/client.js';
 import type { components } from './api/schema.js';
 
 export type Me = components['schemas']['Me'];
@@ -17,6 +18,23 @@ class Session {
 	/** True when the user holds at least one of `permissions`. */
 	canAny(permissions: readonly Permission[]): boolean {
 		return permissions.some((permission) => this.can(permission));
+	}
+
+	/** Reloads `/api/v1/me` and updates the cached user, roles and permissions. */
+	async load(): Promise<Me | null> {
+		try {
+			const { data, response } = await api.GET('/api/v1/me');
+			if (data) {
+				this.me = data;
+				return data;
+			}
+			if (response.status === 401) {
+				this.me = null;
+			}
+		} catch {
+			// Ignore transient network errors; a later reconnect or request will resync.
+		}
+		return null;
 	}
 }
 

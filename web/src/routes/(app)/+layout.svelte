@@ -1,15 +1,29 @@
 <script lang="ts">
+	import { useQueryClient } from '@tanstack/svelte-query';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import AppSidebar from '#lib/components/app-sidebar.svelte';
 	import NoAccess from '#lib/components/no-access.svelte';
 	import ThemeToggle from '#lib/components/theme-toggle.svelte';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
+	import { events } from '#lib/events.svelte.js';
 	import { entryFor } from '#lib/nav.js';
 	import { session } from '#lib/session.svelte.js';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
+
+	const queryClient = useQueryClient();
+	const userId = $derived(session.me?.user.id ?? null);
+
+	$effect(() => {
+		if (!userId) {
+			events.disconnect();
+			return;
+		}
+		events.connect(queryClient);
+		return () => events.disconnect();
+	});
 
 	// The page's section, when it needs a permission. The API still answers 403.
 	const entry = $derived(entryFor(page.url.pathname.slice(resolve('').length)));

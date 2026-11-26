@@ -410,6 +410,7 @@ pub async fn create_movie(
         .target("movie", created.model.id)
         .data(json!({ "title": created.model.title, "tmdbId": created.model.tmdb_id }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    state.publish_movie_changed(created.model.id);
     Ok((StatusCode::CREATED, Json(created.into())))
 }
 
@@ -470,6 +471,7 @@ pub async fn update_movie(
         .target("movie", id)
         .data(changes.into_data());
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    state.publish_movie_changed(id);
     Ok(Json(updated))
 }
 
@@ -530,6 +532,7 @@ pub async fn delete_movie(
         .target("movie", id)
         .data(json!({ "title": movie.title, "deleteFiles": delete_files }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    state.publish_movie_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -564,6 +567,7 @@ pub async fn add_profile(
         .target("movie", id)
         .data(json!({ "qualityProfileId": body.quality_profile_id }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    state.publish_movie_changed(id);
     Ok((StatusCode::CREATED, Json(updated.into())))
 }
 
@@ -598,6 +602,7 @@ pub async fn remove_profile(
         .target("movie", id)
         .data(json!({ "movieProfileId": pid }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    state.publish_movie_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -661,6 +666,7 @@ pub async fn delete_file(
         .target("movie", id)
         .data(json!({ "relativePath": file.relative_path }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
+    state.publish_movie_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 

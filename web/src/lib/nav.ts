@@ -10,6 +10,7 @@ export interface NavEntry {
 
 export const navEntries: readonly NavEntry[] = [
 	{ title: 'Library', path: 'library', anyOf: ['library:read'] },
+	{ title: 'Collections', path: 'collections', anyOf: ['library:read'] },
 	{ title: 'Add', path: 'add', anyOf: ['library:add'] },
 	{ title: 'Import', path: 'import', anyOf: ['import:run'] },
 	{ title: 'Activity', path: 'activity', anyOf: ['queue:read'] },

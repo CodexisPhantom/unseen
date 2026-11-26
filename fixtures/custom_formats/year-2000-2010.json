@@ -1,0 +1,16 @@
+{
+  "name": "Year 2000-2010",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "2000-2010",
+      "implementation": "YearSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "min": 2000,
+        "max": 2010
+      }
+    }
+  ]
+}

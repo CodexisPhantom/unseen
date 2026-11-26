@@ -21,11 +21,14 @@ use unseen_core::profile::Item;
 
 /// `Schema.property` pairs that may be `null` although the schema says they
 /// cannot: an object that stands for "nothing here" (docs/14).
-const NULL_OBJECTS: [&str; 4] = [
+const NULL_OBJECTS: [&str; 7] = [
     "MovieResource.movieFile",
     "MovieResource.collection",
     "QueueResource.movie",
     "QualityProfileQualityItemResource.quality",
+    "IndexerResource.message",
+    "DownloadClientResource.message",
+    "Field.value",
 ];
 
 fn pinned_path() -> PathBuf {
@@ -301,6 +304,8 @@ fn every_enum_has_the_names_of_the_schema() {
         DatabaseType,
         AuthenticationType,
         UpdateMechanism,
+        PrivacyLevel,
+        ProviderMessageType,
     );
 }
 
@@ -570,4 +575,141 @@ fn commands_and_system_have_every_field() {
     assert_eq!(status.url_base, "/radarr");
     assert_valid("SystemResource", &status);
     assert_valid("SystemResource", &SystemResource::default());
+}
+
+#[test]
+fn import_resources_have_every_field() {
+    let field = Field {
+        order: 0,
+        name: "baseUrl".to_owned(),
+        label: "URL".to_owned(),
+        value: Some(json!("http://prowlarr:9696")),
+        kind: "textbox".to_owned(),
+        select_options: vec![SelectOption {
+            value: 0,
+            name: "Default".to_owned(),
+            order: 0,
+            hint: "hint".to_owned(),
+            divider_after: false,
+        }],
+        privacy: PrivacyLevel::Normal,
+        ..Field::default()
+    };
+    assert_valid("Field", &field);
+    assert_valid("Field", &Field::default());
+
+    let message = ProviderMessage {
+        message: "Connected".to_owned(),
+        kind: ProviderMessageType::Info,
+    };
+    assert_valid("ProviderMessage", &message);
+
+    let indexer = IndexerResource {
+        id: 1,
+        name: "Prowlarr".to_owned(),
+        fields: vec![field.clone()],
+        implementation: "Torznab".to_owned(),
+        message: Some(message.clone()),
+        protocol: DownloadProtocol::Torrent,
+        ..IndexerResource::default()
+    };
+    assert_valid("IndexerResource", &indexer);
+    assert_valid("IndexerResource", &IndexerResource::default());
+
+    let client = DownloadClientResource {
+        id: 1,
+        name: "qBittorrent".to_owned(),
+        fields: vec![field],
+        implementation: "QBittorrent".to_owned(),
+        message: Some(message),
+        protocol: DownloadProtocol::Torrent,
+        ..DownloadClientResource::default()
+    };
+    assert_valid("DownloadClientResource", &client);
+    assert_valid("DownloadClientResource", &DownloadClientResource::default());
+
+    assert_valid(
+        "QualityDefinitionResource",
+        &QualityDefinitionResource::default(),
+    );
+    let collection = CollectionResource {
+        id: 1,
+        title: "The Matrix Collection".to_owned(),
+        tmdb_id: 2344,
+        movies: vec![CollectionMovieResource::default()],
+        ..CollectionResource::default()
+    };
+    assert_valid("CollectionResource", &collection);
+    assert_valid("CollectionResource", &CollectionResource::default());
+}
+
+#[test]
+fn recorded_fixtures_match_the_pinned_schema_and_deserialize() {
+    let checker = Checker::new(false);
+
+    let status_text = include_str!("../../../fixtures/radarr/system_status.json");
+    let status_value: Value = serde_json::from_str(status_text).unwrap();
+    let problems = checker.problems("SystemResource", &status_value);
+    assert!(problems.is_empty(), "system_status: {problems:#?}");
+    let _: SystemResource = serde_json::from_str(status_text).unwrap();
+
+    let array_fixtures: [(&str, &str, &str); 9] = [
+        (
+            "movie.json",
+            "MovieResource",
+            include_str!("../../../fixtures/radarr/movie.json"),
+        ),
+        (
+            "rootfolder.json",
+            "RootFolderResource",
+            include_str!("../../../fixtures/radarr/rootfolder.json"),
+        ),
+        (
+            "qualityprofile.json",
+            "QualityProfileResource",
+            include_str!("../../../fixtures/radarr/qualityprofile.json"),
+        ),
+        (
+            "tag.json",
+            "TagResource",
+            include_str!("../../../fixtures/radarr/tag.json"),
+        ),
+        (
+            "indexer.json",
+            "IndexerResource",
+            include_str!("../../../fixtures/radarr/indexer.json"),
+        ),
+        (
+            "downloadclient.json",
+            "DownloadClientResource",
+            include_str!("../../../fixtures/radarr/downloadclient.json"),
+        ),
+        (
+            "customformat.json",
+            "CustomFormatResource",
+            include_str!("../../../fixtures/radarr/customformat.json"),
+        ),
+        (
+            "qualitydefinition.json",
+            "QualityDefinitionResource",
+            include_str!("../../../fixtures/radarr/qualitydefinition.json"),
+        ),
+        (
+            "collection.json",
+            "CollectionResource",
+            include_str!("../../../fixtures/radarr/collection.json"),
+        ),
+    ];
+
+    for (file, schema, text) in array_fixtures {
+        let rows: Vec<Value> = serde_json::from_str(text).unwrap();
+        assert!(!rows.is_empty(), "{file} should not be empty");
+        for (index, row) in rows.iter().enumerate() {
+            let problems = checker.problems(schema, row);
+            assert!(
+                problems.is_empty(),
+                "{file}[{index}] ({schema}): {problems:#?}"
+            );
+        }
+    }
 }

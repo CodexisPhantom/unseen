@@ -98,6 +98,33 @@ pub enum Language {
     Multi,
 }
 
+impl Language {
+    /// Lowercase ISO 639-1 code, or `"multi"` for [`Language::Multi`].
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::English => "en",
+            Self::French => "fr",
+            Self::German => "de",
+            Self::Spanish => "es",
+            Self::Italian => "it",
+            Self::Dutch => "nl",
+            Self::Portuguese => "pt",
+            Self::Russian => "ru",
+            Self::Japanese => "ja",
+            Self::Korean => "ko",
+            Self::Chinese => "zh",
+            Self::Swedish => "sv",
+            Self::Norwegian => "no",
+            Self::Danish => "da",
+            Self::Finnish => "fi",
+            Self::Polish => "pl",
+            Self::Hindi => "hi",
+            Self::Multi => "multi",
+        }
+    }
+}
+
 /// Everything the parser reads from one release name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedRelease {
@@ -316,8 +343,8 @@ pub fn parse(name: &str) -> ParsedRelease {
         proper: false,
         repack: false,
         version: 1,
-        languages: Vec::new(),
-        hardcoded_subs: HARDCODED_SUBS.is_match(tags),
+        languages: languages(tags),
+        hardcoded_subs: hardcoded_subs(tags),
         three_d: THREE_D.is_match(tags),
     };
     for c in REVISION.captures_iter(tags) {
@@ -328,14 +355,6 @@ pub fn parse(name: &str) -> ParsedRelease {
         }
         let number = c.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(1);
         parsed.version = parsed.version.max(1 + number);
-    }
-    for m in LANGUAGE.find_iter(tags) {
-        let word = m.as_str().to_ascii_lowercase();
-        if let Some((_, language)) = LANGUAGES.iter().find(|(tag, _)| *tag == word)
-            && !parsed.languages.contains(language)
-        {
-            parsed.languages.push(*language);
-        }
     }
     parsed
 }
@@ -428,7 +447,7 @@ fn source(tags: &str) -> (Source, Modifier) {
     (source, modifier)
 }
 
-fn codec(tags: &str) -> Option<Codec> {
+pub(crate) fn codec(tags: &str) -> Option<Codec> {
     let c = CODEC.captures(tags)?;
     [
         ("x264", Codec::X264),
@@ -441,7 +460,7 @@ fn codec(tags: &str) -> Option<Codec> {
     .map(|(_, codec)| codec)
 }
 
-fn audio(tags: &str) -> Vec<Audio> {
+pub(crate) fn audio(tags: &str) -> Vec<Audio> {
     let mut audio = Vec::new();
     if AAC.is_match(tags) {
         audio.push(Audio::Aac);
@@ -466,7 +485,7 @@ fn audio(tags: &str) -> Vec<Audio> {
     audio
 }
 
-fn hdr(tags: &str) -> Vec<Hdr> {
+pub(crate) fn hdr(tags: &str) -> Vec<Hdr> {
     let mut hdr = Vec::new();
     if HDR10_PLUS.is_match(tags) {
         hdr.push(Hdr::Hdr10Plus);
@@ -477,4 +496,21 @@ fn hdr(tags: &str) -> Vec<Hdr> {
         hdr.push(Hdr::DolbyVision);
     }
     hdr
+}
+
+pub(crate) fn languages(tags: &str) -> Vec<Language> {
+    let mut found = Vec::new();
+    for m in LANGUAGE.find_iter(tags) {
+        let word = m.as_str().to_ascii_lowercase();
+        if let Some((_, language)) = LANGUAGES.iter().find(|(tag, _)| *tag == word)
+            && !found.contains(language)
+        {
+            found.push(*language);
+        }
+    }
+    found
+}
+
+pub(crate) fn hardcoded_subs(tags: &str) -> bool {
+    HARDCODED_SUBS.is_match(tags)
 }

@@ -191,7 +191,8 @@ async fn session_lasts_thirty_days() {
     app.seed_user().await;
     let sessions = session::Entity::find().all(&app.state.db).await.unwrap();
     let lifetime = sessions[0].expires_at - sessions[0].created_at;
-    // SQLite stores whole seconds, so the span can read a day short.
+    // SQLite stores whole seconds, so the 30-day lifetime can read as 29
+    // days once truncated.
     assert!(matches!(lifetime.num_days(), 29 | 30), "{lifetime:?}");
 }
 
