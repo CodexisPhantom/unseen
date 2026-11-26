@@ -16,6 +16,7 @@ use db::secret::decrypt;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
 use unseen_core::newznab::{MovieQuery as NewznabMovieQuery, NewznabClient, NzbRelease};
+use unseen_core::permission::Permission;
 use unseen_core::profile::{Item, Profile};
 use unseen_core::quality::{Quality, SizeLimits};
 use unseen_core::release;
@@ -25,7 +26,7 @@ use unseen_core::torznab::{MovieQuery, Release as TorznabRelease, TorznabClient}
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
-use crate::access::{Require, SearchRun};
+use crate::access::{Require, SearchRun, ensure_root_folder_access};
 use crate::auth::hex;
 use crate::error::Problem;
 use crate::proxy::indexer_client;
@@ -201,7 +202,7 @@ fn existing_file_version(file: &movie_files::Model) -> u8 {
     )
 )]
 pub async fn search_movie(
-    _: Require<SearchRun>,
+    caller: Require<SearchRun>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
     Query(params): Query<SearchParams>,
@@ -210,6 +211,13 @@ pub async fn search_movie(
         .await
         .map_err(failed)?
         .ok_or_else(Problem::not_found)?;
+    ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::SearchRun,
+        movie.model.root_folder_id,
+    )
+    .await?;
 
     let selected_profile = match params.profile_id {
         Some(profile_id) => movie

@@ -1,7 +1,7 @@
 //! The collections resource (docs/03-domain-model.md, docs/05-api.md):
 //! read the collections of the library and monitor them.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -12,10 +12,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::metadata::{MetadataError, MetadataProvider, MovieSummary};
 use unseen_core::naming;
+use unseen_core::permission::Permission;
 use utoipa::ToSchema;
 
 use crate::AppState;
-use crate::access::{LibraryEdit, LibraryRead, Require};
+use crate::access::{
+    LibraryEdit, LibraryRead, Require, allowed_root_folders, ensure_root_folder_access,
+};
 use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::movies::{Movie, check_availability, check_profile};
@@ -147,21 +150,52 @@ async fn movie_count(state: &AppState, id: i32) -> Result<i64, Problem> {
     )
 )]
 pub async fn list_collections(
-    _: Require<LibraryRead>,
+    caller: Require<LibraryRead>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Collection>>, Problem> {
-    let counts = db::collections::movie_counts(&state.db)
-        .await
-        .map_err(failed)?;
+    let allowed = allowed_root_folders(&state, &caller, Permission::LibraryRead).await?;
     let rows = db::collections::list(&state.db).await.map_err(failed)?;
-    Ok(Json(
-        rows.into_iter()
-            .map(|row| {
-                let count = counts.get(&row.id).copied().unwrap_or(0);
-                Collection::new(row, count)
-            })
-            .collect(),
-    ))
+    match allowed {
+        None => {
+            let counts = db::collections::movie_counts(&state.db)
+                .await
+                .map_err(failed)?;
+            Ok(Json(
+                rows.into_iter()
+                    .map(|row| {
+                        let count = counts.get(&row.id).copied().unwrap_or(0);
+                        Collection::new(row, count)
+                    })
+                    .collect(),
+            ))
+        }
+        Some(allowed) => {
+            let mut counts: HashMap<i32, i64> = HashMap::new();
+            for movie in db::movies::list(&state.db).await.map_err(failed)? {
+                if allowed.contains(&movie.model.root_folder_id)
+                    && let Some(cid) = movie.model.collection_id
+                {
+                    *counts.entry(cid).or_insert(0) += 1;
+                }
+            }
+            Ok(Json(
+                rows.into_iter()
+                    .filter_map(|mut row| {
+                        let count = counts.get(&row.id).copied().unwrap_or(0);
+                        let folder_visible =
+                            row.root_folder_id.is_some_and(|rf| allowed.contains(&rf));
+                        if count == 0 && !folder_visible {
+                            return None;
+                        }
+                        if !folder_visible {
+                            row.root_folder_id = None;
+                        }
+                        Some(Collection::new(row, count))
+                    })
+                    .collect(),
+            ))
+        }
+    }
 }
 
 /// A collection with its movies in the library and the ones that are
@@ -180,25 +214,52 @@ pub async fn list_collections(
     )
 )]
 pub async fn get_collection(
-    _: Require<LibraryRead>,
+    caller: Require<LibraryRead>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<CollectionDetail>, Problem> {
-    let row = load(&state, id).await?;
-    let in_library = db::movies::in_collection(&state.db, id)
+    let allowed = allowed_root_folders(&state, &caller, Permission::LibraryRead).await?;
+    let mut row = load(&state, id).await?;
+    let all_in_collection = db::movies::in_collection(&state.db, id)
         .await
         .map_err(failed)?;
+    let (in_library, taken): (_, HashSet<i32>) = match &allowed {
+        None => {
+            let taken = db::movies::tmdb_ids(&state.db)
+                .await
+                .map_err(failed)?
+                .into_iter()
+                .collect();
+            (all_in_collection, taken)
+        }
+        Some(allowed) => {
+            let visible: Vec<_> = all_in_collection
+                .into_iter()
+                .filter(|movie| allowed.contains(&movie.model.root_folder_id))
+                .collect();
+            let folder_visible = row.root_folder_id.is_some_and(|rf| allowed.contains(&rf));
+            if visible.is_empty() && !folder_visible {
+                return Err(Problem::not_found());
+            }
+            if !folder_visible {
+                row.root_folder_id = None;
+            }
+            let taken = db::movies::list(&state.db)
+                .await
+                .map_err(failed)?
+                .into_iter()
+                .filter(|movie| allowed.contains(&movie.model.root_folder_id))
+                .map(|movie| movie.model.tmdb_id)
+                .collect();
+            (visible, taken)
+        }
+    };
     let listed = match client(&state).await?.collection(row.tmdb_id).await {
         Ok(collection) => collection.movies,
         // TMDB dropped the collection: the library still shows its movies.
         Err(MetadataError::NotFound) => Vec::new(),
         Err(error) => return Err(provider_error(error)),
     };
-    let taken: HashSet<i32> = db::movies::tmdb_ids(&state.db)
-        .await
-        .map_err(failed)?
-        .into_iter()
-        .collect();
     Ok(Json(CollectionDetail {
         collection: Collection::new(row, i64::try_from(in_library.len()).unwrap_or(i64::MAX)),
         movies: in_library.into_iter().map(Movie::from).collect(),
@@ -307,31 +368,47 @@ pub async fn update_collection(
     Json(body): Json<CollectionPatch>,
 ) -> Result<Json<Collection>, Problem> {
     let before = load(&state, id).await?;
+    let allowed = allowed_root_folders(&state, &caller, Permission::LibraryEdit).await?;
+    if let Some(allowed) = &allowed {
+        let in_collection = db::movies::in_collection(&state.db, id)
+            .await
+            .map_err(failed)?;
+        let has_visible_movie = in_collection
+            .iter()
+            .any(|movie| allowed.contains(&movie.model.root_folder_id));
+        let folder_visible = before
+            .root_folder_id
+            .is_some_and(|rf| allowed.contains(&rf));
+        if !has_visible_movie && !folder_visible {
+            return Err(Problem::not_found());
+        }
+    }
     if let Some(value) = &body.minimum_availability {
         check_availability(value)?;
     }
-    if let Some(root_folder_id) = body.root_folder_id
-        && db::root_folders::find(&state.db, root_folder_id)
+    if let Some(root_folder_id) = body.root_folder_id {
+        let root = db::root_folders::find(&state.db, root_folder_id)
             .await
             .map_err(failed)?
-            .is_none()
-    {
-        return Err(Problem::validation(
-            "rootFolderId",
-            "must be the id of a root folder",
-        ));
+            .ok_or_else(|| {
+                Problem::validation("rootFolderId", "must be the id of a root folder")
+            })?;
+        if !caller.allows_in_library(Permission::LibraryEdit, root.library_id) {
+            return Err(Problem::not_found());
+        }
     }
     if let Some(profile_id) = body.quality_profile_id {
         check_profile(&state, profile_id, "qualityProfileId").await?;
     }
     let monitoring = body.monitored == Some(true);
     if monitoring {
-        if body.root_folder_id.or(before.root_folder_id).is_none() {
+        let Some(effective_root) = body.root_folder_id.or(before.root_folder_id) else {
             return Err(Problem::validation(
                 "rootFolderId",
                 "must be set to monitor a collection",
             ));
-        }
+        };
+        ensure_root_folder_access(&state, &caller, Permission::LibraryEdit, effective_root).await?;
         if body
             .quality_profile_id
             .or(before.quality_profile_id)

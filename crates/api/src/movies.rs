@@ -11,10 +11,14 @@ use db::movies::{Metadata, Movie as Stored, MovieError, NewMovie as StoredNew, P
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use unseen_core::metadata::MetadataError;
+use unseen_core::permission::Permission;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
-use crate::access::{LibraryAdd, LibraryDelete, LibraryEdit, LibraryRead, Require};
+use crate::access::{
+    LibraryAdd, LibraryDelete, LibraryEdit, LibraryRead, Require, allowed_root_folders,
+    ensure_root_folder_access,
+};
 use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::tmdb::{client, provider_error};
@@ -299,10 +303,18 @@ pub(crate) fn movie_file_path(dir: &FsPath, relative: &str) -> Option<PathBuf> {
     )
 )]
 pub async fn list_movies(
-    _: Require<LibraryRead>,
+    caller: Require<LibraryRead>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Movie>>, Problem> {
+    let allowed = allowed_root_folders(&state, &caller, Permission::LibraryRead).await?;
     let movies = db::movies::list(&state.db).await.map_err(failed)?;
+    let movies = match allowed {
+        None => movies,
+        Some(allowed) => movies
+            .into_iter()
+            .filter(|movie| allowed.contains(&movie.model.root_folder_id))
+            .collect(),
+    };
     Ok(Json(movies.into_iter().map(Movie::from).collect()))
 }
 
@@ -319,11 +331,19 @@ pub async fn list_movies(
     )
 )]
 pub async fn get_movie(
-    _: Require<LibraryRead>,
+    caller: Require<LibraryRead>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<Movie>, Problem> {
-    Ok(Json(load(&state, id).await?.into()))
+    let stored = load(&state, id).await?;
+    ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryRead,
+        stored.model.root_folder_id,
+    )
+    .await?;
+    Ok(Json(stored.into()))
 }
 
 /// Adds a movie by TMDB id. Unseen fetches the metadata and names the movie
@@ -358,6 +378,9 @@ pub async fn create_movie(
         .await
         .map_err(failed)?
         .ok_or_else(|| Problem::validation("rootFolderId", "must be the id of a root folder"))?;
+    if !caller.allows_in_library(Permission::LibraryAdd, root.library_id) {
+        return Err(Problem::not_found());
+    }
     for id in &body.quality_profile_ids {
         check_profile(&state, *id, "qualityProfileIds").await?;
     }
@@ -410,7 +433,7 @@ pub async fn create_movie(
         .target("movie", created.model.id)
         .data(json!({ "title": created.model.title, "tmdbId": created.model.tmdb_id }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
-    state.publish_movie_changed(created.model.id);
+    state.publish_movie_changed_in_library(created.model.id, root.library_id);
     Ok((StatusCode::CREATED, Json(created.into())))
 }
 
@@ -442,7 +465,15 @@ pub async fn update_movie(
     if let Some(tags) = &body.tags {
         check_tags(&state, tags).await?;
     }
-    let before = Movie::from(load(&state, id).await?);
+    let before_stored = load(&state, id).await?;
+    let library_id = ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryEdit,
+        before_stored.model.root_folder_id,
+    )
+    .await?;
+    let before = Movie::from(before_stored);
     let updated = Movie::from(
         db::movies::update(
             &state.db,
@@ -471,7 +502,7 @@ pub async fn update_movie(
         .target("movie", id)
         .data(changes.into_data());
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
-    state.publish_movie_changed(id);
+    state.publish_movie_changed_in_library(id, library_id);
     Ok(Json(updated))
 }
 
@@ -518,6 +549,13 @@ pub async fn delete_movie(
     Query(params): Query<DeleteParams>,
 ) -> Result<StatusCode, Problem> {
     let movie = load(&state, id).await?.model;
+    let library_id = ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryDelete,
+        movie.root_folder_id,
+    )
+    .await?;
     let delete_files = params.delete_files.unwrap_or(false);
     if delete_files {
         let root = root_path(&state, &movie).await?;
@@ -532,7 +570,7 @@ pub async fn delete_movie(
         .target("movie", id)
         .data(json!({ "title": movie.title, "deleteFiles": delete_files }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
-    state.publish_movie_changed(id);
+    state.publish_movie_changed_in_library(id, library_id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -558,7 +596,14 @@ pub async fn add_profile(
     Path(id): Path<i32>,
     Json(body): Json<NewMovieProfile>,
 ) -> Result<(StatusCode, Json<Movie>), Problem> {
-    load(&state, id).await?;
+    let movie = load(&state, id).await?;
+    let library_id = ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryAdd,
+        movie.model.root_folder_id,
+    )
+    .await?;
     check_profile(&state, body.quality_profile_id, "qualityProfileId").await?;
     let updated = db::movies::add_profile(&state.db, id, body.quality_profile_id)
         .await
@@ -567,7 +612,7 @@ pub async fn add_profile(
         .target("movie", id)
         .data(json!({ "qualityProfileId": body.quality_profile_id }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
-    state.publish_movie_changed(id);
+    state.publish_movie_changed_in_library(id, library_id);
     Ok((StatusCode::CREATED, Json(updated.into())))
 }
 
@@ -594,7 +639,14 @@ pub async fn remove_profile(
     ip: ClientIp,
     Path((id, pid)): Path<(i32, i32)>,
 ) -> Result<StatusCode, Problem> {
-    load(&state, id).await?;
+    let movie = load(&state, id).await?;
+    let library_id = ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryDelete,
+        movie.model.root_folder_id,
+    )
+    .await?;
     db::movies::remove_profile(&state.db, id, pid)
         .await
         .map_err(movie_error)?;
@@ -602,7 +654,7 @@ pub async fn remove_profile(
         .target("movie", id)
         .data(json!({ "movieProfileId": pid }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
-    state.publish_movie_changed(id);
+    state.publish_movie_changed_in_library(id, library_id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -619,11 +671,18 @@ pub async fn remove_profile(
     )
 )]
 pub async fn list_files(
-    _: Require<LibraryRead>,
+    caller: Require<LibraryRead>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<Vec<MovieFile>>, Problem> {
-    load(&state, id).await?;
+    let movie = load(&state, id).await?;
+    ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryRead,
+        movie.model.root_folder_id,
+    )
+    .await?;
     let files = db::movies::files_of(&state.db, id).await.map_err(failed)?;
     Ok(Json(files.into_iter().map(MovieFile::from).collect()))
 }
@@ -650,6 +709,13 @@ pub async fn delete_file(
     Path((id, fid)): Path<(i32, i32)>,
 ) -> Result<StatusCode, Problem> {
     let movie = load(&state, id).await?.model;
+    let library_id = ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryDelete,
+        movie.root_folder_id,
+    )
+    .await?;
     let file = db::movies::find_file(&state.db, id, fid)
         .await
         .map_err(failed)?
@@ -666,7 +732,7 @@ pub async fn delete_file(
         .target("movie", id)
         .data(json!({ "relativePath": file.relative_path }));
     record(&state, &Actor::of(&state, &caller).await, &ip, event).await;
-    state.publish_movie_changed(id);
+    state.publish_movie_changed_in_library(id, library_id);
     Ok(StatusCode::NO_CONTENT)
 }
 

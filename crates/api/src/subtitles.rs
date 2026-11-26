@@ -10,11 +10,12 @@ use db::entities::{language_profiles, movie_files, movies, subtitles};
 use db::subtitles::{Found, ProfileError, Values};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use unseen_core::permission::Permission;
 use unseen_core::subtitle::{self, Item, Kind, Profile};
 use utoipa::ToSchema;
 
 use crate::AppState;
-use crate::access::{LibraryRead, Require, SubtitlesManage};
+use crate::access::{LibraryRead, Require, SubtitlesManage, ensure_root_folder_access};
 use crate::audit::{Actor, Changes, ClientIp, Event, record};
 use crate::error::Problem;
 use crate::movies::{movie_dir, movie_file_path, root_path};
@@ -434,10 +435,18 @@ async fn movie_subtitles(state: &AppState, id: i32) -> Result<Json<MovieSubtitle
     )
 )]
 pub async fn list_movie_subtitles(
-    _: Require<LibraryRead>,
+    caller: Require<LibraryRead>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<MovieSubtitles>, Problem> {
+    let movie = load_movie(&state, id).await?;
+    ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::LibraryRead,
+        movie.root_folder_id,
+    )
+    .await?;
     movie_subtitles(&state, id).await
 }
 
@@ -463,6 +472,13 @@ pub async fn set_movie_language_profile(
     Json(body): Json<MovieLanguageProfile>,
 ) -> Result<Json<MovieSubtitles>, Problem> {
     let movie = load_movie(&state, id).await?;
+    ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::SubtitlesManage,
+        movie.root_folder_id,
+    )
+    .await?;
     if let Some(profile_id) = body.language_profile_id {
         check_profile(&state, profile_id, "languageProfileId").await?;
     }
@@ -496,11 +512,18 @@ pub async fn set_movie_language_profile(
     )
 )]
 pub async fn scan_subtitles(
-    _: Require<SubtitlesManage>,
+    caller: Require<SubtitlesManage>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<MovieSubtitles>, Problem> {
     let movie = load_movie(&state, id).await?;
+    ensure_root_folder_access(
+        &state,
+        &caller,
+        Permission::SubtitlesManage,
+        movie.root_folder_id,
+    )
+    .await?;
     scan_movie(&state, &movie).await?;
     movie_subtitles(&state, id).await
 }

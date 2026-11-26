@@ -90,9 +90,11 @@ A permission can be given to one user without creating a role, for example
 - With `roles:manage`: a role may only contain permissions the editor holds.
   Editing a role that contains a permission the editor lacks is refused.
 - With `users:manage`: only roles whose permissions the editor fully holds
-  can be assigned or removed, and only permissions the editor holds can be
-  granted directly or taken away.
+  (including the target library scope) can be assigned or removed, and only
+  permissions the editor holds for the target library scope can be granted
+  directly or taken away.
 - Nobody but an Owner can change an Owner's account, roles or password.
+- The Owner role always applies to all libraries and cannot be scoped.
 - A user cannot remove their own last path to `roles:manage` by accident:
   the UI asks for confirmation. Open question: enforce or only warn.
 
@@ -128,7 +130,7 @@ The generated OpenAPI document is authoritative. This table is the plan.
 | `GET /me`, `GET/POST/DELETE /me/api-keys` | authenticated, no permission |
 | `GET /permissions` | authenticated, no permission (the catalog is not secret; the users page needs it) |
 | `/roles` (all methods) | `roles:manage` |
-| `GET /assignable-roles` | `users:manage` |
+| `GET /assignable-roles`, `GET /assignable-libraries` | `users:manage` |
 | `/users` (all methods), `PUT /users/{id}/permissions` | `users:manage` |
 | `POST /owner/transfer` | authenticated; the handler requires the Owner role and the password |
 | `GET /audit-log` | `system:audit` |
@@ -142,8 +144,8 @@ The generated OpenAPI document is authoritative. This table is the plan.
 | `GET /quality-profiles`, `/qualities`, `/quality-definitions`, `/custom-formats`, `/trash-guides`, `POST /custom-formats/test` | `profiles:read` |
 | `POST/PATCH/DELETE /quality-profiles`, `/custom-formats`; `PATCH /quality-definitions`; `POST /custom-formats/import`, `/trash-guides/apply` | `profiles:manage` |
 | `POST /trash-guides/sync` | `system:tasks` |
-| `GET /root-folders`, `/settings` | `settings:read` |
-| `POST/DELETE /root-folders`, `PATCH /settings` | `settings:manage` |
+| `GET /root-folders`, `GET /libraries`, `/settings` | `settings:read` |
+| `POST/PATCH/DELETE /root-folders`, `POST/PATCH/DELETE /libraries`, `PATCH /settings` | `settings:manage` |
 | `POST /library/scan`, `/library/adopt`, `/import-sources/*` | `import:run` |
 | `GET /indexers` | `indexers:read` |
 | `POST/PATCH/DELETE /indexers`, `/indexers/{id}/test` | `indexers:manage` |
@@ -163,14 +165,31 @@ The generated OpenAPI document is authoritative. This table is the plan.
 `roles:manage` must still list roles. Decided (2026-11-24): a second read
 route, `GET /assignable-roles`, with the same body as `GET /roles`.
 
-## Scoping per library (after V1)
+## Scoping per library (M11, ADR 0012)
 
-Decided direction, not built in V1: access is scoped per library, not per
-root folder. A library is a named group of root folders ("Movies", "Kids").
-A role assignment or a direct grant then applies to all libraries or to
-chosen ones. In V1 every permission covers the whole server. Adding
-libraries later is a migration that puts every root folder into one default
-library, so V1 data needs no special preparation. Planned for M11.
+Access is scoped per library, not per root folder or per movie.
+
+- A **library** is a named group of root folders (for example `"Default"`,
+  `"Movies"`, `"Kids"`). Every root folder belongs to exactly one library.
+  Migration `m0015_libraries` creates a `"Default"` library and assigns every
+  existing root folder to it, so existing installs behave as before.
+- Each role assignment (`user_roles`) and direct grant (`user_permissions`)
+  either applies to **all libraries** (`all_libraries = true`, the default) or
+  to a chosen set of libraries (`user_role_libraries`,
+  `user_permission_libraries`). The Owner role always applies to all libraries.
+- A user's effective permission set maps each held permission to the union of
+  the library scopes from all roles and direct grants that provide it. API keys
+  inherit the owning user's library scope for each permission the key holds.
+- Lists (`GET /movies`, `GET /collections`, `GET /queue`, `GET /root-folders`,
+  `GET /libraries`, and the Radarr/Sonarr compatibility lists) are filtered to
+  the caller's allowed libraries for the required permission.
+- Detail, mutation, search, subtitle, import and queue-removal routes return
+  `404 Not Found` (never `403 Forbidden`) when the target movie, collection,
+  download or root folder lies outside the caller's allowed libraries, so a
+  scoped account cannot probe for items in other libraries.
+- SSE events carrying a movie or download are tagged with the item's
+  `library_id` and delivered only to recipients whose live grants allow the
+  event's permission in that library.
 
 ## Decisions (2026-11-15)
 

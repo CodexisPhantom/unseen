@@ -3,7 +3,7 @@
 //! The catalog is fixed in code and mirrors `docs/15-permissions.md`. A test
 //! compares the two, so a variant cannot be added without its doc line.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::str::FromStr;
 
@@ -102,32 +102,136 @@ impl FromStr for Permission {
     }
 }
 
-/// What one user may do: the union of their roles and direct grants.
+/// Which libraries a permission grant applies to (ADR 0012).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LibraryScope {
+    /// Every library on the server, including ones created later.
+    All,
+    /// Only the listed library ids. An empty set grants no library access.
+    Libraries(BTreeSet<i32>),
+}
+
+impl LibraryScope {
+    /// Applies to every library.
+    #[must_use]
+    pub const fn all() -> Self {
+        Self::All
+    }
+
+    /// Applies to no library.
+    #[must_use]
+    pub fn none() -> Self {
+        Self::Libraries(BTreeSet::new())
+    }
+
+    /// Builds a scope from `all_libraries` and an optional set of library ids.
+    #[must_use]
+    pub fn from_parts(all_libraries: bool, library_ids: impl IntoIterator<Item = i32>) -> Self {
+        if all_libraries {
+            Self::All
+        } else {
+            Self::Libraries(library_ids.into_iter().collect())
+        }
+    }
+
+    /// True when this scope covers every library.
+    #[must_use]
+    pub const fn is_all(&self) -> bool {
+        matches!(self, Self::All)
+    }
+
+    /// True when `library_id` is within this scope.
+    #[must_use]
+    pub fn allows(&self, library_id: i32) -> bool {
+        match self {
+            Self::All => true,
+            Self::Libraries(ids) => ids.contains(&library_id),
+        }
+    }
+
+    /// The restricted set of library ids, or `None` when this scope covers all
+    /// libraries.
+    #[must_use]
+    pub fn library_ids(&self) -> Option<&BTreeSet<i32>> {
+        match self {
+            Self::All => None,
+            Self::Libraries(ids) => Some(ids),
+        }
+    }
+
+    /// Widens `self` to include every library covered by `other`.
+    pub fn union_with(&mut self, other: &Self) {
+        match (&mut *self, other) {
+            (Self::All, _) => {}
+            (_, Self::All) => *self = Self::All,
+            (Self::Libraries(ours), Self::Libraries(theirs)) => {
+                ours.extend(theirs.iter().copied());
+            }
+        }
+    }
+
+    /// True when `self` covers every library covered by `other`.
+    #[must_use]
+    pub fn contains_scope(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::All, _) => true,
+            (Self::Libraries(_), Self::All) => false,
+            (Self::Libraries(ours), Self::Libraries(theirs)) => theirs.is_subset(ours),
+        }
+    }
+}
+
+/// What one user may do: the union of their roles and direct grants, with the
+/// library scope of each permission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectivePermissions {
     is_owner: bool,
-    permissions: BTreeSet<Permission>,
+    permissions: BTreeMap<Permission, LibraryScope>,
 }
 
 impl EffectivePermissions {
-    /// Builds the effective set from what the database stores for a user:
-    /// whether they hold the Owner role, and the permission strings of all
-    /// their roles and direct grants, in any order and with duplicates.
+    /// Builds the effective set from unscoped (all-library) permission strings.
     ///
-    /// An Owner gets every permission in the catalog. Strings that are not
-    /// in the catalog are ignored.
+    /// An Owner gets every permission in the catalog for all libraries. Strings
+    /// that are not in the catalog are ignored.
     pub fn new<I>(is_owner: bool, permissions: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let permissions = if is_owner {
-            Permission::ALL.iter().copied().collect()
-        } else {
+        Self::from_scoped(
+            is_owner,
             permissions
                 .into_iter()
-                .filter_map(|permission| permission.as_ref().parse().ok())
+                .map(|permission| (permission, LibraryScope::All)),
+        )
+    }
+
+    /// Builds the effective set from scoped grants. When a permission is
+    /// granted by several roles or direct grants, its scope is the union of
+    /// their scopes. An Owner gets every permission for all libraries.
+    pub fn from_scoped<I, S>(is_owner: bool, grants: I) -> Self
+    where
+        I: IntoIterator<Item = (S, LibraryScope)>,
+        S: AsRef<str>,
+    {
+        let permissions = if is_owner {
+            Permission::ALL
+                .iter()
+                .copied()
+                .map(|permission| (permission, LibraryScope::All))
                 .collect()
+        } else {
+            let mut map: BTreeMap<Permission, LibraryScope> = BTreeMap::new();
+            for (name, scope) in grants {
+                let Ok(permission) = name.as_ref().parse::<Permission>() else {
+                    continue;
+                };
+                map.entry(permission)
+                    .and_modify(|existing| existing.union_with(&scope))
+                    .or_insert(scope);
+            }
+            map
         };
         Self {
             is_owner,
@@ -141,15 +245,47 @@ impl EffectivePermissions {
         self.is_owner
     }
 
-    /// Whether the user holds `permission`.
+    /// Whether the user holds `permission` (for at least one scope, possibly
+    /// restricted to specific libraries).
     #[must_use]
     pub fn has(&self, permission: Permission) -> bool {
-        self.permissions.contains(&permission)
+        self.permissions.contains_key(&permission)
+    }
+
+    /// The library scope of `permission`, or `None` when the user does not hold
+    /// it at all.
+    #[must_use]
+    pub fn scope(&self, permission: Permission) -> Option<&LibraryScope> {
+        self.permissions.get(&permission)
+    }
+
+    /// Whether the user holds `permission` for `library_id`.
+    #[must_use]
+    pub fn allows_in_library(&self, permission: Permission, library_id: i32) -> bool {
+        self.permissions
+            .get(&permission)
+            .is_some_and(|scope| scope.allows(library_id))
+    }
+
+    /// Whether the user holds `permission` across all libraries.
+    #[must_use]
+    pub fn has_all_libraries(&self, permission: Permission) -> bool {
+        self.permissions
+            .get(&permission)
+            .is_some_and(LibraryScope::is_all)
     }
 
     /// The held permissions, in catalog order.
     pub fn iter(&self) -> impl Iterator<Item = Permission> + '_ {
-        self.permissions.iter().copied()
+        self.permissions.keys().copied()
+    }
+
+    /// The held permissions with their effective library scope, in catalog
+    /// order.
+    pub fn scoped_iter(&self) -> impl Iterator<Item = (Permission, &LibraryScope)> + '_ {
+        self.permissions
+            .iter()
+            .map(|(permission, scope)| (*permission, scope))
     }
 }
 
@@ -166,6 +302,19 @@ where
     permissions
         .into_iter()
         .all(|permission| actor.has(permission))
+}
+
+/// Whether `actor` may hand out or take away `permission` with the given
+/// `scope`. The actor must hold `permission` for every library in `scope`.
+#[must_use]
+pub fn can_grant_scoped(
+    actor: &EffectivePermissions,
+    permission: Permission,
+    scope: &LibraryScope,
+) -> bool {
+    actor
+        .scope(permission)
+        .is_some_and(|actor_scope| actor_scope.contains_scope(scope))
 }
 
 /// Whether `actor` may change `target`'s account, roles or password as far
@@ -282,6 +431,72 @@ mod tests {
         assert!(can_modify_user(&member, &admin));
         assert!(!can_modify_user(&admin, &owner));
         assert!(!can_modify_user(&member, &owner));
+    }
+
+    #[test]
+    fn scoped_permissions_unite_and_enforce_escalation() {
+        let kids = LibraryScope::Libraries([2].into());
+        let movies = LibraryScope::Libraries([1].into());
+        let both = LibraryScope::Libraries([1, 2].into());
+
+        let user = EffectivePermissions::from_scoped(
+            false,
+            [
+                ("library:read", kids.clone()),
+                ("library:read", movies.clone()),
+                ("library:add", kids.clone()),
+                ("queue:read", LibraryScope::All),
+                ("queue:read", kids.clone()),
+                ("library:delete", LibraryScope::none()),
+            ],
+        );
+
+        assert_eq!(user.scope(Permission::LibraryRead), Some(&both));
+        assert!(user.allows_in_library(Permission::LibraryRead, 1));
+        assert!(user.allows_in_library(Permission::LibraryRead, 2));
+        assert!(!user.allows_in_library(Permission::LibraryRead, 3));
+        assert!(!user.has_all_libraries(Permission::LibraryRead));
+
+        assert!(user.allows_in_library(Permission::LibraryAdd, 2));
+        assert!(!user.allows_in_library(Permission::LibraryAdd, 1));
+
+        assert_eq!(user.scope(Permission::QueueRead), Some(&LibraryScope::All));
+        assert!(user.has_all_libraries(Permission::QueueRead));
+        assert!(user.allows_in_library(Permission::QueueRead, 999));
+
+        // Empty scope holds the permission entry, but allows no library.
+        assert!(user.has(Permission::LibraryDelete));
+        assert!(!user.allows_in_library(Permission::LibraryDelete, 1));
+
+        // Escalation: actor can only grant scopes within their own scope.
+        assert!(can_grant_scoped(&user, Permission::LibraryRead, &kids));
+        assert!(can_grant_scoped(&user, Permission::LibraryRead, &both));
+        assert!(!can_grant_scoped(
+            &user,
+            Permission::LibraryRead,
+            &LibraryScope::All
+        ));
+        assert!(!can_grant_scoped(
+            &user,
+            Permission::LibraryRead,
+            &LibraryScope::Libraries([2, 3].into())
+        ));
+        assert!(can_grant_scoped(
+            &user,
+            Permission::QueueRead,
+            &LibraryScope::All
+        ));
+        assert!(can_grant_scoped(&user, Permission::QueueRead, &kids));
+        assert!(!can_grant_scoped(&user, Permission::LibraryEdit, &kids));
+
+        // Owner holds every permission across all libraries.
+        let owner = EffectivePermissions::from_scoped(true, Vec::<(&str, LibraryScope)>::new());
+        assert!(owner.has_all_libraries(Permission::LibraryRead));
+        assert!(can_grant_scoped(
+            &owner,
+            Permission::LibraryDelete,
+            &LibraryScope::All
+        ));
     }
 
     /// The first column of the table under "## Permission catalog".
