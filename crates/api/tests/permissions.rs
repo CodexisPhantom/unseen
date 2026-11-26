@@ -594,6 +594,12 @@ fn app_router_passes_route_coverage() {
                 "/api/v1/download-clients/{id}/test",
                 Permission::ClientsManage
             ),
+            profiles(Method::GET, "/api/v1/queue", Permission::QueueRead),
+            profiles(
+                Method::DELETE,
+                "/api/v1/queue/{id}",
+                Permission::QueueManage
+            ),
         ]
     );
 

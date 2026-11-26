@@ -55,21 +55,43 @@ fn tag_error(error: TagError) -> Problem {
     }
 }
 
-fn label(text: &str) -> Result<String, Problem> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LabelError {
+    Empty,
+    TooLong,
+    InvalidChars,
+}
+
+impl LabelError {
+    pub(crate) const fn message(self) -> &'static str {
+        match self {
+            Self::Empty | Self::TooLong => "must have 1 to 64 characters",
+            Self::InvalidChars => "may hold only letters, digits and `-`",
+        }
+    }
+}
+
+/// Normalizes and validates a tag label: trimmed, lowercased, 1..=64 ASCII
+/// lowercase letters, digits or `-`.
+pub(crate) fn validate_label(text: &str) -> Result<String, LabelError> {
     let label = text.trim().to_lowercase();
-    if label.is_empty() || label.len() > 64 {
-        return Err(Problem::validation("label", "must have 1 to 64 characters"));
+    if label.is_empty() {
+        return Err(LabelError::Empty);
+    }
+    if label.len() > 64 {
+        return Err(LabelError::TooLong);
     }
     if !label
         .bytes()
         .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
     {
-        return Err(Problem::validation(
-            "label",
-            "may hold only letters, digits and `-`",
-        ));
+        return Err(LabelError::InvalidChars);
     }
     Ok(label)
+}
+
+fn label(text: &str) -> Result<String, Problem> {
+    validate_label(text).map_err(|error| Problem::validation("label", error.message()))
 }
 
 /// Every tag, ordered by label.

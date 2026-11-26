@@ -999,3 +999,415 @@ fn compat_router_verify_catches_missing_and_duplicate_declarations() {
         "{missing:?}"
     );
 }
+
+#[tokio::test]
+async fn radarr_tags_list_create_rename_match_fixture_and_appear_in_unseen_ui() {
+    let app = App::new().await;
+    let (key, _) = app
+        .create_key(&app.owner, &["library:read", "library:edit"])
+        .await;
+
+    // Empty initially.
+    let initial = app
+        .send(
+            req(Method::GET, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(initial.status, StatusCode::OK);
+    assert_eq!(initial.content_type, "application/json");
+    assert_eq!(initial.body, json!([]));
+
+    // Create tags via compat API (trimming, lowercasing, and ignoring unknown fields).
+    let created_4k = app
+        .send(
+            req(Method::POST, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": " 4K " }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(
+        created_4k.status,
+        StatusCode::CREATED,
+        "{}",
+        created_4k.body
+    );
+    assert_eq!(created_4k.content_type, "application/json");
+    assert_eq!(created_4k.body, json!({ "id": 1, "label": "4k" }));
+
+    let created_family = app
+        .send(
+            req(Method::POST, &format!("/Radarr/API/v3/Tag?apikey={key}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({ "label": "family", "ignoredField": 123 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(
+        created_family.status,
+        StatusCode::CREATED,
+        "{}",
+        created_family.body
+    );
+    assert_eq!(created_family.body, json!({ "id": 2, "label": "family" }));
+
+    // Contract check against recorded Radarr response fixture.
+    let expected: Value =
+        serde_json::from_str(include_str!("../../../fixtures/radarr/tag.json")).unwrap();
+    let listed = app
+        .send(
+            req(Method::GET, "/radarr/api/v3/Tag")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(listed.status, StatusCode::OK);
+    assert_eq!(listed.body, expected);
+
+    // Tags created through the compat API appear in the Unseen UI (`/api/v1/tags`).
+    let unseen_list = app
+        .send(
+            req(Method::GET, "/api/v1/tags")
+                .header(header::COOKIE, &app.owner)
+                .header(header::ORIGIN, ORIGIN)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(unseen_list.status, StatusCode::OK);
+    assert_eq!(unseen_list.body, expected);
+
+    // Rename a tag via compat PUT /tag/{id} (Seerr user rename flow).
+    let renamed = app
+        .send(
+            req(Method::PUT, "/radarr/api/v3/tag/2")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({ "id": 2, "label": " 1-Alice " }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(renamed.status, StatusCode::ACCEPTED, "{}", renamed.body);
+    assert_eq!(renamed.content_type, "application/json");
+    assert_eq!(renamed.body, json!({ "id": 2, "label": "1-alice" }));
+
+    // Renaming to the tag's own current label succeeds.
+    let same_label = app
+        .send(
+            req(Method::PUT, "/radarr/api/v3/tag/2")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "1-alice" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(same_label.status, StatusCode::ACCEPTED);
+    assert_eq!(same_label.body, json!({ "id": 2, "label": "1-alice" }));
+
+    // Unseen UI reflects the rename, and tags created in Unseen appear in compat GET /tag.
+    let ui_created = app
+        .send(
+            req(Method::POST, "/api/v1/tags")
+                .header(header::COOKIE, &app.owner)
+                .header(header::ORIGIN, ORIGIN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "hdr" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(ui_created.status, StatusCode::CREATED);
+
+    let after = app
+        .send(
+            req(Method::GET, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(after.status, StatusCode::OK);
+    assert_eq!(
+        after.body,
+        json!([
+            { "id": 2, "label": "1-alice" },
+            { "id": 1, "label": "4k" },
+            { "id": 3, "label": "hdr" },
+        ])
+    );
+
+    // Audit log records tag.created and tag.renamed from compat calls.
+    let audit = app
+        .send(
+            req(Method::GET, "/api/v1/audit-log?targetKind=tag")
+                .header(header::COOKIE, &app.owner)
+                .header(header::ORIGIN, ORIGIN)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(audit.status, StatusCode::OK);
+    let actions: Vec<&str> = audit.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|item| item["action"].as_str())
+        .collect();
+    assert!(actions.contains(&"tag.created"), "{actions:?}");
+    assert!(actions.contains(&"tag.renamed"), "{actions:?}");
+}
+
+#[tokio::test]
+async fn radarr_tags_duplicate_and_validation_errors_return_radarr_shape() {
+    let app = App::new().await;
+    let (key, _) = app
+        .create_key(&app.owner, &["library:read", "library:edit"])
+        .await;
+
+    let first = app
+        .send(
+            req(Method::POST, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "4k" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(first.status, StatusCode::CREATED);
+
+    let second = app
+        .send(
+            req(Method::POST, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "family" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(second.status, StatusCode::CREATED);
+    let second_id = second.body["id"].as_i64().unwrap();
+
+    // Creating an existing label (exact or differing only by case/whitespace) returns Radarr 400 validation array.
+    for duplicate_label in ["4k", " 4K "] {
+        let dup = app
+            .send(
+                req(Method::POST, "/radarr/api/v3/tag")
+                    .header("X-Api-Key", &key)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(json!({ "label": duplicate_label }).to_string()))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(dup.status, StatusCode::BAD_REQUEST, "{duplicate_label:?}");
+        assert_eq!(dup.content_type, "application/json");
+        assert_eq!(
+            dup.body,
+            json!([
+                {
+                    "propertyName": "label",
+                    "errorMessage": "A tag with this label already exists",
+                    "attemptedValue": "4k",
+                    "severity": "error",
+                    "errorCode": "TagExistsValidator",
+                }
+            ]),
+            "{duplicate_label:?}"
+        );
+    }
+
+    // Renaming to another tag's label returns the same Radarr validation array.
+    let rename_dup = app
+        .send(
+            req(Method::PUT, &format!("/radarr/api/v3/tag/{second_id}"))
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({ "id": second_id, "label": "4K" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(rename_dup.status, StatusCode::BAD_REQUEST);
+    assert_eq!(rename_dup.content_type, "application/json");
+    assert_eq!(
+        rename_dup.body,
+        json!([
+            {
+                "propertyName": "label",
+                "errorMessage": "A tag with this label already exists",
+                "attemptedValue": "4k",
+                "severity": "error",
+                "errorCode": "TagExistsValidator",
+            }
+        ])
+    );
+
+    // Invalid labels return Radarr 400 validation array.
+    let too_long = "x".repeat(65);
+    for (body, expected_code) in [
+        (json!({}), "NotEmptyValidator"),
+        (json!({ "label": null }), "NotEmptyValidator"),
+        (json!({ "label": "   " }), "NotEmptyValidator"),
+        (json!({ "label": too_long }), "MaximumLengthValidator"),
+        (
+            json!({ "label": "has space" }),
+            "RegularExpressionValidator",
+        ),
+        (json!({ "label": "ünï" }), "RegularExpressionValidator"),
+    ] {
+        let invalid = app
+            .send(
+                req(Method::POST, "/radarr/api/v3/tag")
+                    .header("X-Api-Key", &key)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(invalid.status, StatusCode::BAD_REQUEST, "{body}");
+        assert_eq!(invalid.content_type, "application/json", "{body}");
+        let arr = invalid.body.as_array().expect("validation array");
+        assert_eq!(arr.len(), 1, "{body}: {}", invalid.body);
+        assert_eq!(arr[0]["propertyName"], "label", "{body}");
+        assert_eq!(arr[0]["severity"], "error", "{body}");
+        assert_eq!(arr[0]["errorCode"], expected_code, "{body}");
+    }
+
+    // Renaming a missing tag returns 404 NotFound.
+    let missing = app
+        .send(
+            req(Method::PUT, "/radarr/api/v3/tag/9999")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "ghost" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(missing.status, StatusCode::NOT_FOUND);
+    assert_eq!(missing.content_type, "application/json");
+    assert_eq!(missing.body, json!({ "message": "NotFound" }));
+
+    // Invalid path id and malformed JSON return 400 JSON.
+    let bad_id = app
+        .send(
+            req(Method::PUT, "/radarr/api/v3/tag/not-a-number")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "valid" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(bad_id.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad_id.content_type, "application/json");
+
+    let bad_json = app
+        .send(
+            req(Method::POST, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{not-json"))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(bad_json.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad_json.content_type, "application/json");
+}
+
+#[tokio::test]
+async fn radarr_tags_enforce_permissions_and_leave_out_of_scope_routes_unimplemented() {
+    let app = App::new().await;
+    let (_, cookie, _) = app
+        .member("tags@example.com", &["library:read", "library:edit"])
+        .await;
+    let (none_key, _) = app.create_key(&cookie, &[]).await;
+    let (read_key, _) = app.create_key(&cookie, &["library:read"]).await;
+    let (edit_key, _) = app.create_key(&cookie, &["library:edit"]).await;
+
+    // Without key or with session cookie only -> 401.
+    for request in [
+        req(Method::GET, "/radarr/api/v3/tag")
+            .body(Body::empty())
+            .unwrap(),
+        req(Method::GET, "/radarr/api/v3/tag")
+            .header(header::COOKIE, &app.owner)
+            .header(header::ORIGIN, ORIGIN)
+            .body(Body::empty())
+            .unwrap(),
+    ] {
+        let reply = app.send(request).await;
+        assert_eq!(reply.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(reply.body, json!({ "error": "Unauthorized" }));
+    }
+
+    // `GET /tag` requires `library:read`.
+    let no_read = app
+        .send(
+            req(Method::GET, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &none_key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(no_read.status, StatusCode::FORBIDDEN);
+    assert_eq!(no_read.body["requiredPermission"], "library:read");
+
+    let ok_read = app
+        .send(
+            req(Method::GET, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &read_key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(ok_read.status, StatusCode::OK);
+
+    // `POST /tag` and `PUT /tag/{id}` require `library:edit`.
+    let no_create = app
+        .send(
+            req(Method::POST, "/radarr/api/v3/tag")
+                .header("X-Api-Key", &read_key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "4k" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(no_create.status, StatusCode::FORBIDDEN);
+    assert_eq!(no_create.body["requiredPermission"], "library:edit");
+
+    let no_rename = app
+        .send(
+            req(Method::PUT, "/radarr/api/v3/tag/1")
+                .header("X-Api-Key", &read_key)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "label": "uhd" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(no_rename.status, StatusCode::FORBIDDEN);
+    assert_eq!(no_rename.body["requiredPermission"], "library:edit");
+
+    // Out-of-scope tag endpoints remain 501 Not Implemented.
+    for (method, path) in [
+        (Method::DELETE, "/radarr/api/v3/tag/1"),
+        (Method::GET, "/radarr/api/v3/tag/detail"),
+    ] {
+        let reply = app
+            .send(
+                req(method, path)
+                    .header("X-Api-Key", &edit_key)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(reply.status, StatusCode::NOT_IMPLEMENTED, "{path}");
+        assert_eq!(reply.body["message"], "Not implemented");
+    }
+}
