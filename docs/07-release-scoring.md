@@ -69,18 +69,24 @@ the preferred size lies between them.
 ## Custom formats
 
 Same model and JSON format as Radarr, so that formats exported from Radarr
-and published by the TRaSH guides load unchanged.
+and published by the TRaSH guides load unchanged. `fields` deserialize from
+both Radarr's list form (`[{"name": "value", "value": 1080}]`) and the TRaSH
+guide map form (`{"value": 1080}`), and serialize in the list form.
 
 - A custom format is a name and a list of conditions (specifications).
 - Each condition has a type, a value, `negate` and `required`.
-- A format matches when every required condition matches and, if there are
-  non-required conditions, at least one of each type matches. Verify the
-  exact rule against Radarr's source before implementing.
+- Matching is Radarr's rule: every required condition must match, and
+  conditions are grouped by their `implementation` string. Each group needs
+  at least one match, and a matching required condition counts toward its
+  group, so a group of required conditions must have all of them match. A
+  format with no conditions matches every release. `negate` flips one
+  condition's own result before grouping.
 - Condition types in V1: release title (regex), release group (regex),
   edition (regex), language, source, resolution, quality modifier (remux and
-  others), size, indexer flag, year. Regex syntax is .NET's upstream; the
-  Rust engine must accept every regex in the TRaSH guide data (a test loads
-  all of them).
+  others), size, indexer flag, year. Regexes use `fancy-regex`, because the
+  guide data uses look-ahead and look-behind. A pattern matches
+  case-insensitively and unanchored; an empty pattern matches nothing, and a
+  pattern that does not compile does not match and does not panic.
 - The total score of a release for a profile is the sum of the scores of the
   matching formats.
 - Formats with `includeWhenRenaming` appear in the `{Custom Formats}` naming
@@ -410,8 +416,3 @@ against a real Sonarr.
   formats. This keeps instance import and the TRaSH guides lossless; a
   separate preferred list would be a second, incompatible mechanism.
 - Custom formats and the TRaSH guide browser are in V1.
-
-## Open questions
-
-- Regex compatibility: which Rust regex engine accepts all upstream patterns
-  (look-around is used in the guide data)?

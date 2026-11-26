@@ -1,4 +1,5 @@
 pub mod backfill;
+pub mod custom_format;
 pub mod http;
 pub mod library;
 pub mod metadata;

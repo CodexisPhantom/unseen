@@ -20,6 +20,7 @@ roxmltree.workspace = true
 tokio.workspace = true
 unicode-normalization = "0.1"
 url.workspace = true
+fancy-regex.workspace = true
 
 [dev-dependencies]
 wiremock.workspace = true
