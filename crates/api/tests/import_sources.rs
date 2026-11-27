@@ -473,6 +473,43 @@ async fn two_sources_merge_into_one_movie_with_two_profiles_and_two_files() {
 }
 
 #[tokio::test]
+async fn two_sources_with_the_same_profile_name_but_different_scores_are_kept_apart() {
+    let (app, _tmdb) = app().await;
+    let first = fixture_profile(0);
+    let mut second = first.clone();
+    second["formatItems"][1]["score"] = json!(-500);
+    let (a, b) = (MockServer::start().await, MockServer::start().await);
+    single(&first, "/movies", "a.mkv", 1_000).mount(&a, 1).await;
+    single(&second, "/movies", "b.mkv", 2_000)
+        .mount(&b, 1)
+        .await;
+    let source_a = add_source(&app, "A", &a, None).await;
+    let source_b = add_source(&app, "B", &b, None).await;
+
+    import(&app, source_a, "run").await;
+    let report = import(&app, source_b, "run").await;
+    assert_eq!(created(&report, "qualityProfiles"), 1, "{report}");
+
+    let name = first["name"].as_str().unwrap();
+    let mut names: Vec<String> = db::profiles::list(&app.state.db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.name)
+        .collect();
+    names.sort();
+    let mut expected = vec![name.to_owned(), format!("{name} (B)")];
+    expected.sort();
+    assert_eq!(names, expected);
+    assert_eq!(
+        db::custom_formats::list(&app.state.db).await.unwrap().len(),
+        2
+    );
+    let notes = report["notes"].to_string();
+    assert!(notes.contains(&format!("{name} (B)")), "{notes}");
+}
+
+#[tokio::test]
 async fn a_member_without_import_run_cannot_use_the_source() {
     let (app, _tmdb) = app().await;
     let radarr = MockServer::start().await;

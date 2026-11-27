@@ -2,7 +2,8 @@
 //! running Radarr and merges what it finds into this library. `apply == false`
 //! walks the same path without writing, so the preview counts match a run.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex, PoisonError};
 
 use arr_compat::radarr::client::RadarrClient;
 use arr_compat::radarr::dto::{
@@ -210,6 +211,60 @@ fn pick(known: &[Known], name: &str, alt: &str, signature: &Value) -> Pick {
     }
 }
 
+/// What makes two quality profiles equal. Zero scores are left out: a profile
+/// stores none for them.
+struct ProfileRules<'a> {
+    items: &'a Value,
+    cutoff: i32,
+    language: &'a str,
+    upgrade_allowed: bool,
+    min_format_score: i32,
+    cutoff_format_score: i32,
+    min_upgrade_format_score: i32,
+    /// Local custom format id and score.
+    scores: Vec<(i32, i32)>,
+}
+
+impl ProfileRules<'_> {
+    fn signature(mut self) -> Value {
+        self.scores.retain(|(_, score)| *score != 0);
+        self.scores.sort_unstable();
+        json!({
+            "items": self.items,
+            "cutoff": self.cutoff,
+            "language": self.language,
+            "upgradeAllowed": self.upgrade_allowed,
+            "minFormatScore": self.min_format_score,
+            "cutoffFormatScore": self.cutoff_format_score,
+            "minUpgradeFormatScore": self.min_upgrade_format_score,
+            "scores": self.scores,
+        })
+    }
+}
+
+/// Ids of the source ids whose import is running. The server is one process.
+static RUNNING: LazyLock<Mutex<HashSet<i32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Holds a source id in [`RUNNING`] until dropped, panic included.
+struct RunGuard(i32);
+
+impl RunGuard {
+    /// `None` when `id` is already running.
+    fn acquire(id: i32) -> Option<Self> {
+        let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
+        running.insert(id).then_some(Self(id))
+    }
+}
+
+impl Drop for RunGuard {
+    fn drop(&mut self) {
+        RUNNING
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&self.0);
+    }
+}
+
 struct Run<'a> {
     state: &'a AppState,
     source: &'a Source,
@@ -314,7 +369,14 @@ impl Run<'_> {
             .map(|row| (row.id, row.label))
             .collect();
         for tag in remote {
-            let label = tag.label.trim().to_lowercase();
+            let Ok(label) = crate::tags::validate_label(&tag.label) else {
+                self.report.tags.skipped += 1;
+                self.report.notes.push(format!(
+                    "Tag \"{}\" has a label Unseen does not accept.",
+                    tag.label
+                ));
+                continue;
+            };
             let mapped = self.mapped(store::TAG, tag.id).await?;
             if let Some(id) = mapped.filter(|id| known.iter().any(|(k, _)| k == id)) {
                 self.tag_ids.insert(tag.id, id);
@@ -441,16 +503,30 @@ impl Run<'_> {
             }
             return Ok(());
         }
-        let mut known: Vec<Known> = profiles::list(&self.state.db)
-            .await
-            .map_err(failed)?
-            .into_iter()
-            .map(|row| Known {
+        let mut known: Vec<Known> = Vec::new();
+        for row in profiles::list(&self.state.db).await.map_err(failed)? {
+            let scores = profiles::format_scores(&self.state.db, row.id)
+                .await
+                .map_err(failed)?
+                .into_iter()
+                .map(|entry| (entry.custom_format_id, entry.score))
+                .collect();
+            known.push(Known {
                 id: row.id,
                 name: row.name,
-                signature: json!({ "items": row.items, "cutoff": row.cutoff_quality_id }),
-            })
-            .collect();
+                signature: ProfileRules {
+                    items: &row.items,
+                    cutoff: row.cutoff_quality_id,
+                    language: &row.language,
+                    upgrade_allowed: row.upgrade_allowed,
+                    min_format_score: row.min_format_score,
+                    cutoff_format_score: row.cutoff_format_score,
+                    min_upgrade_format_score: row.min_upgrade_format_score,
+                    scores,
+                }
+                .signature(),
+            });
+        }
         for item in remote {
             let mapped = self.mapped(store::QUALITY_PROFILE, item.id).await?;
             if let Some(id) = mapped.filter(|id| known.iter().any(|k| k.id == *id)) {
@@ -480,7 +556,26 @@ impl Run<'_> {
                 continue;
             }
             let items = serde_json::to_value(&items).map_err(failed)?;
-            let signature = json!({ "items": items, "cutoff": item.cutoff });
+            let scores: Vec<(i32, i32)> = item
+                .format_items
+                .iter()
+                .filter_map(|entry| {
+                    self.format_ids
+                        .get(&entry.format)
+                        .map(|id| (*id, entry.score))
+                })
+                .collect();
+            let signature = ProfileRules {
+                items: &items,
+                cutoff: item.cutoff,
+                language: &language,
+                upgrade_allowed: item.upgrade_allowed,
+                min_format_score: item.min_format_score,
+                cutoff_format_score: item.cutoff_format_score,
+                min_upgrade_format_score: min_upgrade,
+                scores,
+            }
+            .signature();
             let alt = self.renamed_name(&item.name);
             match pick(&known, &item.name, &alt, &signature) {
                 Pick::Matched(id) => {
@@ -919,10 +1014,25 @@ impl Run<'_> {
                 self.remember(store::DOWNLOAD_CLIENT, item.id, id).await?;
                 continue;
             }
-            let url = match field_text(&item.fields, "port") {
-                Some(port) => format!("http://{host}:{port}"),
-                None => format!("http://{host}"),
+            let scheme = if matches!(
+                item.fields
+                    .iter()
+                    .find(|field| field.name == "useSsl")
+                    .and_then(|field| field.value.as_ref()),
+                Some(Value::Bool(true))
+            ) {
+                "https"
+            } else {
+                "http"
             };
+            let port = field_text(&item.fields, "port")
+                .map(|port| format!(":{port}"))
+                .unwrap_or_default();
+            let base = field_text(&item.fields, "urlBase")
+                .map(|base| format!("/{}", base.trim_matches('/')))
+                .filter(|base| base != "/")
+                .unwrap_or_default();
+            let url = format!("{scheme}://{host}{port}{base}");
             let id = if self.apply {
                 download_clients::create(
                     &self.state.db,
@@ -1098,7 +1208,8 @@ pub struct NewSource {
     /// The source's API key. It is stored encrypted and never returned.
     #[schema(format = Password)]
     api_key: String,
-    /// Quality profile for movies whose source profile has no match.
+    /// Quality profile given to every movie imported from this source. When
+    /// set, the source's own quality profiles are not imported.
     target_quality_profile_id: Option<i32>,
     /// A path prefix as the source sees it. Needs `localPath`.
     remote_path: Option<String>,
@@ -1253,6 +1364,7 @@ pub async fn preview_source(
         (status = 200, description = "What the run did", body = Report),
         (status = 403, description = "Permission denied", body = Problem),
         (status = 404, description = "No such import source", body = Problem),
+        (status = 409, description = "An import of this source is already running", body = Problem),
         (status = 502, description = "The source did not answer", body = Problem),
     )
 )]
@@ -1262,6 +1374,12 @@ pub async fn run_source(
     UrlPath(id): UrlPath<i32>,
 ) -> Result<Json<Report>, Problem> {
     let source = load(&state, id).await?;
+    let _running = RunGuard::acquire(id).ok_or_else(|| {
+        Problem::conflict(
+            "import_running",
+            "An import of this source is already running",
+        )
+    })?;
     Ok(Json(import(&state, &source, true).await?))
 }
 
@@ -1285,6 +1403,39 @@ mod tests {
         validate(body)
             .err()
             .and_then(|problem| problem.errors.first().map(|e| e.field.clone()))
+    }
+
+    #[test]
+    fn a_source_runs_once_at_a_time() {
+        let id = 987_654;
+        let guard = RunGuard::acquire(id).expect("first acquire");
+        assert!(RunGuard::acquire(id).is_none());
+        drop(guard);
+        assert!(RunGuard::acquire(id).is_some());
+    }
+
+    #[test]
+    fn profiles_differ_by_scores_and_limits() {
+        let items = json!([]);
+        let rules = |scores: Vec<(i32, i32)>, min: i32| {
+            ProfileRules {
+                items: &items,
+                cutoff: 1,
+                language: "any",
+                upgrade_allowed: true,
+                min_format_score: min,
+                cutoff_format_score: 0,
+                min_upgrade_format_score: 1,
+                scores,
+            }
+            .signature()
+        };
+        assert_eq!(
+            rules(vec![(2, 5), (1, 3), (4, 0)], 0),
+            rules(vec![(1, 3), (2, 5)], 0)
+        );
+        assert_ne!(rules(vec![(1, 3)], 0), rules(vec![(1, 4)], 0));
+        assert_ne!(rules(vec![], 0), rules(vec![], 1));
     }
 
     #[test]
