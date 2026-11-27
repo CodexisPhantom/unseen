@@ -12,6 +12,7 @@ mod download_clients;
 pub mod error;
 pub mod events;
 mod health;
+pub mod import_sources;
 mod indexers;
 mod libraries;
 mod library;
