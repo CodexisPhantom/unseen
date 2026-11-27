@@ -43,9 +43,9 @@ push to `main`:
 
 | Job | Steps |
 |---|---|
-| Rust | `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `just coverage` (all Rust tests under `cargo llvm-cov`, with the minimums below); `just gen`, then `git diff --exit-code` |
+| Rust | `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `just coverage` (all Rust tests under `cargo llvm-cov nextest`, with the minimums below); `just gen`, then `git diff --exit-code` |
 | Web | `bun run check` (static-SPA check and `svelte-check`), `bun run lint` (ESLint), `bun run test` (Vitest with coverage), `bun run build` |
-| Core tests on Windows | `cargo test -p core` |
+| Core tests on Windows | `cargo nextest run -p core` |
 | Docker image | Builds the image, no push |
 
 The Rust job runs in an `ubuntu:26.04` container, because the auth library

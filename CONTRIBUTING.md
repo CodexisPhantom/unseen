@@ -5,7 +5,7 @@ done.
 
 ## Requirements
 
-- Rust stable (edition 2024), `just`
+- Rust stable (edition 2024), `just`, [`cargo-nextest`](https://nexte.st)
 - Bun
 - OpenSSL 3 and ICU 78 development files. `rustls` does not remove the
   OpenSSL requirement (ADR 0006). Set `RUST_ICU_MAJOR_VERSION_NUMBER=78`. On
@@ -18,8 +18,8 @@ done.
 |---|---|
 | `just dev` | Runs the API with reload and the Vite dev server |
 | `just check` | `cargo fmt --check`, `cargo clippy -- -D warnings`, `bun run check`, `bun run lint` |
-| `just coverage` | Rust tests with `cargo llvm-cov`; fails below the minimums in docs/12 |
-| `just test` | Rust tests and frontend tests |
+| `just coverage` | Rust tests with `cargo llvm-cov nextest`; fails below the minimums in docs/12 |
+| `just test` | Rust tests (`cargo nextest`) and frontend tests |
 | `just gen` | Regenerates `openapi.json` and the TypeScript client |
 | `just gen-auth` | Regenerates `crates/db/src/auth_schema.rs` with the Better Auth CLI |
 | `just build` | Builds the frontend, then the release binary with the UI embedded |
