@@ -242,7 +242,7 @@ pub async fn list_queue(
 
             QueueItem {
                 id: dl.id,
-                movie_id: dl.movie_id,
+                movie_id: row.movie_id,
                 movie_title: row.movie_title,
                 movie_year: row.movie_year,
                 movie_profile_id: dl.movie_profile_id,
@@ -297,7 +297,10 @@ pub async fn remove_queue_item(
     if db::downloads::is_final_state(&existing.state) {
         return Err(Problem::not_found());
     }
-    let movie = db::movies::find(&state.db, existing.movie_id)
+    let Some(movie_id) = existing.movie_id else {
+        return Err(Problem::not_found());
+    };
+    let movie = db::movies::find(&state.db, movie_id)
         .await
         .map_err(failed)?
         .ok_or_else(Problem::not_found)?;

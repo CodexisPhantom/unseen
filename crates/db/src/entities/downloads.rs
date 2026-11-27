@@ -5,7 +5,8 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub movie_id: i32,
+    pub movie_id: Option<i32>,
+    pub show_id: Option<i32>,
     pub movie_profile_id: Option<i32>,
     pub indexer_id: Option<i32>,
     pub download_client_id: Option<i32>,

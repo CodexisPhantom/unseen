@@ -29,6 +29,7 @@ pub mod roles;
 pub mod root_folders;
 pub mod secret;
 pub mod settings;
+pub mod shows;
 pub mod subtitles;
 pub mod tags;
 pub mod testing;
@@ -113,6 +114,10 @@ mod tests {
             "download_client_tags",
             "download_clients",
             "downloads",
+            "download_episodes",
+            "episode_file_episodes",
+            "episode_files",
+            "episodes",
             "api_keys",
             "indexer_tags",
             "indexers",
@@ -128,7 +133,9 @@ mod tests {
             "role_permissions",
             "roles",
             "root_folders",
+            "seasons",
             "session",
+            "shows",
             "subtitles",
             "tags",
             "settings",
@@ -366,5 +373,50 @@ mod tests {
         );
         assert!(eff.has_all_libraries(unseen_core::permission::Permission::LibraryRead));
         assert!(eff.has_all_libraries(unseen_core::permission::Permission::QueueRead));
+    }
+
+    #[tokio::test]
+    async fn migrates_on_top_of_m15_and_keeps_movie_downloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = open(dir.path()).await.unwrap();
+        migration::Migrator::up(&db, Some(15)).await.unwrap();
+        let backend = db.get_database_backend();
+        db.execute_raw(Statement::from_string(
+            backend,
+            "INSERT INTO root_folders (path, created_at) VALUES ('/movies', '2026-01-01T00:00:00.000Z'); \
+             INSERT INTO movies (tmdb_id, title, sort_title, year, status, root_folder_id, folder_name, monitored, minimum_availability, added_at, updated_at) \
+             SELECT 603, 'The Matrix', 'matrix', 1999, 'released', id, 'The Matrix (1999)', 1, 'released', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z' FROM root_folders WHERE path = '/movies'; \
+             INSERT INTO downloads (movie_id, client_download_id, release_title, quality_id, size, state, grabbed_at) \
+             SELECT id, 'hash-old', 'The.Matrix.1999.1080p.BluRay', 7, 1000, 'downloading', '2026-01-01T00:00:00.000Z' FROM movies WHERE tmdb_id = 603;"
+                .to_owned(),
+        ))
+        .await
+        .unwrap();
+        db.close().await.unwrap();
+
+        let db = connect(dir.path()).await.unwrap();
+        let row = db
+            .query_one_raw(Statement::from_string(
+                db.get_database_backend(),
+                "SELECT movie_id, show_id FROM downloads WHERE client_download_id = 'hash-old'",
+            ))
+            .await
+            .unwrap()
+            .expect("the download is still there");
+        assert!(row.try_get::<i32>("", "movie_id").is_ok());
+        assert!(row.try_get::<Option<i32>>("", "show_id").unwrap().is_none());
+        for expected in [
+            "download_episodes",
+            "episode_file_episodes",
+            "episode_files",
+            "episodes",
+            "seasons",
+            "shows",
+        ] {
+            assert!(
+                tables(&db).await.iter().any(|t| t == expected),
+                "missing {expected}"
+            );
+        }
     }
 }
