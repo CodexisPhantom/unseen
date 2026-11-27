@@ -668,8 +668,9 @@ impl Run<'_> {
             self.skip_movie(movie, "its root folder was not imported");
             return Ok(());
         };
-        let folder_name =
-            non_empty(&movie.folder_name).unwrap_or_else(|| last_segment(&movie.path));
+        let folder_name = non_empty(&movie.folder_name)
+            .map(|name| last_segment(&name))
+            .unwrap_or_else(|| last_segment(&movie.path));
         if folder_name.is_empty() {
             self.skip_movie(movie, "it has no folder name");
             return Ok(());
