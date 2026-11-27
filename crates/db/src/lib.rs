@@ -392,6 +392,16 @@ mod tests {
         ))
         .await
         .unwrap();
+        let movie_id: i32 = db
+            .query_one_raw(Statement::from_string(
+                backend,
+                "SELECT id FROM movies WHERE tmdb_id = 603",
+            ))
+            .await
+            .unwrap()
+            .unwrap()
+            .try_get("", "id")
+            .unwrap();
         db.close().await.unwrap();
 
         let db = connect(dir.path()).await.unwrap();
@@ -403,7 +413,10 @@ mod tests {
             .await
             .unwrap()
             .expect("the download is still there");
-        assert!(row.try_get::<i32>("", "movie_id").is_ok());
+        assert_eq!(
+            row.try_get::<Option<i32>>("", "movie_id").unwrap(),
+            Some(movie_id)
+        );
         assert!(row.try_get::<Option<i32>>("", "show_id").unwrap().is_none());
         for expected in [
             "download_episodes",

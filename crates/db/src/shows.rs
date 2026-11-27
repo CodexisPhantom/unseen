@@ -328,6 +328,10 @@ mod tests {
         .unwrap();
     }
 
+    fn check_violation(error: &DbErr) -> bool {
+        error.to_string().contains("CHECK constraint failed")
+    }
+
     #[tokio::test]
     async fn finds_shows_by_provider_id_and_lists_by_sort_title() {
         let (db, _dir) = temp_db().await;
@@ -563,7 +567,11 @@ mod tests {
         }
         .insert(&db)
         .await;
-        assert!(both.is_err());
+        let error = both.unwrap_err();
+        assert!(
+            check_violation(&error),
+            "expected the target check, got {error}"
+        );
         let neither = downloads::ActiveModel {
             movie_id: Set(None),
             show_id: Set(None),
@@ -577,6 +585,10 @@ mod tests {
         }
         .insert(&db)
         .await;
-        assert!(neither.is_err());
+        let error = neither.unwrap_err();
+        assert!(
+            check_violation(&error),
+            "expected the target check, got {error}"
+        );
     }
 }
