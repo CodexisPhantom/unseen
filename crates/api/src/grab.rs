@@ -152,12 +152,16 @@ pub async fn grab_release(
                 )
             })?,
     };
-    let download = db::downloads::create(
-        &state.db,
+    // The indexer may have been deleted while the release sat in the cache.
+    let indexer_id = db::indexers::find(&state.db, release.indexer_id)
+        .await
+        .map_err(failed)?
+        .map(|indexer| indexer.model.id);
+    let download = db::downloads::create(        &state.db,
         db::downloads::NewDownload {
             movie_id: release.movie_id,
             movie_profile_id: Some(release.movie_profile_id),
-            indexer_id: Some(release.indexer_id),
+            indexer_id,
             download_client_id: Some(client.model.id),
             client_download_id: client_download_id.clone(),
             release_title: release.title.clone(),
