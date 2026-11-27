@@ -526,13 +526,20 @@ pub fn release_info_from_parsed<'a>(
     }
 }
 
+/// The custom formats that match `release`, in the order of `formats`.
+pub fn matching_formats<'a>(
+    formats: &'a [ScoredFormat],
+    release: &'a ReleaseInfo<'_>,
+) -> impl Iterator<Item = &'a ScoredFormat> {
+    formats
+        .iter()
+        .filter(move |entry| entry.format.matches(release))
+}
+
 /// Sums the scores of every custom format that matches `release`.
 #[must_use]
 pub fn score_release(formats: &[ScoredFormat], release: &ReleaseInfo<'_>) -> i32 {
-    formats
-        .iter()
-        .filter(|entry| entry.format.matches(release))
-        .fold(0i32, |total, entry| total.saturating_add(entry.score))
+    matching_formats(formats, release).fold(0i32, |total, entry| total.saturating_add(entry.score))
 }
 
 /// Reads Radarr's field list or the TRaSH guide's field map.

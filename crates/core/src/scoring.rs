@@ -334,6 +334,8 @@ pub struct Decision<'a> {
     rank: Option<usize>,
     /// Total custom format score for the profile.
     custom_format_score: i32,
+    /// The custom formats that match, with the score each adds.
+    matched_formats: Vec<(String, i32)>,
     /// Whether this release's protocol is preferred by the context.
     preferred_protocol: bool,
     /// Age of the release in whole hours when a timestamp and `now` are known.
@@ -372,6 +374,12 @@ impl Decision<'_> {
     #[must_use]
     pub const fn custom_format_score(&self) -> i32 {
         self.custom_format_score
+    }
+
+    /// The custom formats that match the release, with the score each adds.
+    #[must_use]
+    pub fn matched_formats(&self) -> &[(String, i32)] {
+        &self.matched_formats
     }
 
     /// Seeders bucketed on a log10 scale (`round(log10(seeders + 1))`).
@@ -558,7 +566,13 @@ pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a>
         &[],
         ctx.movie.year.map(i32::from),
     );
-    let custom_format_score = custom_format::score_release(ctx.custom_formats, &release_info);
+    let matched_formats: Vec<(String, i32)> =
+        custom_format::matching_formats(ctx.custom_formats, &release_info)
+            .map(|entry| (entry.format.name.clone(), entry.score))
+            .collect();
+    let custom_format_score = matched_formats
+        .iter()
+        .fold(0i32, |total, (_, score)| total.saturating_add(*score));
     let mut rejections = Vec::new();
 
     if !same_movie(&ctx.movie, &parsed) {
@@ -633,6 +647,7 @@ pub fn evaluate<'a>(ctx: &Context<'a>, candidate: Candidate<'a>) -> Decision<'a>
         rejections,
         rank,
         custom_format_score,
+        matched_formats,
         preferred_protocol: ctx.protocol_preference.prefers(protocol),
         age_hours,
         age_bucket,

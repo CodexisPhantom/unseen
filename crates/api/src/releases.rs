@@ -82,6 +82,15 @@ pub struct ReleaseScore {
     pub preferred_size_distance: Option<u64>,
 }
 
+/// A custom format that matches a release.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchedFormat {
+    pub name: String,
+    /// The score the profile assigns to the format.
+    pub score: i32,
+}
+
 /// One parsed and scored release returned from a manual search.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -115,6 +124,8 @@ pub struct Release {
     pub accepted: bool,
     /// Empty when `accepted` is true; otherwise every broken rule in order.
     pub rejections: Vec<ReleaseRejection>,
+    /// The custom formats of the profile that match the release.
+    pub custom_formats: Vec<MatchedFormat>,
     pub score: ReleaseScore,
 }
 
@@ -619,6 +630,14 @@ pub async fn search_movie(
                 reason: rejection.reason().to_owned(),
             })
             .collect();
+        let custom_formats = decision
+            .matched_formats()
+            .iter()
+            .map(|(name, score)| MatchedFormat {
+                name: name.clone(),
+                score: *score,
+            })
+            .collect();
         let custom_format_score = decision.custom_format_score();
         let score = ReleaseScore {
             rank: u32::try_from(index + 1).unwrap_or(u32::MAX),
@@ -673,6 +692,7 @@ pub async fn search_movie(
             repack: decision.parsed.repack,
             accepted,
             rejections,
+            custom_formats,
             score,
         });
     }

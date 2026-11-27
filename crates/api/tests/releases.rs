@@ -1618,12 +1618,17 @@ async fn custom_format_scores_rank_reject_and_enforce_cutoff_in_release_search()
     assert_eq!(releases[0]["guid"], "cf-high");
     assert_eq!(releases[0]["accepted"], true);
     assert_eq!(releases[0]["score"]["customFormatScore"], 700);
+    assert_eq!(
+        releases[0]["customFormats"],
+        json!([{ "name": "HDR", "score": 500 }, { "name": "Atmos", "score": 200 }])
+    );
     assert_eq!(releases[1]["guid"], "cf-mid");
     assert_eq!(releases[1]["accepted"], true);
     assert_eq!(releases[1]["score"]["customFormatScore"], 200);
     assert_eq!(releases[2]["guid"], "cf-low");
     assert_eq!(releases[2]["accepted"], false);
     assert_eq!(releases[2]["score"]["customFormatScore"], 0);
+    assert_eq!(releases[2]["customFormats"], json!([]));
     assert_eq!(releases[2]["rejections"][0]["code"], "min_format_score");
 
     // Verify CachedRelease carries the computed custom format score for downloads.
