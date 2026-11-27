@@ -124,14 +124,18 @@ fn build_series_view(
     links: Vec<episode_file_episodes::Model>,
     now: &str,
 ) -> SeriesView {
-    let files: HashMap<i32, &episode_files::Model> = files.iter().map(|file| (file.id, file)).collect();
+    let files: HashMap<i32, &episode_files::Model> =
+        files.iter().map(|file| (file.id, file)).collect();
     let file_of_episode: HashMap<i32, i32> = links
         .iter()
         .map(|link| (link.episode_id, link.episode_file_id))
         .collect();
     let mut by_season: HashMap<i32, Vec<&episodes::Model>> = HashMap::new();
     for episode in &episodes {
-        by_season.entry(episode.season_number).or_default().push(episode);
+        by_season
+            .entry(episode.season_number)
+            .or_default()
+            .push(episode);
     }
     let season_views = seasons
         .iter()
@@ -274,11 +278,10 @@ pub async fn get_series(
         .map_err(db_failed)?
         .ok_or_else(CompatError::not_found)?;
     if !caller.has_all_libraries(Permission::LibraryRead) {
-        let library_id =
-            db::libraries::library_of_root_folder(&state.db, show.root_folder_id)
-                .await
-                .map_err(db_failed)?
-                .ok_or_else(CompatError::not_found)?;
+        let library_id = db::libraries::library_of_root_folder(&state.db, show.root_folder_id)
+            .await
+            .map_err(db_failed)?
+            .ok_or_else(CompatError::not_found)?;
         if !caller.allows_in_library(Permission::LibraryRead, library_id) {
             return Err(CompatError::not_found());
         }

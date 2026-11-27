@@ -278,6 +278,21 @@ fn sonarr_routes_declare_expected_permissions() {
             },
             CompatRouteEntry {
                 method: Method::GET,
+                path: "/sonarr/api/v3/series".to_owned(),
+                permission: Some(Permission::LibraryRead),
+            },
+            CompatRouteEntry {
+                method: Method::GET,
+                path: "/sonarr/api/v3/series/lookup".to_owned(),
+                permission: Some(Permission::LibraryRead),
+            },
+            CompatRouteEntry {
+                method: Method::GET,
+                path: "/sonarr/api/v3/series/{id}".to_owned(),
+                permission: Some(Permission::LibraryRead),
+            },
+            CompatRouteEntry {
+                method: Method::GET,
                 path: "/sonarr/api/v3/tag".to_owned(),
                 permission: Some(Permission::LibraryRead),
             },
@@ -354,7 +369,7 @@ async fn unimplemented_sonarr_routes_return_501_and_log_one_warn() {
     let subscriber = tracing_subscriber::registry().with(capture.clone());
     let reply = app
         .send(
-            req(Method::GET, &format!("/Sonarr/API/v3/Series?apikey={key}"))
+            req(Method::GET, &format!("/Sonarr/API/v3/Queue?apikey={key}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -367,7 +382,7 @@ async fn unimplemented_sonarr_routes_return_501_and_log_one_warn() {
         json!({
             "message": "Not implemented",
             "method": "GET",
-            "path": "/Sonarr/API/v3/Series",
+            "path": "/Sonarr/API/v3/Queue",
         })
     );
     let warns = capture.warns();
@@ -378,7 +393,7 @@ async fn unimplemented_sonarr_routes_return_501_and_log_one_warn() {
     );
     assert_eq!(
         warns[0].fields.get("path").map(String::as_str),
-        Some("/Sonarr/API/v3/Series")
+        Some("/Sonarr/API/v3/Queue")
     );
     assert!(
         !warns[0].fields.values().any(|value| value.contains(&key)),
@@ -407,6 +422,9 @@ async fn every_implemented_route_enforces_its_permission() {
             "profiles:read",
         ),
         (Method::GET, "/sonarr/api/v3/tag", "library:read"),
+        (Method::GET, "/sonarr/api/v3/series", "library:read"),
+        (Method::GET, "/sonarr/api/v3/series/1", "library:read"),
+        (Method::GET, "/sonarr/api/v3/series/lookup", "library:read"),
         (Method::POST, "/sonarr/api/v3/tag", "library:edit"),
         (Method::PUT, "/sonarr/api/v3/tag/1", "library:edit"),
     ];
@@ -811,4 +829,264 @@ async fn seerr_sonarr_connection_test_sequence_passes() {
     let tag_dtos: Vec<TagResource> = serde_json::from_value(tags.body).unwrap();
     assert_eq!(tag_dtos.len(), 1);
     assert_eq!(tag_dtos[0].label, "seerr");
+}
+
+async fn add_show(app: &App, root_folder_id: i32, tvdb_id: i32, title: &str) -> i32 {
+    shows::ActiveModel {
+        tvdb_id: Set(Some(tvdb_id)),
+        metadata_provider: Set("tvdb".into()),
+        title: Set(title.into()),
+        sort_title: Set(title.into()),
+        year: Set(2020),
+        status: Set("continuing".into()),
+        series_type: Set("standard".into()),
+        folder_name: Set(title.into()),
+        monitored: Set(true),
+        root_folder_id: Set(root_folder_id),
+        added_at: Set(db::now()),
+        updated_at: Set(db::now()),
+        ..Default::default()
+    }
+    .insert(&app.state.db)
+    .await
+    .unwrap()
+    .id
+}
+
+async fn add_season(app: &App, show_id: i32, number: i32) {
+    seasons::ActiveModel {
+        show_id: Set(show_id),
+        season_number: Set(number),
+        monitored: Set(true),
+    }
+    .insert(&app.state.db)
+    .await
+    .unwrap();
+}
+
+async fn add_episode(app: &App, show_id: i32, season: i32, number: i32, air_utc: &str) -> i32 {
+    episodes::ActiveModel {
+        show_id: Set(show_id),
+        season_number: Set(season),
+        episode_number: Set(number),
+        title: Set(format!("Episode {number}")),
+        air_date_utc: Set(Some(air_utc.into())),
+        monitored: Set(true),
+        added_at: Set(db::now()),
+        updated_at: Set(db::now()),
+        ..Default::default()
+    }
+    .insert(&app.state.db)
+    .await
+    .unwrap()
+    .id
+}
+
+async fn add_episode_file(app: &App, show_id: i32, size: i64, group: &str, episode_id: i32) {
+    let file = episode_files::ActiveModel {
+        show_id: Set(show_id),
+        relative_path: Set("Season 01/Episode 01.mkv".into()),
+        size: Set(size),
+        quality_id: Set(1),
+        release_group: Set(Some(group.into())),
+        added_at: Set(db::now()),
+        ..Default::default()
+    }
+    .insert(&app.state.db)
+    .await
+    .unwrap();
+    episode_file_episodes::ActiveModel {
+        episode_file_id: Set(file.id),
+        episode_id: Set(episode_id),
+    }
+    .insert(&app.state.db)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn series_list_maps_shows_with_season_statistics() {
+    let app = App::new().await;
+    let key = app.create_key(&app.owner, &["library:read"]).await;
+
+    let tv_dir = tempfile::tempdir().unwrap();
+    let root =
+        db::root_folders::create(&app.state.db, tv_dir.path().to_string_lossy().into_owned())
+            .await
+            .unwrap();
+
+    let show_id = add_show(&app, root.id, 81189, "Breaking Bad").await;
+    add_season(&app, show_id, 0).await;
+    add_season(&app, show_id, 1).await;
+    let first = add_episode(&app, show_id, 1, 1, "2008-01-20T02:00:00Z").await;
+    add_episode(&app, show_id, 1, 2, "2099-01-01T00:00:00Z").await;
+    add_episode_file(&app, show_id, 1_000, "GROUP", first).await;
+
+    let reply = app
+        .send(
+            req(Method::GET, "/sonarr/api/v3/series")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    let series: Vec<SeriesResource> = serde_json::from_value(reply.body).unwrap();
+    assert_eq!(series.len(), 1);
+    let show = &series[0];
+    assert_eq!(show.id, show_id);
+    assert_eq!(show.tvdb_id, 81189);
+    assert_eq!(show.title, "Breaking Bad");
+    assert_eq!(
+        show.root_folder_path,
+        tv_dir.path().to_string_lossy().as_ref()
+    );
+    assert_eq!(show.folder, "Breaking Bad");
+    assert_eq!(show.quality_profile_id, 0);
+    assert!(show.tags.is_empty());
+
+    assert_eq!(show.seasons.len(), 2);
+    assert_eq!(show.seasons[0].season_number, 0);
+    let season = &show.seasons[1];
+    assert_eq!(season.season_number, 1);
+    assert_eq!(season.statistics.episode_file_count, 1);
+    assert_eq!(season.statistics.episode_count, 2);
+    assert_eq!(season.statistics.total_episode_count, 2);
+    assert_eq!(season.statistics.size_on_disk, 1_000);
+    assert_eq!(season.statistics.release_groups, ["GROUP"]);
+    assert_eq!(season.statistics.percent_of_episodes, 50.0);
+    assert_eq!(
+        season
+            .statistics
+            .previous_airing
+            .as_ref()
+            .map(|t| t.0.as_str()),
+        Some("2008-01-20T02:00:00Z")
+    );
+    assert_eq!(
+        season.statistics.next_airing.as_ref().map(|t| t.0.as_str()),
+        Some("2099-01-01T00:00:00Z")
+    );
+
+    assert_eq!(show.statistics.season_count, 1);
+    assert_eq!(show.statistics.episode_file_count, 1);
+    assert_eq!(show.statistics.total_episode_count, 2);
+    assert_eq!(show.statistics.size_on_disk, 1_000);
+    assert_eq!(show.statistics.percent_of_episodes, 50.0);
+}
+
+#[tokio::test]
+async fn series_filter_by_tvdb_id_and_lookup_stays_unimplemented() {
+    let app = App::new().await;
+    let key = app.create_key(&app.owner, &["library:read"]).await;
+
+    let tv_dir = tempfile::tempdir().unwrap();
+    let root =
+        db::root_folders::create(&app.state.db, tv_dir.path().to_string_lossy().into_owned())
+            .await
+            .unwrap();
+    let wanted = add_show(&app, root.id, 81189, "Breaking Bad").await;
+    add_show(&app, root.id, 121361, "Game of Thrones").await;
+
+    let reply = app
+        .send(
+            req(Method::GET, "/sonarr/api/v3/series?tvdbId=81189")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    let series: Vec<SeriesResource> = serde_json::from_value(reply.body).unwrap();
+    assert_eq!(series.len(), 1);
+    assert_eq!(series[0].id, wanted);
+
+    let miss = app
+        .send(
+            req(Method::GET, "/sonarr/api/v3/series?tvdbId=1")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(miss.status, StatusCode::OK, "{}", miss.body);
+    assert_eq!(miss.body, json!([]));
+
+    let lookup = app
+        .send(
+            req(Method::GET, "/sonarr/api/v3/series/lookup?term=tvdb:81189")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(
+        lookup.status,
+        StatusCode::NOT_IMPLEMENTED,
+        "{}",
+        lookup.body
+    );
+}
+
+#[tokio::test]
+async fn series_get_returns_one_show_and_404s_for_unknown_ids() {
+    let app = App::new().await;
+    let key = app.create_key(&app.owner, &["library:read"]).await;
+
+    let tv_dir = tempfile::tempdir().unwrap();
+    let root =
+        db::root_folders::create(&app.state.db, tv_dir.path().to_string_lossy().into_owned())
+            .await
+            .unwrap();
+    let show_id = add_show(&app, root.id, 81189, "Breaking Bad").await;
+
+    let reply = app
+        .send(
+            req(Method::GET, &format!("/sonarr/api/v3/series/{show_id}"))
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    let show: SeriesResource = serde_json::from_value(reply.body).unwrap();
+    assert_eq!(show.id, show_id);
+    assert_eq!(show.tvdb_id, 81189);
+
+    let missing = app
+        .send(
+            req(Method::GET, "/sonarr/api/v3/series/999999")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(missing.status, StatusCode::NOT_FOUND, "{}", missing.body);
+
+    let invalid = app
+        .send(
+            req(Method::GET, "/sonarr/api/v3/series/abc")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(invalid.status, StatusCode::BAD_REQUEST, "{}", invalid.body);
+}
+
+#[tokio::test]
+async fn series_list_is_empty_without_shows() {
+    let app = App::new().await;
+    let key = app.create_key(&app.owner, &["library:read"]).await;
+
+    let reply = app
+        .send(
+            req(Method::GET, "/sonarr/api/v3/series")
+                .header("X-Api-Key", &key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    assert_eq!(reply.body, json!([]));
 }

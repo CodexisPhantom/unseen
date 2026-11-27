@@ -192,10 +192,7 @@ fn details_to_view(details: &MovieDetails) -> MovieView {
     }
 }
 
-pub(crate) fn query_param<'a>(
-    params: &'a HashMap<String, String>,
-    name: &str,
-) -> Option<&'a str> {
+pub(crate) fn query_param<'a>(params: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {
     params
         .iter()
         .find(|(key, _)| key.eq_ignore_ascii_case(name))
