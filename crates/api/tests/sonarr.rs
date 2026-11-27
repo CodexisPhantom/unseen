@@ -10,14 +10,17 @@ use api::compat::CompatRouteEntry;
 use api::{AppState, router, sonarr_routes};
 use arr_compat::sonarr::SONARR_VERSION;
 use arr_compat::sonarr::dto::{
-    LanguageProfileResource, QualityProfileResource, RootFolderResource, SystemResource,
-    TagResource,
+    LanguageProfileResource, QualityProfileResource, RootFolderResource, SeriesResource,
+    SystemResource, TagResource,
 };
 use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{Method, Request, StatusCode, header};
 use better_auth::seaorm::sea_orm::{ActiveModelTrait, Set};
-use db::entities::{role_permissions, roles, user_roles};
+use db::entities::{
+    episode_file_episodes, episode_files, episodes, role_permissions, roles, seasons, shows,
+    user_roles,
+};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;

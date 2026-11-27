@@ -170,6 +170,25 @@ pub async fn files_of_episode(
         .await
 }
 
+/// Every episode-file link of a show's files, for season statistics.
+pub async fn file_links_of(
+    db: &DatabaseConnection,
+    show_id: i32,
+) -> Result<Vec<episode_file_episodes::Model>, DbErr> {
+    episode_file_episodes::Entity::find()
+        .filter(
+            episode_file_episodes::Column::EpisodeFileId.in_subquery(linked_ids::<
+                episode_files::Entity,
+            >(
+                episode_files::Column::Id,
+                episode_files::Column::ShowId,
+                show_id,
+            )),
+        )
+        .all(db)
+        .await
+}
+
 /// Every episode a file covers, by season then episode number.
 pub async fn episodes_of_file(
     db: &DatabaseConnection,

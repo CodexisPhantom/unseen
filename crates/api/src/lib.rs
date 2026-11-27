@@ -32,6 +32,7 @@ mod roles;
 mod root_folders;
 pub mod setup;
 pub mod sonarr;
+mod sonarr_series;
 mod subtitles;
 mod tags;
 mod tmdb;
