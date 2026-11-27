@@ -25,7 +25,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0014DownloadsAndBlocklist),
             Box::new(M0015Libraries),
             Box::new(M0016TvShows),
-            Box::new(M0017ImportSources),
+            Box::new(M0018ImportSources),
         ]
     }
 }
@@ -994,18 +994,18 @@ impl MigrationTrait for M0016TvShows {
     }
 }
 
-struct M0017ImportSources;
+struct M0018ImportSources;
 
-impl MigrationName for M0017ImportSources {
+impl MigrationName for M0018ImportSources {
     fn name(&self) -> &str {
-        "m0017_import_sources"
+        "m0018_import_sources"
     }
 }
 
 /// Import sources and the map that makes a run safe to repeat
 /// (docs/04-database.md, "System tables"). A path mapping translates the
 /// source's paths, like a download client's remote path mapping.
-const M0017_UP: &str = r#"
+const M0018_UP: &str = r#"
 CREATE TABLE import_sources (
     id integer PRIMARY KEY AUTOINCREMENT,
     kind text NOT NULL CHECK (kind IN ('radarr')),
@@ -1031,11 +1031,11 @@ CREATE TABLE import_map (
 "#;
 
 #[async_trait::async_trait]
-impl MigrationTrait for M0017ImportSources {
+impl MigrationTrait for M0018ImportSources {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()
-            .execute_unprepared(M0017_UP)
+            .execute_unprepared(M0018_UP)
             .await?;
         Ok(())
     }
