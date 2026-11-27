@@ -441,6 +441,95 @@ pub async fn create_with_files(
     find(db, movie.id).await?.ok_or(MovieError::NotFound)
 }
 
+/// Stores `files` of an existing movie as unmanaged files and returns the ids
+/// it inserted. A file whose path the movie has already is skipped, so a
+/// second call with the same files adds nothing.
+pub async fn adopt_files(
+    db: &DatabaseConnection,
+    movie_id: i32,
+    files: &[NewFile],
+) -> Result<Vec<i32>, MovieError> {
+    let txn = db.begin().await?;
+    if movies::Entity::find_by_id(movie_id)
+        .one(&txn)
+        .await?
+        .is_none()
+    {
+        return Err(MovieError::NotFound);
+    }
+    let mut known: Vec<String> = movie_files::Entity::find()
+        .filter(movie_files::Column::MovieId.eq(movie_id))
+        .all(&txn)
+        .await?
+        .into_iter()
+        .map(|file| file.relative_path)
+        .collect();
+    let mut inserted = Vec::new();
+    for file in files {
+        if known.contains(&file.relative_path) {
+            continue;
+        }
+        let languages = (!file.languages.is_empty()).then(|| serde_json::json!(file.languages));
+        let row = movie_files::ActiveModel {
+            movie_id: Set(movie_id),
+            relative_path: Set(file.relative_path.clone()),
+            size: Set(file.size),
+            quality_id: Set(file.quality_id),
+            languages: Set(languages),
+            movie_profile_id: Set(None),
+            added_at: Set(crate::now()),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+        known.push(file.relative_path.clone());
+        inserted.push(row.id);
+    }
+    txn.commit().await?;
+    Ok(inserted)
+}
+
+/// Makes `file_id` the managed file of the movie profile `profile_id` and
+/// clears the previous one; `None` only clears. The file must belong to the
+/// profile's movie.
+pub async fn set_managed_file(
+    db: &DatabaseConnection,
+    profile_id: i32,
+    file_id: Option<i32>,
+) -> Result<(), MovieError> {
+    let txn = db.begin().await?;
+    let link = movie_profiles::Entity::find_by_id(profile_id)
+        .one(&txn)
+        .await?
+        .ok_or(MovieError::NotFound)?;
+    let target = match file_id {
+        Some(id) => Some(
+            movie_files::Entity::find_by_id(id)
+                .filter(movie_files::Column::MovieId.eq(link.movie_id))
+                .one(&txn)
+                .await?
+                .ok_or(MovieError::UnknownReference)?,
+        ),
+        None => None,
+    };
+    for old in movie_files::Entity::find()
+        .filter(movie_files::Column::MovieProfileId.eq(profile_id))
+        .all(&txn)
+        .await?
+    {
+        let mut old: movie_files::ActiveModel = old.into();
+        old.movie_profile_id = Set(None);
+        old.update(&txn).await?;
+    }
+    if let Some(target) = target {
+        let mut target: movie_files::ActiveModel = target.into();
+        target.movie_profile_id = Set(Some(profile_id));
+        target.update(&txn).await?;
+    }
+    txn.commit().await?;
+    Ok(())
+}
+
 /// The TMDB ids of every movie in the library.
 pub async fn tmdb_ids(db: &DatabaseConnection) -> Result<Vec<i32>, DbErr> {
     movies::Entity::find()
@@ -798,6 +887,68 @@ mod tests {
         // A profile has one managed file, and a path appears once per movie.
         assert!(file(&db, id, "other.mkv", Some(hd)).await.is_err());
         assert!(file(&db, id, "extra.mkv", None).await.is_err());
+    }
+
+    fn new_file(path: &str) -> NewFile {
+        NewFile {
+            relative_path: path.into(),
+            size: 5,
+            quality_id: 7,
+            languages: vec!["en".into()],
+        }
+    }
+
+    #[tokio::test]
+    async fn adopted_files_are_unmanaged_and_adopting_twice_adds_nothing() {
+        let (db, _dir) = temp_db().await;
+        let root = root_folder(&db).await;
+        let id = movie(&db, 603, root).await.unwrap();
+        attach(&db, id, profile(&db, "HD").await, true)
+            .await
+            .unwrap();
+
+        let files = [new_file("a.mkv"), new_file("b.mkv")];
+        let first = adopt_files(&db, id, &files).await.unwrap();
+        assert_eq!(first.len(), 2);
+        assert!(adopt_files(&db, id, &files).await.unwrap().is_empty());
+        assert_eq!(files_of(&db, id).await.unwrap().len(), 2);
+        let found = find(&db, id).await.unwrap().unwrap();
+        assert!(found.profiles.iter().all(|p| p.file_id.is_none()));
+        assert!(matches!(
+            adopt_files(&db, 999, &files).await,
+            Err(MovieError::NotFound)
+        ));
+    }
+
+    #[tokio::test]
+    async fn the_managed_file_moves_and_clears() {
+        let (db, _dir) = temp_db().await;
+        let root = root_folder(&db).await;
+        let id = movie(&db, 603, root).await.unwrap();
+        let link = attach(&db, id, profile(&db, "HD").await, true)
+            .await
+            .unwrap();
+        let other = movie(&db, 604, root).await.unwrap();
+        let foreign = adopt_files(&db, other, &[new_file("x.mkv")]).await.unwrap()[0];
+        let ids = adopt_files(&db, id, &[new_file("a.mkv"), new_file("b.mkv")])
+            .await
+            .unwrap();
+
+        let managed = |db: &DatabaseConnection| {
+            let db = db.clone();
+            async move { find(&db, id).await.unwrap().unwrap().profiles[0].file_id }
+        };
+        set_managed_file(&db, link, Some(ids[0])).await.unwrap();
+        assert_eq!(managed(&db).await, Some(ids[0]));
+        set_managed_file(&db, link, Some(ids[1])).await.unwrap();
+        assert_eq!(managed(&db).await, Some(ids[1]));
+        assert!(matches!(
+            set_managed_file(&db, link, Some(foreign)).await,
+            Err(MovieError::UnknownReference)
+        ));
+        assert_eq!(managed(&db).await, Some(ids[1]));
+        set_managed_file(&db, link, None).await.unwrap();
+        assert_eq!(managed(&db).await, None);
     }
 
     #[tokio::test]

@@ -6,6 +6,7 @@
 	import MonitoredSwitch from '#lib/components/monitored-switch.svelte';
 	import MovieDeleteDialog from '#lib/components/movie-delete-dialog.svelte';
 	import MovieEditDialog from '#lib/components/movie-edit-dialog.svelte';
+	import MovieSearchDialog from '#lib/components/movie-search-dialog.svelte';
 	import NoAccess from '#lib/components/no-access.svelte';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -30,6 +31,7 @@
 	const read = $derived(session.can('library:read'));
 	const edit = $derived(session.can('library:edit'));
 	const remove = $derived(session.can('library:delete'));
+	const search = $derived(session.can('search:run'));
 	const canReadQueue = $derived(session.can('queue:read'));
 
 	const movie = createQuery(() => ({
@@ -98,6 +100,7 @@
 
 	let editOpen = $state(false);
 	let deleteOpen = $state(false);
+	let searchOpen = $state(false);
 	let failure = $state('');
 
 	function collectionTitle(collectionId: number): string {
@@ -165,6 +168,9 @@
 						{/each}
 					</div>
 					<div class="flex gap-2">
+						{#if search}
+							<Button size="sm" onclick={() => (searchOpen = true)}>Search</Button>
+						{/if}
 						{#if edit}
 							<Button variant="outline" size="sm" onclick={() => (editOpen = true)}>Edit</Button>
 						{/if}
@@ -287,6 +293,16 @@
 			</Table.Root>
 		{/if}
 
+		{#if search}
+			<MovieSearchDialog
+				bind:open={searchOpen}
+				movie={m}
+				profileNames={m.profiles.map((profile) => ({
+					id: profile.id,
+					name: profileName(profile.qualityProfileId)
+				}))}
+			/>
+		{/if}
 		{#if edit}
 			<MovieEditDialog
 				bind:open={editOpen}

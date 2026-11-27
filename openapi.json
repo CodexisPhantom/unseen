@@ -1377,6 +1377,286 @@
         "x-permission": "public"
       }
     },
+    "/api/v1/import-sources": {
+      "get": {
+        "tags": [
+          "import-sources"
+        ],
+        "summary": "Lists the import sources by name.",
+        "operationId": "list_sources",
+        "responses": {
+          "200": {
+            "description": "The import sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImportSource"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "import:run"
+      },
+      "post": {
+        "tags": [
+          "import-sources"
+        ],
+        "summary": "Adds an import source. The key is stored encrypted.",
+        "operationId": "create_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new import source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSource"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another source has this URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request is not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "import:run"
+      }
+    },
+    "/api/v1/import-sources/{id}": {
+      "delete": {
+        "tags": [
+          "import-sources"
+        ],
+        "summary": "Deletes an import source and its resource map. Imported data stays.",
+        "operationId": "delete_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Import source id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such import source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "import:run"
+      }
+    },
+    "/api/v1/import-sources/{id}/preview": {
+      "post": {
+        "tags": [
+          "import-sources"
+        ],
+        "summary": "Counts what a run would do, without writing anything.",
+        "operationId": "preview_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Import source id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What a run would do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such import source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The source did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "import:run"
+      }
+    },
+    "/api/v1/import-sources/{id}/run": {
+      "post": {
+        "tags": [
+          "import-sources"
+        ],
+        "summary": "Imports from the source and records the time of the run.",
+        "operationId": "run_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Import source id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the run did",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such import source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An import of this source is already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The source did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "import:run"
+      }
+    },
     "/api/v1/indexers": {
       "get": {
         "tags": [
@@ -4145,6 +4425,88 @@
         "x-permission": "queue:manage"
       }
     },
+    "/api/v1/releases/grab": {
+      "post": {
+        "tags": [
+          "releases"
+        ],
+        "summary": "Sends a release of the search cache to the download client that serves the\nmovie, and records the download as `queued`.",
+        "operationId": "grab_release",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrabRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The release was sent to the download client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grabbed"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The release id is unknown or the movie is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The movie profile already has an active download, or no enabled download client serves the movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The profile rejected the release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The download client did not accept the release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "release:grab"
+      }
+    },
     "/api/v1/roles": {
       "get": {
         "tags": [
@@ -6131,6 +6493,32 @@
           }
         }
       },
+      "Counts": {
+        "type": "object",
+        "description": "How many source resources of one kind were created, found or left out.",
+        "required": [
+          "created",
+          "matched",
+          "skipped"
+        ],
+        "properties": {
+          "created": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "matched": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "CreatedApiKey": {
         "type": "object",
         "required": [
@@ -6518,6 +6906,42 @@
           }
         }
       },
+      "GrabRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/releases/grab`.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Release id from a manual search."
+          }
+        }
+      },
+      "Grabbed": {
+        "type": "object",
+        "description": "The download row a grab created.",
+        "required": [
+          "downloadId",
+          "downloadClientId",
+          "clientDownloadId"
+        ],
+        "properties": {
+          "clientDownloadId": {
+            "type": "string",
+            "description": "The torrent hash, or the nzo id SABnzbd assigned."
+          },
+          "downloadClientId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "downloadId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
@@ -6547,6 +6971,60 @@
           }
         ],
         "description": "One Radarr custom format object or an array of them."
+      },
+      "ImportSource": {
+        "type": "object",
+        "description": "A configured import source. The API key is never returned.",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "url",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lastImportAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "remotePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "targetQualityProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
       },
       "Indexer": {
         "type": "object",
@@ -6973,6 +7451,24 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "MatchedFormat": {
+        "type": "object",
+        "description": "A custom format that matches a release.",
+        "required": [
+          "name",
+          "score"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The score the profile assigns to the format."
           }
         }
       },
@@ -7976,6 +8472,56 @@
           }
         }
       },
+      "NewSource": {
+        "type": "object",
+        "description": "What a caller sends to add an import source. No `Debug`: it holds a key.",
+        "required": [
+          "kind",
+          "name",
+          "url",
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "format": "password",
+            "description": "The source's API key. It is stored encrypted and never returned."
+          },
+          "kind": {
+            "type": "string",
+            "description": "The kind of source. Only `radarr` exists."
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The same prefix on this machine. Needs `remotePath`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "remotePath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A path prefix as the source sees it. Needs `localPath`."
+          },
+          "targetQualityProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Quality profile given to every movie imported from this source. When\nset, the source's own quality profiles are not imported."
+          },
+          "url": {
+            "type": "string",
+            "description": "Base URL of the source, such as `http://radarr:7878`."
+          }
+        }
+      },
       "NewUser": {
         "type": "object",
         "required": [
@@ -8710,6 +9256,7 @@
           "repack",
           "accepted",
           "rejections",
+          "customFormats",
           "score"
         ],
         "properties": {
@@ -8723,6 +9270,13 @@
             ],
             "format": "double",
             "description": "Age in hours since `publishedAt`."
+          },
+          "customFormats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchedFormat"
+            },
+            "description": "The custom formats of the profile that match the release."
           },
           "edition": {
             "type": [
@@ -8897,6 +9451,58 @@
             "format": "int32",
             "description": "Seeders on a log10 scale (`round(log10(seeders + 1))`).",
             "minimum": 0
+          }
+        }
+      },
+      "Report": {
+        "type": "object",
+        "description": "What an import run did, or would do when it is a preview.",
+        "required": [
+          "rootFolders",
+          "qualityProfiles",
+          "customFormats",
+          "tags",
+          "collections",
+          "movies",
+          "indexers",
+          "downloadClients",
+          "qualityDefinitions",
+          "notes"
+        ],
+        "properties": {
+          "collections": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "customFormats": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "downloadClients": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "indexers": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "movies": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Short lines about what was renamed, left out or needs the user."
+          },
+          "qualityDefinitions": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "qualityProfiles": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "rootFolders": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "tags": {
+            "$ref": "#/components/schemas/Counts"
           }
         }
       },

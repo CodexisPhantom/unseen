@@ -192,14 +192,14 @@ fn details_to_view(details: &MovieDetails) -> MovieView {
     }
 }
 
-fn query_param<'a>(params: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {
+pub(crate) fn query_param<'a>(params: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {
     params
         .iter()
         .find(|(key, _)| key.eq_ignore_ascii_case(name))
         .map(|(_, value)| value.as_str())
 }
 
-async fn allowed_folders_for_read(
+pub(crate) async fn allowed_folders_for_read(
     state: &AppState,
     caller: &ApiKeyCaller,
 ) -> Result<Option<BTreeSet<i32>>, CompatError> {

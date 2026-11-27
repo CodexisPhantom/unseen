@@ -1,5 +1,6 @@
 //! Versioned migrations. Never edit a released migration; add a new one.
 
+use sea_orm::{DatabaseBackend, Statement};
 use sea_orm_migration::prelude::*;
 
 pub struct Migrator;
@@ -23,6 +24,9 @@ impl MigratorTrait for Migrator {
             Box::new(M0013AuthTwoFactorPasskeys),
             Box::new(M0014DownloadsAndBlocklist),
             Box::new(M0015Libraries),
+            Box::new(M0016TvShows),
+            Box::new(M0017History),
+            Box::new(M0018ImportSources),
         ]
     }
 }
@@ -820,6 +824,251 @@ impl MigrationTrait for M0015Libraries {
         manager
             .get_connection()
             .execute_unprepared(M0015_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0016TvShows;
+
+impl MigrationName for M0016TvShows {
+    fn name(&self) -> &str {
+        "m0016_tv_shows"
+    }
+}
+
+/// TV tables and the episode side of `downloads` (docs/04-database.md,
+/// "TV tables (M7)"). The `downloads` rebuild makes `movie_id` nullable, so
+/// the table must be recreated to add the check that exactly one target is set.
+const M0016_UP: &str = r#"
+PRAGMA foreign_keys = OFF;
+BEGIN;
+
+CREATE TABLE shows (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    tvdb_id integer UNIQUE,
+    tmdb_id integer UNIQUE,
+    imdb_id text,
+    metadata_provider text NOT NULL CHECK (metadata_provider IN ('tvdb', 'tmdb')),
+    title text NOT NULL,
+    original_title text,
+    sort_title text NOT NULL,
+    year integer NOT NULL,
+    overview text,
+    runtime integer,
+    status text NOT NULL CHECK (status IN ('continuing', 'ended', 'upcoming')),
+    series_type text NOT NULL CHECK (series_type IN ('standard', 'daily', 'anime')),
+    network text,
+    poster_path text,
+    season_folder boolean NOT NULL DEFAULT TRUE,
+    root_folder_id integer NOT NULL REFERENCES root_folders (id),
+    folder_name text NOT NULL,
+    monitored boolean NOT NULL,
+    monitor_new_items text NOT NULL DEFAULT 'all' CHECK (monitor_new_items IN ('all', 'none')),
+    refreshed_at text,
+    added_at text NOT NULL,
+    updated_at text NOT NULL,
+    CHECK (tvdb_id IS NOT NULL OR tmdb_id IS NOT NULL)
+);
+CREATE INDEX shows_root_folder_id_idx ON shows (root_folder_id);
+
+CREATE TABLE seasons (
+    show_id integer NOT NULL REFERENCES shows (id) ON DELETE CASCADE,
+    season_number integer NOT NULL,
+    monitored boolean NOT NULL,
+    PRIMARY KEY (show_id, season_number)
+);
+
+CREATE TABLE episodes (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    show_id integer NOT NULL,
+    season_number integer NOT NULL,
+    episode_number integer NOT NULL,
+    absolute_number integer,
+    title text NOT NULL,
+    overview text,
+    air_date text,
+    air_date_utc text,
+    runtime integer,
+    tvdb_id integer UNIQUE,
+    tmdb_id integer UNIQUE,
+    monitored boolean NOT NULL,
+    added_at text NOT NULL,
+    updated_at text NOT NULL,
+    UNIQUE (show_id, season_number, episode_number),
+    FOREIGN KEY (show_id, season_number) REFERENCES seasons (show_id, season_number) ON DELETE CASCADE
+);
+CREATE INDEX episodes_air_date_idx ON episodes (air_date);
+CREATE INDEX episodes_show_id_absolute_number_idx ON episodes (show_id, absolute_number);
+
+CREATE TABLE episode_files (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    show_id integer NOT NULL REFERENCES shows (id) ON DELETE CASCADE,
+    relative_path text NOT NULL,
+    size integer NOT NULL,
+    quality_id integer NOT NULL,
+    release_group text,
+    scene_name text,
+    media_info json,
+    languages json,
+    added_at text NOT NULL,
+    UNIQUE (show_id, relative_path)
+);
+
+CREATE TABLE episode_file_episodes (
+    episode_file_id integer NOT NULL REFERENCES episode_files (id) ON DELETE CASCADE,
+    episode_id integer NOT NULL REFERENCES episodes (id) ON DELETE CASCADE,
+    PRIMARY KEY (episode_file_id, episode_id)
+);
+CREATE INDEX episode_file_episodes_episode_id_idx ON episode_file_episodes (episode_id);
+
+CREATE TABLE downloads_new (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_id integer REFERENCES movies (id) ON DELETE CASCADE,
+    show_id integer REFERENCES shows (id) ON DELETE CASCADE,
+    movie_profile_id integer REFERENCES movie_profiles (id) ON DELETE SET NULL,
+    indexer_id integer REFERENCES indexers (id) ON DELETE SET NULL,
+    download_client_id integer REFERENCES download_clients (id) ON DELETE SET NULL,
+    client_download_id text NOT NULL,
+    release_title text NOT NULL,
+    quality_id integer NOT NULL,
+    custom_format_score integer NOT NULL DEFAULT 0,
+    size integer NOT NULL,
+    state text NOT NULL,
+    error text,
+    attempts integer NOT NULL DEFAULT 0,
+    grabbed_at text NOT NULL,
+    completed_at text,
+    imported_at text,
+    UNIQUE (download_client_id, client_download_id),
+    CHECK ((movie_id IS NOT NULL AND show_id IS NULL)
+        OR (movie_id IS NULL AND show_id IS NOT NULL))
+);
+INSERT INTO downloads_new (id, movie_id, movie_profile_id, indexer_id, download_client_id,
+    client_download_id, release_title, quality_id, custom_format_score, size, state, error,
+    attempts, grabbed_at, completed_at, imported_at)
+SELECT id, movie_id, movie_profile_id, indexer_id, download_client_id,
+    client_download_id, release_title, quality_id, custom_format_score, size, state, error,
+    attempts, grabbed_at, completed_at, imported_at
+FROM downloads;
+DROP TABLE downloads;
+ALTER TABLE downloads_new RENAME TO downloads;
+CREATE INDEX downloads_state_idx ON downloads (state);
+CREATE INDEX downloads_movie_id_idx ON downloads (movie_id);
+CREATE INDEX downloads_show_id_idx ON downloads (show_id);
+
+CREATE TABLE download_episodes (
+    download_id integer NOT NULL REFERENCES downloads (id) ON DELETE CASCADE,
+    episode_id integer NOT NULL REFERENCES episodes (id) ON DELETE CASCADE,
+    PRIMARY KEY (download_id, episode_id)
+);
+CREATE INDEX download_episodes_episode_id_idx ON download_episodes (episode_id);
+
+COMMIT;
+PRAGMA foreign_keys = ON;
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0016TvShows {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let db = manager.get_connection();
+        if let Err(error) = db.execute_unprepared(M0016_UP).await {
+            // The script switches foreign keys off and opens a transaction: undo both
+            // so the connection goes back to the pool in its normal state.
+            let _ = db.execute_unprepared("ROLLBACK").await;
+            let _ = db.execute_unprepared("PRAGMA foreign_keys = ON").await;
+            return Err(error);
+        }
+        let violations = db
+            .query_all_raw(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                "PRAGMA foreign_key_check",
+            ))
+            .await?;
+        if !violations.is_empty() {
+            return Err(DbErr::Migration(format!(
+                "m0016_tv_shows left {} foreign key violations",
+                violations.len()
+            )));
+        }
+        Ok(())
+    }
+}
+
+struct M0017History;
+
+impl MigrationName for M0017History {
+    fn name(&self) -> &str {
+        "m0017_history"
+    }
+}
+
+/// The activity trail (docs/04-database.md, "Core tables"): one row per event,
+/// with the event specific payload as JSON.
+const M0017_UP: &str = r#"
+CREATE TABLE history (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_id integer REFERENCES movies (id) ON DELETE SET NULL,
+    event text NOT NULL,
+    data text NOT NULL,
+    created_at text NOT NULL
+);
+CREATE INDEX history_movie_id_created_at_idx ON history (movie_id, created_at);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0017History {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0017_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0018ImportSources;
+
+impl MigrationName for M0018ImportSources {
+    fn name(&self) -> &str {
+        "m0018_import_sources"
+    }
+}
+
+/// Import sources and the map that makes a run safe to repeat
+/// (docs/04-database.md, "System tables"). A path mapping translates the
+/// source's paths, like a download client's remote path mapping.
+const M0018_UP: &str = r#"
+CREATE TABLE import_sources (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    kind text NOT NULL CHECK (kind IN ('radarr')),
+    name text NOT NULL,
+    url text NOT NULL UNIQUE,
+    api_key text NOT NULL,
+    target_quality_profile_id integer REFERENCES quality_profiles (id) ON DELETE SET NULL,
+    remote_path text,
+    local_path text,
+    last_import_at text,
+    created_at text NOT NULL,
+    updated_at text NOT NULL,
+    CHECK ((remote_path IS NULL) = (local_path IS NULL))
+);
+
+CREATE TABLE import_map (
+    source_id integer NOT NULL REFERENCES import_sources (id) ON DELETE CASCADE,
+    resource text NOT NULL,
+    source_resource_id integer NOT NULL,
+    local_id integer NOT NULL,
+    PRIMARY KEY (source_id, resource, source_resource_id)
+);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0018ImportSources {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0018_UP)
             .await?;
         Ok(())
     }
