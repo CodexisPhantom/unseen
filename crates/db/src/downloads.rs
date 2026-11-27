@@ -18,6 +18,19 @@ pub const FINAL_STATES: &[&str] = &["imported", "failed", "removed"];
 pub fn is_final_state(state: &str) -> bool {
     FINAL_STATES.contains(&state)
 }
+/// Whether a movie profile already has a download outside the final states,
+/// which a new grab would duplicate (docs/06-state-machines.md).
+pub async fn has_active_for_profile(
+    db: &DatabaseConnection,
+    movie_profile_id: i32,
+) -> Result<bool, DbErr> {
+    Ok(downloads::Entity::find()
+        .filter(downloads::Column::MovieProfileId.eq(movie_profile_id))
+        .filter(downloads::Column::State.is_not_in(FINAL_STATES.iter().copied()))
+        .one(db)
+        .await?
+        .is_some())
+}
 
 /// An active download row enriched with its movie title/year and client name.
 #[derive(Debug, Clone, PartialEq, Eq)]

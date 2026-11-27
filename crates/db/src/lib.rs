@@ -19,6 +19,7 @@ pub mod custom_formats;
 pub mod download_clients;
 pub mod downloads;
 pub mod entities;
+pub mod history;
 pub mod indexers;
 pub mod libraries;
 mod migration;

@@ -12,6 +12,7 @@ pub mod downloads;
 pub mod episode_file_episodes;
 pub mod episode_files;
 pub mod episodes;
+pub mod history;
 pub mod indexer_tags;
 pub mod indexers;
 pub mod language_profiles;
