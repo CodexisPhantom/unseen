@@ -1734,6 +1734,15 @@ export interface components {
             includeCustomFormatWhenRenaming: boolean;
             name: string;
         };
+        /** @description A custom format that matches a release. */
+        MatchedFormat: {
+            name: string;
+            /**
+             * Format: int32
+             * @description The score the profile assigns to the format.
+             */
+            score: number;
+        };
         MatchedFormatScore: {
             /** Format: int32 */
             formatId: number;
@@ -2310,6 +2319,8 @@ export interface components {
              * @description Age in hours since `publishedAt`.
              */
             ageHours?: number | null;
+            /** @description The custom formats of the profile that match the release. */
+            customFormats: components["schemas"]["MatchedFormat"][];
             edition?: string | null;
             guid: string;
             /** @description Short-lived cache reference id to pass to grab. */

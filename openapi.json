@@ -3591,8 +3591,8 @@
             }
           }
         },
-        "x-owner-only": true,
-        "x-permission": "authenticated"
+        "x-permission": "authenticated",
+        "x-owner-only": true
       }
     },
     "/api/v1/permissions": {
@@ -6976,6 +6976,24 @@
           }
         }
       },
+      "MatchedFormat": {
+        "type": "object",
+        "description": "A custom format that matches a release.",
+        "required": [
+          "name",
+          "score"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The score the profile assigns to the format."
+          }
+        }
+      },
       "MatchedFormatScore": {
         "type": "object",
         "required": [
@@ -8710,6 +8728,7 @@
           "repack",
           "accepted",
           "rejections",
+          "customFormats",
           "score"
         ],
         "properties": {
@@ -8723,6 +8742,13 @@
             ],
             "format": "double",
             "description": "Age in hours since `publishedAt`."
+          },
+          "customFormats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchedFormat"
+            },
+            "description": "The custom formats of the profile that match the release."
           },
           "edition": {
             "type": [
