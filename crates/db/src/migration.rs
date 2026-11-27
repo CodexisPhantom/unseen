@@ -25,6 +25,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0014DownloadsAndBlocklist),
             Box::new(M0015Libraries),
             Box::new(M0016TvShows),
+            Box::new(M0017History),
             Box::new(M0018ImportSources),
         ]
     }
@@ -990,6 +991,38 @@ impl MigrationTrait for M0016TvShows {
                 violations.len()
             )));
         }
+        Ok(())
+    }
+}
+
+struct M0017History;
+
+impl MigrationName for M0017History {
+    fn name(&self) -> &str {
+        "m0017_history"
+    }
+}
+
+/// The activity trail (docs/04-database.md, "Core tables"): one row per event,
+/// with the event specific payload as JSON.
+const M0017_UP: &str = r#"
+CREATE TABLE history (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    movie_id integer REFERENCES movies (id) ON DELETE SET NULL,
+    event text NOT NULL,
+    data text NOT NULL,
+    created_at text NOT NULL
+);
+CREATE INDEX history_movie_id_created_at_idx ON history (movie_id, created_at);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0017History {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0017_UP)
+            .await?;
         Ok(())
     }
 }

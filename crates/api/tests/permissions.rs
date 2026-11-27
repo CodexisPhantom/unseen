@@ -487,6 +487,11 @@ fn app_router_passes_route_coverage() {
                 Permission::SearchRun
             ),
             profiles(
+                Method::POST,
+                "/api/v1/releases/grab",
+                Permission::ReleaseGrab
+            ),
+            profiles(
                 Method::GET,
                 "/api/v1/language-profiles",
                 Permission::LibraryRead

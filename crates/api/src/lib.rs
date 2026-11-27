@@ -11,6 +11,7 @@ mod custom_formats;
 mod download_clients;
 pub mod error;
 pub mod events;
+mod grab;
 mod health;
 pub mod import_sources;
 mod indexers;
@@ -33,6 +34,7 @@ mod roles;
 mod root_folders;
 pub mod setup;
 pub mod sonarr;
+mod sonarr_series;
 mod subtitles;
 mod tags;
 mod tmdb;
@@ -76,6 +78,8 @@ pub struct AppState {
     /// Short-lived cache of manual search results, keyed by release id, so
     /// grab requests can look up a searched release without re-querying.
     pub search_cache: unseen_core::search::SearchCache,
+    /// Serializes grabs per movie profile, so one profile gets one download.
+    pub(crate) grabs: grab::ProfileLocks,
     /// The import sources whose import is running.
     pub(crate) import_runs: import_sources::RunSet,
     /// UTC ISO 8601 timestamp recorded when the server state was created.
@@ -294,6 +298,7 @@ impl AppState {
             settings_overrides: db::settings::Overrides::from_env(),
             logs_dir: std::env::temp_dir().join("unseen-logs-default"),
             search_cache: unseen_core::search::SearchCache::new(),
+            grabs: grab::ProfileLocks::default(),
             import_runs: import_sources::RunSet::default(),
             started_at: db::now(),
         })
@@ -434,6 +439,7 @@ pub fn routes() -> ApiRouter {
         .require(Permission::LibraryRead, routes!(movies::list_files))
         .require(Permission::LibraryDelete, routes!(movies::delete_file))
         .require(Permission::SearchRun, routes!(releases::search_movie))
+        .require(Permission::ReleaseGrab, routes!(grab::grab_release))
         .require(
             Permission::LibraryRead,
             routes!(subtitles::list_language_profiles),
