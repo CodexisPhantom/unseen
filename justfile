@@ -21,13 +21,13 @@ check:
 
 # Run all tests
 test:
-    cargo test --workspace
+    cargo nextest run --workspace
     bun run --cwd web test
 
-# Run the Rust tests with cargo-llvm-cov; fail below the minimums in docs/12-testing.md
+# Run the Rust tests with cargo-llvm-cov and nextest; fail below the minimums in docs/12-testing.md
 coverage:
-    cargo llvm-cov --workspace --ignore-filename-regex "(auth_schema|main)\.rs$" --fail-under-lines 80
-    cargo llvm-cov --package core --fail-under-lines 90
+    cargo llvm-cov nextest --profile ci --workspace --ignore-filename-regex "(auth_schema|main)\.rs$" --fail-under-lines 80
+    cargo llvm-cov nextest --profile ci --package core --fail-under-lines 90
 
 # Build the frontend into web/build
 web-build:
