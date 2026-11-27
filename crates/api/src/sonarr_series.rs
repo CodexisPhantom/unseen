@@ -185,6 +185,14 @@ fn build_series_view(
     }
 }
 
+fn group_by_show<T>(items: Vec<T>, show_id: impl Fn(&T) -> i32) -> HashMap<i32, Vec<T>> {
+    let mut grouped: HashMap<i32, Vec<T>> = HashMap::new();
+    for item in items {
+        grouped.entry(show_id(&item)).or_default().push(item);
+    }
+    grouped
+}
+
 async fn load_series_views(
     state: &AppState,
     shows: &[StoredShow],
@@ -198,28 +206,34 @@ async fn load_series_views(
         .map(|folder| (folder.id, folder.path))
         .collect();
     let now = db::now();
+    let show_ids: Vec<i32> = shows.iter().map(|show| show.id).collect();
+    let (seasons, episodes, files, links) = tokio::try_join!(
+        db::shows::seasons_of_shows(&state.db, &show_ids),
+        db::shows::episodes_of_shows(&state.db, &show_ids),
+        db::shows::files_of_shows(&state.db, &show_ids),
+        db::shows::file_links_of(&state.db, &show_ids),
+    )
+    .map_err(db_failed)?;
+    let show_of_file: HashMap<i32, i32> =
+        files.iter().map(|file| (file.id, file.show_id)).collect();
+    let mut seasons_by_show = group_by_show(seasons, |season| season.show_id);
+    let mut episodes_by_show = group_by_show(episodes, |episode| episode.show_id);
+    let mut files_by_show = group_by_show(files, |file| file.show_id);
+    let mut links_by_show: HashMap<i32, Vec<episode_file_episodes::Model>> = HashMap::new();
+    for link in links {
+        if let Some(show_id) = show_of_file.get(&link.episode_file_id) {
+            links_by_show.entry(*show_id).or_default().push(link);
+        }
+    }
     let mut views = Vec::with_capacity(shows.len());
     for show in shows {
-        let seasons = db::shows::seasons_of(&state.db, show.id)
-            .await
-            .map_err(db_failed)?;
-        let episodes = db::shows::episodes_of(&state.db, show.id)
-            .await
-            .map_err(db_failed)?;
-        let files = db::shows::files_of(&state.db, show.id)
-            .await
-            .map_err(db_failed)?;
-        let links = db::shows::file_links_of(&state.db, show.id)
-            .await
-            .map_err(db_failed)?;
-        let root_folder_path = paths.get(&show.root_folder_id).cloned().unwrap_or_default();
         views.push(build_series_view(
             show,
-            root_folder_path,
-            seasons,
-            episodes,
-            files,
-            links,
+            paths.get(&show.root_folder_id).cloned().unwrap_or_default(),
+            seasons_by_show.remove(&show.id).unwrap_or_default(),
+            episodes_by_show.remove(&show.id).unwrap_or_default(),
+            files_by_show.remove(&show.id).unwrap_or_default(),
+            links_by_show.remove(&show.id).unwrap_or_default(),
             &now,
         ));
     }

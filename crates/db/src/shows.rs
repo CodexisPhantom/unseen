@@ -72,6 +72,22 @@ pub async fn seasons_of(
         .await
 }
 
+/// Every season of the given shows, by show then season number.
+pub async fn seasons_of_shows(
+    db: &DatabaseConnection,
+    show_ids: &[i32],
+) -> Result<Vec<seasons::Model>, DbErr> {
+    if show_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    seasons::Entity::find()
+        .filter(seasons::Column::ShowId.is_in(show_ids.iter().copied()))
+        .order_by_asc(seasons::Column::ShowId)
+        .order_by_asc(seasons::Column::SeasonNumber)
+        .all(db)
+        .await
+}
+
 /// Sets the monitored flag of one season. Returns `None` when missing.
 pub async fn set_season_monitored(
     db: &DatabaseConnection,
@@ -97,6 +113,23 @@ pub async fn episodes_of(
 ) -> Result<Vec<episodes::Model>, DbErr> {
     episodes::Entity::find()
         .filter(episodes::Column::ShowId.eq(show_id))
+        .order_by_asc(episodes::Column::SeasonNumber)
+        .order_by_asc(episodes::Column::EpisodeNumber)
+        .all(db)
+        .await
+}
+
+/// Every episode of the given shows, by show, season then episode number.
+pub async fn episodes_of_shows(
+    db: &DatabaseConnection,
+    show_ids: &[i32],
+) -> Result<Vec<episodes::Model>, DbErr> {
+    if show_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    episodes::Entity::find()
+        .filter(episodes::Column::ShowId.is_in(show_ids.iter().copied()))
+        .order_by_asc(episodes::Column::ShowId)
         .order_by_asc(episodes::Column::SeasonNumber)
         .order_by_asc(episodes::Column::EpisodeNumber)
         .all(db)
@@ -143,6 +176,22 @@ pub async fn files_of(
         .await
 }
 
+/// Every file of the given shows, by show then path.
+pub async fn files_of_shows(
+    db: &DatabaseConnection,
+    show_ids: &[i32],
+) -> Result<Vec<episode_files::Model>, DbErr> {
+    if show_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    episode_files::Entity::find()
+        .filter(episode_files::Column::ShowId.is_in(show_ids.iter().copied()))
+        .order_by_asc(episode_files::Column::ShowId)
+        .order_by_asc(episode_files::Column::RelativePath)
+        .all(db)
+        .await
+}
+
 /// `SELECT pick FROM link WHERE by = value`, the id side of a link-table lookup.
 fn linked_ids<L: EntityTrait>(pick: L::Column, by: L::Column, value: i32) -> SelectStatement {
     Query::select()
@@ -170,20 +219,23 @@ pub async fn files_of_episode(
         .await
 }
 
-/// Every episode-file link of a show's files, for season statistics.
+/// Every episode-file link of the given shows' files, for season statistics.
 pub async fn file_links_of(
     db: &DatabaseConnection,
-    show_id: i32,
+    show_ids: &[i32],
 ) -> Result<Vec<episode_file_episodes::Model>, DbErr> {
+    if show_ids.is_empty() {
+        return Ok(Vec::new());
+    }
     episode_file_episodes::Entity::find()
         .filter(
-            episode_file_episodes::Column::EpisodeFileId.in_subquery(linked_ids::<
-                episode_files::Entity,
-            >(
-                episode_files::Column::Id,
-                episode_files::Column::ShowId,
-                show_id,
-            )),
+            episode_file_episodes::Column::EpisodeFileId.in_subquery(
+                Query::select()
+                    .column(episode_files::Column::Id)
+                    .from(episode_files::Entity)
+                    .and_where(episode_files::Column::ShowId.is_in(show_ids.iter().copied()))
+                    .to_owned(),
+            ),
         )
         .all(db)
         .await
