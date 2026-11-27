@@ -11,6 +11,7 @@ mod custom_formats;
 mod download_clients;
 pub mod error;
 pub mod events;
+mod grab;
 mod health;
 mod indexers;
 mod libraries;
@@ -417,6 +418,7 @@ pub fn routes() -> ApiRouter {
         .require(Permission::LibraryRead, routes!(movies::list_files))
         .require(Permission::LibraryDelete, routes!(movies::delete_file))
         .require(Permission::SearchRun, routes!(releases::search_movie))
+        .require(Permission::ReleaseGrab, routes!(grab::grab_release))
         .require(
             Permission::LibraryRead,
             routes!(subtitles::list_language_profiles),

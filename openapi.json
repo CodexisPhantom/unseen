@@ -3591,8 +3591,8 @@
             }
           }
         },
-        "x-permission": "authenticated",
-        "x-owner-only": true
+        "x-owner-only": true,
+        "x-permission": "authenticated"
       }
     },
     "/api/v1/permissions": {
@@ -4143,6 +4143,88 @@
           }
         },
         "x-permission": "queue:manage"
+      }
+    },
+    "/api/v1/releases/grab": {
+      "post": {
+        "tags": [
+          "releases"
+        ],
+        "summary": "Sends a release of the search cache to the download client that serves the\nmovie, and records the download as `queued`.",
+        "operationId": "grab_release",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrabRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The release was sent to the download client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grabbed"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The release id is unknown or the movie is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The movie profile already has an active download, or no enabled download client serves the movie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The profile rejected the release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The download client did not accept the release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "release:grab"
       }
     },
     "/api/v1/roles": {
@@ -6513,6 +6595,42 @@
             "format": "int32"
           },
           "score": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "GrabRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/releases/grab`.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Release id from a manual search."
+          }
+        }
+      },
+      "Grabbed": {
+        "type": "object",
+        "description": "The download row a grab created.",
+        "required": [
+          "downloadId",
+          "downloadClientId",
+          "clientDownloadId"
+        ],
+        "properties": {
+          "clientDownloadId": {
+            "type": "string",
+            "description": "The torrent hash, or the nzo id SABnzbd assigned."
+          },
+          "downloadClientId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "downloadId": {
             "type": "integer",
             "format": "int32"
           }
