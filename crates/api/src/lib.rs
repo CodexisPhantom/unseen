@@ -407,6 +407,19 @@ pub fn routes() -> ApiRouter {
         )
         .require(Permission::ImportRun, routes!(library::scan))
         .require(Permission::ImportRun, routes!(library::adopt))
+        .require(
+            Permission::ImportRun,
+            routes!(import_sources::list_sources, import_sources::create_source),
+        )
+        .require(
+            Permission::ImportRun,
+            routes!(import_sources::delete_source),
+        )
+        .require(
+            Permission::ImportRun,
+            routes!(import_sources::preview_source),
+        )
+        .require(Permission::ImportRun, routes!(import_sources::run_source))
         .require(Permission::LibraryAdd, routes!(lookup::lookup))
         .require(Permission::LibraryRead, routes!(movies::list_movies))
         .require(Permission::LibraryAdd, routes!(movies::create_movie))

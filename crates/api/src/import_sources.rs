@@ -9,6 +9,8 @@ use arr_compat::radarr::dto::{
     Field, MovieFileResource, MovieResource, MovieStatusType, Timestamp,
 };
 use arr_compat::radarr::{RadarrError, map};
+use axum::Json;
+use axum::extract::{Path as UrlPath, State};
 use axum::http::StatusCode;
 use db::entities::import_sources::Model as Source;
 use db::import_sources as store;
@@ -16,13 +18,14 @@ use db::movies::{Metadata, MovieError, NewFile, NewMovie, Patch};
 use db::{
     collections, custom_formats, download_clients, indexers, movies, profiles, root_folders, tags,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use unseen_core::metadata::{CollectionRef, MetadataProvider};
 use unseen_core::profile::{self, Item};
 use utoipa::ToSchema;
 
 use crate::AppState;
+use crate::access::{ImportRun, Require};
 use crate::error::Problem;
 use crate::tmdb;
 
@@ -1051,9 +1054,269 @@ pub async fn import(state: &AppState, source: &Source, apply: bool) -> Result<Re
     Ok(run.report)
 }
 
+/// A configured import source. The API key is never returned.
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSource {
+    id: i32,
+    kind: String,
+    name: String,
+    url: String,
+    target_quality_profile_id: Option<i32>,
+    remote_path: Option<String>,
+    local_path: Option<String>,
+    last_import_at: Option<String>,
+    created_at: String,
+}
+
+impl From<Source> for ImportSource {
+    fn from(row: Source) -> Self {
+        Self {
+            id: row.id,
+            kind: row.kind,
+            name: row.name,
+            url: row.url,
+            target_quality_profile_id: row.target_quality_profile_id,
+            remote_path: row.remote_path,
+            local_path: row.local_path,
+            last_import_at: row.last_import_at,
+            created_at: row.created_at,
+        }
+    }
+}
+
+/// What a caller sends to add an import source. No `Debug`: it holds a key.
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NewSource {
+    /// The kind of source. Only `radarr` exists.
+    kind: String,
+    name: String,
+    /// Base URL of the source, such as `http://radarr:7878`.
+    url: String,
+    /// The source's API key. It is stored encrypted and never returned.
+    #[schema(format = Password)]
+    api_key: String,
+    /// Quality profile for movies whose source profile has no match.
+    target_quality_profile_id: Option<i32>,
+    /// A path prefix as the source sees it. Needs `localPath`.
+    remote_path: Option<String>,
+    /// The same prefix on this machine. Needs `remotePath`.
+    local_path: Option<String>,
+}
+
+/// Checks a request before it reaches the database.
+fn validate(body: &NewSource) -> Result<(), Problem> {
+    if body.kind != "radarr" {
+        return Err(Problem::validation("kind", "must be `radarr`"));
+    }
+    if body.name.trim().is_empty() {
+        return Err(Problem::validation("name", "must not be blank"));
+    }
+    if body.url.trim().is_empty() {
+        return Err(Problem::validation("url", "must not be blank"));
+    }
+    if body.remote_path.is_some() != body.local_path.is_some() {
+        return Err(Problem::validation(
+            "remotePath",
+            "and localPath must be given together",
+        ));
+    }
+    Ok(())
+}
+
+fn source_error(error: store::SourceError) -> Problem {
+    match error {
+        store::SourceError::NotFound => Problem::not_found(),
+        store::SourceError::UrlTaken => Problem::conflict(
+            "import_source_url_taken",
+            "Another import source has this URL",
+        ),
+        store::SourceError::UnknownProfile => Problem::validation(
+            "targetQualityProfileId",
+            "must be the id of a quality profile",
+        ),
+        store::SourceError::Db(error) => failed(error),
+    }
+}
+
+async fn load(state: &AppState, id: i32) -> Result<Source, Problem> {
+    store::find(&state.db, id)
+        .await
+        .map_err(failed)?
+        .ok_or_else(Problem::not_found)
+}
+
+/// Lists the import sources by name.
+#[utoipa::path(
+    get,
+    path = "/api/v1/import-sources",
+    tag = "import-sources",
+    responses(
+        (status = 200, description = "The import sources", body = Vec<ImportSource>),
+        (status = 403, description = "Permission denied", body = Problem),
+    )
+)]
+pub async fn list_sources(
+    _caller: Require<ImportRun>,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ImportSource>>, Problem> {
+    let rows = store::list(&state.db).await.map_err(failed)?;
+    Ok(Json(rows.into_iter().map(ImportSource::from).collect()))
+}
+
+/// Adds an import source. The key is stored encrypted.
+#[utoipa::path(
+    post,
+    path = "/api/v1/import-sources",
+    tag = "import-sources",
+    request_body = NewSource,
+    responses(
+        (status = 201, description = "The new import source", body = ImportSource),
+        (status = 403, description = "Permission denied", body = Problem),
+        (status = 409, description = "Another source has this URL", body = Problem),
+        (status = 422, description = "The request is not valid", body = Problem),
+    )
+)]
+pub async fn create_source(
+    _caller: Require<ImportRun>,
+    State(state): State<AppState>,
+    Json(body): Json<NewSource>,
+) -> Result<(StatusCode, Json<ImportSource>), Problem> {
+    validate(&body)?;
+    let values = store::Values {
+        kind: body.kind,
+        name: body.name.trim().to_owned(),
+        url: body.url.trim().to_owned(),
+        api_key: db::secret::encrypt(&state.secrets, &db::secret::Secret::new(body.api_key)),
+        target_quality_profile_id: body.target_quality_profile_id,
+        remote_path: body.remote_path,
+        local_path: body.local_path,
+    };
+    let row = store::create(&state.db, values)
+        .await
+        .map_err(source_error)?;
+    Ok((StatusCode::CREATED, Json(row.into())))
+}
+
+/// Deletes an import source and its resource map. Imported data stays.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/import-sources/{id}",
+    tag = "import-sources",
+    params(("id" = i32, Path, description = "Import source id")),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 403, description = "Permission denied", body = Problem),
+        (status = 404, description = "No such import source", body = Problem),
+    )
+)]
+pub async fn delete_source(
+    _caller: Require<ImportRun>,
+    State(state): State<AppState>,
+    UrlPath(id): UrlPath<i32>,
+) -> Result<StatusCode, Problem> {
+    store::delete(&state.db, id).await.map_err(source_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Counts what a run would do, without writing anything.
+#[utoipa::path(
+    post,
+    path = "/api/v1/import-sources/{id}/preview",
+    tag = "import-sources",
+    params(("id" = i32, Path, description = "Import source id")),
+    responses(
+        (status = 200, description = "What a run would do", body = Report),
+        (status = 403, description = "Permission denied", body = Problem),
+        (status = 404, description = "No such import source", body = Problem),
+        (status = 502, description = "The source did not answer", body = Problem),
+    )
+)]
+pub async fn preview_source(
+    _caller: Require<ImportRun>,
+    State(state): State<AppState>,
+    UrlPath(id): UrlPath<i32>,
+) -> Result<Json<Report>, Problem> {
+    let source = load(&state, id).await?;
+    Ok(Json(import(&state, &source, false).await?))
+}
+
+/// Imports from the source and records the time of the run.
+#[utoipa::path(
+    post,
+    path = "/api/v1/import-sources/{id}/run",
+    tag = "import-sources",
+    params(("id" = i32, Path, description = "Import source id")),
+    responses(
+        (status = 200, description = "What the run did", body = Report),
+        (status = 403, description = "Permission denied", body = Problem),
+        (status = 404, description = "No such import source", body = Problem),
+        (status = 502, description = "The source did not answer", body = Problem),
+    )
+)]
+pub async fn run_source(
+    _caller: Require<ImportRun>,
+    State(state): State<AppState>,
+    UrlPath(id): UrlPath<i32>,
+) -> Result<Json<Report>, Problem> {
+    let source = load(&state, id).await?;
+    Ok(Json(import(&state, &source, true).await?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn body() -> NewSource {
+        NewSource {
+            kind: "radarr".to_owned(),
+            name: "Radarr".to_owned(),
+            url: "http://radarr:7878".to_owned(),
+            api_key: "key".to_owned(),
+            target_quality_profile_id: None,
+            remote_path: None,
+            local_path: None,
+        }
+    }
+
+    fn field(body: &NewSource) -> Option<String> {
+        validate(body)
+            .err()
+            .and_then(|problem| problem.errors.first().map(|e| e.field.clone()))
+    }
+
+    #[test]
+    fn valid_request_passes() {
+        assert!(validate(&body()).is_ok());
+        let mut paired = body();
+        paired.remote_path = Some("/movies".to_owned());
+        paired.local_path = Some("/data".to_owned());
+        assert!(validate(&paired).is_ok());
+    }
+
+    #[test]
+    fn rejects_unknown_kind_and_blank_fields() {
+        let mut b = body();
+        b.kind = "sonarr".to_owned();
+        assert_eq!(field(&b).as_deref(), Some("kind"));
+        let mut b = body();
+        b.name = "  ".to_owned();
+        assert_eq!(field(&b).as_deref(), Some("name"));
+        let mut b = body();
+        b.url = String::new();
+        assert_eq!(field(&b).as_deref(), Some("url"));
+    }
+
+    #[test]
+    fn rejects_a_lone_path() {
+        let mut b = body();
+        b.remote_path = Some("/movies".to_owned());
+        assert_eq!(field(&b).as_deref(), Some("remotePath"));
+        let mut b = body();
+        b.local_path = Some("/data".to_owned());
+        assert_eq!(field(&b).as_deref(), Some("remotePath"));
+    }
 
     fn mapped(path: &str) -> String {
         local_path(Some("/movies"), Some("/data/films"), path)

@@ -359,6 +359,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/import-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the import sources by name. */
+        get: operations["list_sources"];
+        put?: never;
+        /** Adds an import source. The key is stored encrypted. */
+        post: operations["create_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sources/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes an import source and its resource map. Imported data stays. */
+        delete: operations["delete_source"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sources/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Counts what a run would do, without writing anything. */
+        post: operations["preview_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import-sources/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Imports from the source and records the time of the run. */
+        post: operations["run_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/indexers": {
         parameters: {
             query?: never;
@@ -1461,6 +1530,15 @@ export interface components {
             /** Format: int32 */
             rootFolderId?: number | null;
         };
+        /** @description How many source resources of one kind were created, found or left out. */
+        Counts: {
+            /** Format: int32 */
+            created: number;
+            /** Format: int32 */
+            matched: number;
+            /** Format: int32 */
+            skipped: number;
+        };
         CreatedApiKey: {
             apiKey: components["schemas"]["ApiKey"];
             /** @description The key. This is the only response that carries it. */
@@ -1587,6 +1665,20 @@ export interface components {
         };
         /** @description One Radarr custom format object or an array of them. */
         ImportCustomFormatsRequest: components["schemas"]["RadarrCustomFormat"][] | components["schemas"]["RadarrCustomFormat"];
+        /** @description A configured import source. The API key is never returned. */
+        ImportSource: {
+            createdAt: string;
+            /** Format: int32 */
+            id: number;
+            kind: string;
+            lastImportAt?: string | null;
+            localPath?: string | null;
+            name: string;
+            remotePath?: string | null;
+            /** Format: int32 */
+            targetQualityProfileId?: number | null;
+            url: string;
+        };
         Indexer: {
             /** @description A key is stored but cannot be decrypted: enter it again. */
             apiKeyMustBeReentered: boolean;
@@ -2072,6 +2164,28 @@ export interface components {
              */
             path: string;
         };
+        /** @description What a caller sends to add an import source. No `Debug`: it holds a key. */
+        NewSource: {
+            /**
+             * Format: password
+             * @description The source's API key. It is stored encrypted and never returned.
+             */
+            apiKey: string;
+            /** @description The kind of source. Only `radarr` exists. */
+            kind: string;
+            /** @description The same prefix on this machine. Needs `remotePath`. */
+            localPath?: string | null;
+            name: string;
+            /** @description A path prefix as the source sees it. Needs `localPath`. */
+            remotePath?: string | null;
+            /**
+             * Format: int32
+             * @description Quality profile for movies whose source profile has no match.
+             */
+            targetQualityProfileId?: number | null;
+            /** @description Base URL of the source, such as `http://radarr:7878`. */
+            url: string;
+        };
         NewUser: {
             email: string;
             name: string;
@@ -2405,6 +2519,20 @@ export interface components {
              * @description Seeders on a log10 scale (`round(log10(seeders + 1))`).
              */
             seederScore: number;
+        };
+        /** @description What an import run did, or would do when it is a preview. */
+        Report: {
+            collections: components["schemas"]["Counts"];
+            customFormats: components["schemas"]["Counts"];
+            downloadClients: components["schemas"]["Counts"];
+            indexers: components["schemas"]["Counts"];
+            movies: components["schemas"]["Counts"];
+            /** @description Short lines about what was renamed, left out or needs the user. */
+            notes: string[];
+            qualityDefinitions: components["schemas"]["Counts"];
+            qualityProfiles: components["schemas"]["Counts"];
+            rootFolders: components["schemas"]["Counts"];
+            tags: components["schemas"]["Counts"];
         };
         Role: {
             description?: string | null;
@@ -3716,6 +3844,225 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    list_sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The import sources */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSource"][];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewSource"];
+            };
+        };
+        responses: {
+            /** @description The new import source */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSource"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Another source has this URL */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Import source id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such import source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Import source id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What a run would do */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such import source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The source did not answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    run_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Import source id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the run did */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such import source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The source did not answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
