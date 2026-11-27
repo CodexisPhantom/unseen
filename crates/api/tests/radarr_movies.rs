@@ -17,12 +17,12 @@ use db::entities::{
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
-use unseen_core::quality::Quality;
+use unseenarr_core::quality::Quality;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 const TMDB_KEY: &str = "fixture-key-0123456789abcdef";
 const TMDB_MOVIE_603: &str = include_str!("../../../fixtures/tmdb/movie_603.json");

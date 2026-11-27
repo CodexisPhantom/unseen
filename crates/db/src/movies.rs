@@ -6,8 +6,8 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, SqlErr, TransactionTrait,
 };
-use unseen_core::metadata::{MetadataError, MetadataProvider, MovieDetails};
-use unseen_core::naming;
+use unseenarr_core::metadata::{MetadataError, MetadataProvider, MovieDetails};
+use unseenarr_core::naming;
 
 use crate::entities::{movie_files, movie_profiles, movie_tags, movies, tags};
 
@@ -994,7 +994,7 @@ mod tests {
 #[cfg(test)]
 mod lifecycle_tests {
     use async_trait::async_trait;
-    use unseen_core::metadata::{Collection, MovieSummary, ReleaseDate, ReleaseKind};
+    use unseenarr_core::metadata::{Collection, MovieSummary, ReleaseDate, ReleaseKind};
 
     use super::*;
     use crate::entities::{quality_profiles, root_folders};

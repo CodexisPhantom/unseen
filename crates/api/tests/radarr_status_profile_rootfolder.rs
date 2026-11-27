@@ -16,8 +16,8 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 /// `Schema.property` pairs that may be `null` although the upstream schema does
@@ -384,25 +384,25 @@ async fn system_status_matches_schema_recorded_keys_and_permissions() {
 
 #[tokio::test]
 async fn system_status_includes_subpath_in_url_base() {
-    let app = App::with_base_url(Some("http://unseen.test/unseen")).await;
+    let app = App::with_base_url(Some("http://unseenarr.test/unseenarr")).await;
     let key = app.create_key(&app.owner, &["settings:read"]).await;
 
     let reply = app
         .send(
-            req(Method::GET, "/unseen/radarr/api/v3/system/status")
+            req(Method::GET, "/unseenarr/radarr/api/v3/system/status")
                 .header("X-Api-Key", &key)
                 .body(Body::empty())
                 .unwrap(),
         )
         .await;
     assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
-    assert_eq!(reply.body["urlBase"], "/unseen/radarr");
+    assert_eq!(reply.body["urlBase"], "/unseenarr/radarr");
     assert_eq!(reply.body["appName"], "Radarr");
     assert_eq!(reply.body["version"], RADARR_VERSION);
 }
 
 #[tokio::test]
-async fn qualityprofile_lists_unseen_profiles_matches_schema_and_enforces_permission() {
+async fn qualityprofile_lists_unseenarr_profiles_matches_schema_and_enforces_permission() {
     let app = App::new().await;
     let profiles_cookie = app.member("profiles@example.com", &["profiles:read"]).await;
     let profiles_key = app.create_key(&profiles_cookie, &["profiles:read"]).await;

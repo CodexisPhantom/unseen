@@ -8,8 +8,8 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 struct App {
@@ -94,7 +94,7 @@ async fn owner_sees_the_whole_catalog() {
     let permissions = body["permissions"].as_array().unwrap();
     assert_eq!(
         permissions.len(),
-        unseen_core::permission::Permission::ALL.len()
+        unseenarr_core::permission::Permission::ALL.len()
     );
     assert_eq!(permissions[0], "library:read");
 }
@@ -174,5 +174,8 @@ fn openapi_has_the_permission_enum() {
     assert_eq!(operation["x-permission"], "authenticated");
     let schema = &document["components"]["schemas"]["Permission"];
     let values = schema["enum"].as_array().expect("Permission is an enum");
-    assert_eq!(values.len(), unseen_core::permission::Permission::ALL.len());
+    assert_eq!(
+        values.len(),
+        unseenarr_core::permission::Permission::ALL.len()
+    );
 }

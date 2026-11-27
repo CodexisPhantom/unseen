@@ -5,7 +5,7 @@
 //! The torrent calls follow Radarr's category convention. Each call names the
 //! category of the download client, and a torrent in another category (or in
 //! none) is never listed and never touched, even when its info hash is given.
-//! The client keeps the save path: Unseen reads `content_path` from the
+//! The client keeps the save path: Unseenarr reads `content_path` from the
 //! torrent and never sets a path.
 //!
 //! Two ways to authenticate. With a username and a password the client logs
@@ -105,12 +105,12 @@ pub struct Torrent {
     pub completion_on: i64,
     pub added_on: i64,
     pub save_path: String,
-    /// The file or folder of the torrent. Unseen imports from here, as the
+    /// The file or folder of the torrent. Unseenarr imports from here, as the
     /// client reports it.
     pub content_path: String,
 }
 
-/// The `torrents/properties` answer, the fields Unseen reads.
+/// The `torrents/properties` answer, the fields Unseenarr reads.
 #[derive(Debug, Clone, PartialEq, Default, Deserialize)]
 #[serde(default)]
 pub struct TorrentProperties {
@@ -765,7 +765,7 @@ Found",
     async fn info_answer(server: &MockServer) {
         Mock::given(method("GET"))
             .and(path("/api/v2/torrents/info"))
-            .and(query_param("category", "unseen"))
+            .and(query_param("category", "unseenarr"))
             .and(header("cookie", "SID=abc123"))
             .respond_with(ResponseTemplate::new(200).set_body_string(INFO))
             .mount(server)
@@ -796,7 +796,7 @@ Found",
         let server = MockServer::start().await;
         let client = logged_in(&server).await;
         info_answer(&server).await;
-        let torrents = client.torrents("unseen").await.unwrap();
+        let torrents = client.torrents("unseenarr").await.unwrap();
         let hashes: Vec<_> = torrents.iter().map(|t| t.hash.as_str()).collect();
         assert_eq!(hashes, [OURS, OURS_TOO]);
         assert_eq!(
@@ -836,7 +836,7 @@ Found",
             .mount(&server)
             .await;
         let properties = client
-            .properties("unseen", &OURS.to_ascii_uppercase())
+            .properties("unseenarr", &OURS.to_ascii_uppercase())
             .await
             .unwrap()
             .unwrap();
@@ -846,7 +846,7 @@ Found",
         // Another category and no category: no properties call at all.
         for other in [SONARR, UNCATEGORISED, "unknown"] {
             assert_eq!(
-                client.properties("unseen", other).await,
+                client.properties("unseenarr", other).await,
                 Ok(None),
                 "{other}"
             );
@@ -864,7 +864,7 @@ Found",
         .await;
         Mock::given(method("POST"))
             .and(path("/api/v2/torrents/createCategory"))
-            .and(body_string_contains("category=unseen"))
+            .and(body_string_contains("category=unseenarr"))
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
             .mount(&server)
@@ -878,12 +878,12 @@ Found",
             .await;
         let magnet = format!("magnet:?xt=urn:btih:{}&dn=Movie", OURS.to_ascii_uppercase());
         assert_eq!(
-            client.add("unseen", &magnet).await,
+            client.add("unseenarr", &magnet).await,
             Ok(Some(OURS.to_owned()))
         );
         let added = requests_to(&server, "/api/v2/torrents/add").await;
         assert_eq!(added.len(), 1);
-        assert!(added[0].contains("category=unseen"));
+        assert!(added[0].contains("category=unseenarr"));
         assert!(added[0].contains("urls=magnet%3A%3Fxt%3Durn%3Abtih%3A"));
         assert!(!added[0].to_ascii_lowercase().contains("savepath"));
         let created = requests_to(&server, "/api/v2/torrents/createCategory").await;
@@ -910,7 +910,7 @@ Found",
         assert_eq!(
             client
                 .add(
-                    "unseen",
+                    "unseenarr",
                     "https://tracker.example.org/download/1.torrent?key=k"
                 )
                 .await,
@@ -929,12 +929,14 @@ Found",
             .mount(&server)
             .await;
         assert!(matches!(
-            client.add("unseen", "https://example.org/1.torrent").await,
+            client
+                .add("unseenarr", "https://example.org/1.torrent")
+                .await,
             Err(QbError::Unavailable(_))
         ));
         // A file path is never passed on to the client.
-        assert!(client.add("unseen", "file:///etc/passwd").await.is_err());
-        assert!(client.add("unseen", "not a url").await.is_err());
+        assert!(client.add("unseenarr", "file:///etc/passwd").await.is_err());
+        assert!(client.add("unseenarr", "not a url").await.is_err());
         assert_eq!(requests_to(&server, "/api/v2/torrents/add").await.len(), 1);
     }
 
@@ -954,7 +956,7 @@ Found",
                 .map(String::from)
                 .into();
             assert_eq!(
-                client.delete("unseen", &asked, delete_files).await,
+                client.delete("unseenarr", &asked, delete_files).await,
                 Ok(vec![OURS.to_owned()])
             );
             let sent = requests_to(&server, "/api/v2/torrents/delete").await;
@@ -974,7 +976,7 @@ Found",
             .mount(&server)
             .await;
         let asked = [SONARR.to_owned(), UNCATEGORISED.to_owned()];
-        assert_eq!(client.delete("unseen", &asked, true).await, Ok(vec![]));
+        assert_eq!(client.delete("unseenarr", &asked, true).await, Ok(vec![]));
     }
 
     #[tokio::test]
@@ -1015,9 +1017,9 @@ Found",
             .mount(&server)
             .await;
         let client = client(&server, "pw");
-        assert_eq!(client.torrents("unseen").await.unwrap().len(), 2);
+        assert_eq!(client.torrents("unseenarr").await.unwrap().len(), 2);
         // The new cookie is kept: no third login.
-        assert_eq!(client.torrents("unseen").await.unwrap().len(), 2);
+        assert_eq!(client.torrents("unseenarr").await.unwrap().len(), 2);
     }
 
     #[tokio::test]
@@ -1040,8 +1042,8 @@ Found",
             .mount(&server)
             .await;
         let client = client(&server, "pw");
-        client.torrents("unseen").await.unwrap();
-        client.torrents("unseen").await.unwrap();
+        client.torrents("unseenarr").await.unwrap();
+        client.torrents("unseenarr").await.unwrap();
         assert_eq!(client.test().await.as_deref(), Ok("v5.0.0"));
     }
 
@@ -1054,7 +1056,10 @@ Found",
             .respond_with(ResponseTemplate::new(403))
             .mount(&server)
             .await;
-        assert_eq!(client.torrents("unseen").await, Err(QbError::Credentials));
+        assert_eq!(
+            client.torrents("unseenarr").await,
+            Err(QbError::Credentials)
+        );
         // One retry, not a loop: two logins in all.
         assert_eq!(requests_to(&server, "/api/v2/auth/login").await.len(), 2);
     }
@@ -1069,7 +1074,7 @@ Found",
             .mount(&server)
             .await;
         let client = key_client(&server, "qbt_abc");
-        assert_eq!(client.torrents("unseen").await.unwrap().len(), 2);
+        assert_eq!(client.torrents("unseenarr").await.unwrap().len(), 2);
         assert!(requests_to(&server, "/api/v2/auth/login").await.is_empty());
     }
 
@@ -1083,7 +1088,7 @@ Found",
             .mount(&server)
             .await;
         assert_eq!(
-            client.torrents("unseen").await,
+            client.torrents("unseenarr").await,
             Err(QbError::Unavailable(
                 "the torrent list did not answer with JSON".to_owned()
             ))

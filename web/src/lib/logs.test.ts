@@ -93,8 +93,8 @@ describe('fields helpers', () => {
 
 describe('fileOptionLabel', () => {
 	it('combines file name and formatted size', () => {
-		expect(fileOptionLabel({ name: 'unseen-2026-11-26.log', sizeBytes: 2048 })).toBe(
-			'unseen-2026-11-26.log (2.0 KB)'
+		expect(fileOptionLabel({ name: 'unseenarr-2026-11-26.log', sizeBytes: 2048 })).toBe(
+			'unseenarr-2026-11-26.log (2.0 KB)'
 		);
 	});
 });

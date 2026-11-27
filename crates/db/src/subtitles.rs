@@ -8,7 +8,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
     QueryFilter, QueryOrder, Set, SqlErr, TransactionTrait,
 };
-use unseen_core::subtitle::Kind;
+use unseenarr_core::subtitle::Kind;
 
 use crate::entities::{language_profiles, movie_files, movies, subtitles};
 

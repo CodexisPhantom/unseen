@@ -42,7 +42,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete {movie.title}?</AlertDialog.Title>
 			<AlertDialog.Description>
-				Unseen forgets the movie. The folder <code>{movie.folderName}</code> stays on disk unless you
+				Unseenarr forgets the movie. The folder <code>{movie.folderName}</code> stays on disk unless you
 				tick the box below. This cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>

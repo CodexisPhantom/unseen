@@ -61,7 +61,7 @@
 					{#snippet child({ props })}
 						<a href={resolve('')} {...props}>
 							<Logo class="size-8" />
-							<span class="font-semibold">Unseen</span>
+							<span class="font-semibold">Unseenarr</span>
 						</a>
 					{/snippet}
 				</Sidebar.MenuButton>

@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 env:
-  GHCR_IMAGE: ghcr.io/codexisphantom/unseen
-  DOCKERHUB_IMAGE: codexisphantom/unseen
+  GHCR_IMAGE: ghcr.io/codexisphantom/unseenarr
+  DOCKERHUB_IMAGE: codexisphantom/unseenarr
 
 jobs:
   image:

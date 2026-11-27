@@ -12,8 +12,8 @@ use tower::ServiceExt;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 struct App {

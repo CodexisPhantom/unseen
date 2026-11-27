@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
+const HOST: &str = "unseenarr.test";
 
 struct App {
     router: Router,
@@ -64,7 +64,7 @@ impl App {
         let body = json!({ "name": "Owner", "email": email, "password": password });
         let request = Request::post("/api/v1/setup")
             .header(header::HOST, HOST)
-            .header(header::ORIGIN, "http://unseen.test")
+            .header(header::ORIGIN, "http://unseenarr.test")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body.to_string()))
             .unwrap();

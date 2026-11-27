@@ -1,11 +1,11 @@
 //! Sonarr v3 resources, field for field as the pinned OpenAPI document
 //! (`fixtures/sonarr/openapi-<version>.json`) lists them. Every field is
-//! serialised, with a default when Unseen has no value (docs/14).
+//! serialised, with a default when Unseenarr has no value (docs/14).
 //!
 //! The exceptions are objects that stand for "nothing here": `episodeFile` of
 //! an episode without a file, `series` on an episode listing that does not
 //! embed the series, `series` and `episode` of a queue record that has none,
-//! and `quality` of a quality group. Sonarr leaves them out; Unseen sends
+//! and `quality` of a quality group. Sonarr leaves them out; Unseenarr sends
 //! `null` so that the key is present. The schema test lists them.
 
 use serde::{Deserialize, Serialize};
@@ -413,7 +413,7 @@ pub struct CustomFormatResource {
     pub specifications: Vec<CustomFormatSpecificationSchema>,
 }
 
-/// Unseen has no custom formats in the compat API until M11, so this is
+/// Unseenarr has no custom formats in the compat API until M11, so this is
 /// always an empty list; the shape is only here so the type is complete.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -771,7 +771,7 @@ impl Default for SystemResource {
             runtime_name: ".NET".to_owned(),
             start_time: Timestamp::default(),
             package_version: String::new(),
-            package_author: "Unseen".to_owned(),
+            package_author: "Unseenarr".to_owned(),
             package_update_mechanism: UpdateMechanism::Docker,
             package_update_mechanism_message: String::new(),
             database_version: String::new(),

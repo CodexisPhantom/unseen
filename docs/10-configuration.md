@@ -10,27 +10,27 @@ in the UI. There is no config file.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `UNSEEN_DATA_DIR` | `/config` | Holds `unseen.db`, `backups/`, `logs/` and the generated secret |
-| `UNSEEN_BIND` | `0.0.0.0:7979` | Listen address |
-| `UNSEEN_BASE_URL` | none | Public URL, for example `https://unseen.example.com`. It may include a sub-path, for example `https://unseen.example.com/unseen`; the app then serves every route, the API, auth and the UI under that prefix. Needed for secure cookies behind a proxy. |
-| `UNSEEN_SECRET` | generated and stored in the data dir on first run | Root secret. The auth signing key and the key that encrypts integration secrets are derived from it. Without it the stored integration secrets cannot be read. |
-| `UNSEEN_TRUSTED_PROXIES` | none | CIDRs whose `X-Forwarded-*` headers are trusted |
-| `UNSEEN_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug`, `trace` |
-| `UNSEEN_LOG_FORMAT` | `text` | `text` or `json` |
+| `UNSEENARR_DATA_DIR` | `/config` | Holds `unseenarr.db`, `backups/`, `logs/` and the generated secret |
+| `UNSEENARR_BIND` | `0.0.0.0:7979` | Listen address |
+| `UNSEENARR_BASE_URL` | none | Public URL, for example `https://unseenarr.example.com`. It may include a sub-path, for example `https://unseenarr.example.com/unseenarr`; the app then serves every route, the API, auth and the UI under that prefix. Needed for secure cookies behind a proxy. |
+| `UNSEENARR_SECRET` | generated and stored in the data dir on first run | Root secret. The auth signing key and the key that encrypts integration secrets are derived from it. Without it the stored integration secrets cannot be read. |
+| `UNSEENARR_TRUSTED_PROXIES` | none | CIDRs whose `X-Forwarded-*` headers are trusted |
+| `UNSEENARR_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug`, `trace` |
+| `UNSEENARR_LOG_FORMAT` | `text` | `text` or `json` |
 | `PUID`, `PGID` | `1000` | User and group of the process in Docker |
 | `UMASK` | `022` | File creation mask |
 | `TZ` | `UTC` | Time zone for logs and schedules |
 
 `PUID`, `PGID` and `UMASK` are read by the entrypoint of the Docker image,
 not by the binary. The image's `HEALTHCHECK` calls port 7979: keep the port
-of `UNSEEN_BIND` in a container and change the published port instead.
+of `UNSEENARR_BIND` in a container and change the published port instead.
 
-State after the auth mount (#30): the binary reads `UNSEEN_DATA_DIR`,
-`UNSEEN_BIND`, `UNSEEN_SECRET` and `UNSEEN_BASE_URL`; the image handles
+State after the auth mount (#30): the binary reads `UNSEENARR_DATA_DIR`,
+`UNSEENARR_BIND`, `UNSEENARR_SECRET` and `UNSEENARR_BASE_URL`; the image handles
 `PUID`, `PGID`, `UMASK` and `TZ`. The generated secret is the file `secret`
 in the data directory. Each other variable is read from the issue that needs
-it: `UNSEEN_TRUSTED_PROXIES` with the first use of the
-client address (M1), `UNSEEN_LOG_LEVEL` and `UNSEEN_LOG_FORMAT` with the log
+it: `UNSEENARR_TRUSTED_PROXIES` with the first use of the
+client address (M1), `UNSEENARR_LOG_LEVEL` and `UNSEENARR_LOG_FORMAT` with the log
 files (M5). Until then the log level is `info` and the format is text.
 
 ## Database settings (table `settings`)
@@ -72,7 +72,7 @@ Settings. A missing row means the default below.
 | `subtitles.minimum_score` | `60` | `settings:manage` |
 | `subtitles.exclude_machine_translated` | `true` | `settings:manage` |
 | `subtitles.opensubtitles.api_key`, `.username`, `.password` | none (secrets) | `settings:manage` |
-| `subtitles.opensubtitles.quota` | none; written by Unseen from the provider's last answer | not editable |
+| `subtitles.opensubtitles.quota` | none; written by Unseenarr from the provider's last answer | not editable |
 | `tasks.subtitle_search_interval_hours` | `24` | `settings:manage` |
 
 Stored in their own tables, not in `settings`: root folders, quality
@@ -82,10 +82,10 @@ keys.
 
 ### Environment overrides
 
-`UNSEEN_SETTING_<KEY>` sets a key of the `settings` table from the
+`UNSEENARR_SETTING_<KEY>` sets a key of the `settings` table from the
 environment. `<KEY>` is the key in upper case with `.` written as `_`:
-`tmdb.api_key` is `UNSEEN_SETTING_TMDB_API_KEY`, `tmdb.language` is
-`UNSEEN_SETTING_TMDB_LANGUAGE`. Variables are read once at startup; an empty
+`tmdb.api_key` is `UNSEENARR_SETTING_TMDB_API_KEY`, `tmdb.language` is
+`UNSEENARR_SETTING_TMDB_LANGUAGE`. Variables are read once at startup; an empty
 value does not override.
 
 - The environment value wins over the table. The table is never written for
@@ -100,10 +100,10 @@ value does not override.
 ## Decisions (2026-11-15)
 
 - Port 7979. It continues the family pattern (Radarr 7878, Sonarr 8989,
-  Prowlarr 9696, Bazarr 6767) and none of those apps uses it, so Unseen can
+  Prowlarr 9696, Bazarr 6767) and none of those apps uses it, so Unseenarr can
   run next to them during a migration.
 - No config file. Root folders, profiles, indexers and clients live in
   tables with relations and secrets; a file would be a second source of
   truth for them and would need its own merge rules. No real advantage.
 - Environment overrides for database settings: a setting given as
-  `UNSEEN_SETTING_<KEY>` wins and is read-only (see above).
+  `UNSEENARR_SETTING_<KEY>` wins and is read-only (see above).

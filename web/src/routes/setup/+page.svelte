@@ -38,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>Setup · Unseen</title>
+	<title>Setup · Unseenarr</title>
 </svelte:head>
 
 <main class="flex min-h-svh items-center justify-center p-4">

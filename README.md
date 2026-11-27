@@ -1,6 +1,6 @@
-![Unseen: your media, handled out of sight.](web/static/readme-banner.png)
+![Unseenarr: your media, handled out of sight.](web/static/readme-banner.png)
 
-# Unseen
+# Unseenarr
 
 One self-hosted app that replaces Sonarr, Radarr, Prowlarr and Bazarr, including
 multiple Sonarr/Radarr instances. Status: M0 (foundation) is built; no
@@ -14,8 +14,8 @@ feature for users yet.
 - Compatible with an existing Sonarr/Radarr setup: same folders, same download
   clients, same companion tools.
 
-Unseen does not replace the download or VPN layer. qBittorrent, SABnzbd and
-Gluetun stay separate containers that Unseen drives through their APIs.
+Unseenarr does not replace the download or VPN layer. qBittorrent, SABnzbd and
+Gluetun stay separate containers that Unseenarr drives through their APIs.
 
 ## Architecture
 
@@ -41,7 +41,7 @@ URL space:
 
 ```
 /                   UI
-/api/v1/...         Unseen API
+/api/v1/...         Unseenarr API
 /api/auth/...       authentication endpoints
 /radarr/api/v3/...  Radarr-compatible subset
 /sonarr/api/v3/...  Sonarr-compatible subset (after V1)

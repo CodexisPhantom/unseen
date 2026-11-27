@@ -160,4 +160,4 @@ are in use since the health page.
   dirty state without own code. `Field` for layout outside validated forms.
 - Data fetching: TanStack Query. Caching, request deduplication and
   invalidation from SSE events would otherwise be written by hand.
-- Sub-path hosting: supported. The runtime base path is read from the injected `<meta name="unseen-base">`; the server rewrites index.html asset URLs and the SvelteKit base literal at serve time; the API client and auth client prefix their requests; OpenAPI paths stay unprefixed.
+- Sub-path hosting: supported. The runtime base path is read from the injected `<meta name="unseenarr-base">`; the server rewrites index.html asset URLs and the SvelteKit base literal at serve time; the API client and auth client prefix their requests; OpenAPI paths stay unprefixed.

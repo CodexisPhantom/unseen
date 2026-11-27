@@ -6,7 +6,7 @@ use axum::extract::{Path, State};
 use db::entities::quality_definitions;
 use db::quality_definitions::Values;
 use serde::{Deserialize, Deserializer, Serialize};
-use unseen_core::quality::{Quality, SizeLimits};
+use unseenarr_core::quality::{Quality, SizeLimits};
 use utoipa::ToSchema;
 
 use crate::AppState;

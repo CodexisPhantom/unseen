@@ -19,7 +19,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::{Value, json};
 use tower::ServiceExt;
-use unseen_core::permission::{
+use unseenarr_core::permission::{
     EffectivePermissions, LibraryScope, Permission, can_grant_scoped, can_modify_user,
 };
 use utoipa::ToSchema;

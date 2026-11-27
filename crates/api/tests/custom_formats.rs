@@ -10,8 +10,8 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 const PATH: &str = "/api/v1/custom-formats";
 

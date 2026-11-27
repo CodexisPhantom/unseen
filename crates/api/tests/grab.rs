@@ -9,15 +9,15 @@ use db::entities::{history, quality_profiles, root_folders};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
-use unseen_core::search::{CachedRelease, SearchCache};
+use unseenarr_core::search::{CachedRelease, SearchCache};
 use wiremock::matchers::{body_string_contains, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 const GRAB: &str = "/api/v1/releases/grab";
-const CATEGORY: &str = "unseen";
+const CATEGORY: &str = "unseenarr";
 const HASH: &str = "aaaabbbbccccddddeeeeffff0000111122223333";
 
 struct App {

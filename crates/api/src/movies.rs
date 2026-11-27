@@ -10,8 +10,8 @@ use db::entities::{movie_files, movies};
 use db::movies::{Metadata, Movie as Stored, MovieError, NewMovie as StoredNew, Patch};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::metadata::MetadataError;
-use unseen_core::permission::Permission;
+use unseenarr_core::metadata::MetadataError;
+use unseenarr_core::permission::Permission;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
@@ -354,7 +354,7 @@ pub async fn get_movie(
     Ok(Json(stored.into()))
 }
 
-/// Adds a movie by TMDB id. Unseen fetches the metadata and names the movie
+/// Adds a movie by TMDB id. Unseenarr fetches the metadata and names the movie
 /// folder with the default template `{Movie Title} ({Release Year})`.
 #[utoipa::path(
     post,

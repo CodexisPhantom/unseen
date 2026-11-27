@@ -2,7 +2,7 @@
 //! (docs/08-integrations.md): REST API v1, `POST /login`, `GET /subtitles`
 //! and `POST /download`.
 //!
-//! The user's own API key, username and password are parameters; Unseen ships
+//! The user's own API key, username and password are parameters; Unseenarr ships
 //! no shared key. The base URL is a parameter so tests can point the client at
 //! a mock server. OpenSubtitles is never proxied.
 //!
@@ -39,7 +39,7 @@ pub const DEFAULT_MIN_DELAY: Duration = Duration::from_secs(1);
 /// How long downloads stop when the provider refuses one and gives no reset
 /// time. Only used for that missing answer.
 const UNKNOWN_RESET: Duration = Duration::from_secs(3600);
-const AGENT: &str = concat!("Unseen/", env!("CARGO_PKG_VERSION"));
+const AGENT: &str = concat!("Unseenarr/", env!("CARGO_PKG_VERSION"));
 
 impl From<UrlError> for SubtitleError {
     fn from(error: UrlError) -> Self {
@@ -636,7 +636,7 @@ mod tests {
             .and(path("/subtitles"))
             .respond_with(|request: &Request| {
                 let agent = request.headers.get("user-agent").unwrap().to_str().unwrap();
-                assert!(agent.starts_with("Unseen/"), "{agent}");
+                assert!(agent.starts_with("Unseenarr/"), "{agent}");
                 assert!(!request.headers.contains_key("authorization"));
                 json(SEARCH_EMPTY)
             })

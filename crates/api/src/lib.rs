@@ -48,7 +48,7 @@ use axum::extract::FromRef;
 use better_auth::integrations::axum::AxumIntegration;
 use better_auth::{AuthError, AuthResult};
 use db::DatabaseConnection;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa::OpenApi;
 use utoipa_axum::routes;
 
@@ -59,7 +59,7 @@ use crate::error::Problem;
 pub struct AppState {
     pub events: events::EventBus,
     pub db: DatabaseConnection,
-    /// The mount prefix from UNSEEN_BASE_URL; empty at the root.
+    /// The mount prefix from UNSEENARR_BASE_URL; empty at the root.
     pub base_path: String,
     pub auth: auth::Auth,
     pub policy: auth::Policy,
@@ -67,17 +67,17 @@ pub struct AppState {
     /// Encrypts the integration secrets (ADR 0011).
     pub secrets: db::secret::SecretKey,
     /// The client for TMDB and the other metadata calls.
-    pub http: unseen_core::http::OutboundClient,
+    pub http: unseenarr_core::http::OutboundClient,
     /// Tests point this at a mock server.
     pub tmdb_base_url: String,
-    /// Settings given as `UNSEEN_SETTING_<KEY>`: they win over the table and
+    /// Settings given as `UNSEENARR_SETTING_<KEY>`: they win over the table and
     /// cannot be changed through the API (docs/10-configuration.md).
     pub settings_overrides: db::settings::Overrides,
-    /// Directory holding daily JSONL log files (`unseen-YYYY-MM-DD.log`).
+    /// Directory holding daily JSONL log files (`unseenarr-YYYY-MM-DD.log`).
     pub logs_dir: PathBuf,
     /// Short-lived cache of manual search results, keyed by release id, so
     /// grab requests can look up a searched release without re-querying.
-    pub search_cache: unseen_core::search::SearchCache,
+    pub search_cache: unseenarr_core::search::SearchCache,
     /// Serializes grabs per movie profile, so one profile gets one download.
     pub(crate) grabs: grab::ProfileLocks,
     /// The import sources whose import is running.
@@ -102,7 +102,7 @@ impl AppState {
         self.events.publish(crate::events::AppEvent {
             kind: "movie.updated".to_owned(),
             data: serde_json::json!({ "id": id }),
-            permission: Some(unseen_core::permission::Permission::LibraryRead),
+            permission: Some(unseenarr_core::permission::Permission::LibraryRead),
             library_id,
             target_user: None,
             target_api_key: None,
@@ -136,7 +136,7 @@ impl AppState {
         self.events.publish(crate::events::AppEvent {
             kind: "download.progress".to_owned(),
             data: serde_json::json!({ "id": id, "progress": progress }),
-            permission: Some(unseen_core::permission::Permission::QueueRead),
+            permission: Some(unseenarr_core::permission::Permission::QueueRead),
             library_id,
             target_user: None,
             target_api_key: None,
@@ -158,7 +158,7 @@ impl AppState {
         self.events.publish(crate::events::AppEvent {
             kind: "download.state".to_owned(),
             data: serde_json::json!({ "id": id, "state": state }),
-            permission: Some(unseen_core::permission::Permission::QueueRead),
+            permission: Some(unseenarr_core::permission::Permission::QueueRead),
             library_id,
             target_user: None,
             target_api_key: None,
@@ -215,7 +215,7 @@ impl AppState {
                 "eta": eta,
                 "state": state,
             }),
-            permission: Some(unseen_core::permission::Permission::QueueRead),
+            permission: Some(unseenarr_core::permission::Permission::QueueRead),
             library_id,
             target_user: None,
             target_api_key: None,
@@ -252,7 +252,7 @@ impl AppState {
                 "oldState": old_state,
                 "newState": new_state,
             }),
-            permission: Some(unseen_core::permission::Permission::QueueRead),
+            permission: Some(unseenarr_core::permission::Permission::QueueRead),
             library_id,
             target_user: None,
             target_api_key: None,
@@ -264,7 +264,7 @@ impl AppState {
         self.events.publish(crate::events::AppEvent {
             kind: "task.status".to_owned(),
             data: serde_json::json!({ "name": name, "status": status }),
-            permission: Some(unseen_core::permission::Permission::SystemTasks),
+            permission: Some(unseenarr_core::permission::Permission::SystemTasks),
             library_id: None,
             target_user: None,
             target_api_key: None,
@@ -292,12 +292,12 @@ impl AppState {
             policy,
             setup: setup::Setup::default(),
             secrets: db::secret::SecretKey::derive(secret),
-            http: unseen_core::http::OutboundClient::new()
+            http: unseenarr_core::http::OutboundClient::new()
                 .map_err(|error| AuthError::internal(format!("build http client: {error}")))?,
-            tmdb_base_url: unseen_core::tmdb::DEFAULT_BASE_URL.to_owned(),
+            tmdb_base_url: unseenarr_core::tmdb::DEFAULT_BASE_URL.to_owned(),
             settings_overrides: db::settings::Overrides::from_env(),
-            logs_dir: std::env::temp_dir().join("unseen-logs-default"),
-            search_cache: unseen_core::search::SearchCache::new(),
+            logs_dir: std::env::temp_dir().join("unseenarr-logs-default"),
+            search_cache: unseenarr_core::search::SearchCache::new(),
             grabs: grab::ProfileLocks::default(),
             import_runs: import_sources::RunSet::default(),
             started_at: db::now(),
@@ -320,7 +320,7 @@ impl FromRef<AppState> for auth::Auth {
 }
 
 #[derive(OpenApi)]
-#[openapi(info(title = "Unseen API"), components(schemas(Problem)))]
+#[openapi(info(title = "Unseenarr API"), components(schemas(Problem)))]
 struct ApiDoc;
 
 /// Every API route is registered here once with its access rule, so the
@@ -572,13 +572,13 @@ pub fn routes() -> ApiRouter {
 }
 
 /// Every Radarr v3 compatibility route, registered once with its permission.
-/// Not included in Unseen's OpenAPI document.
+/// Not included in Unseenarr's OpenAPI document.
 pub fn radarr_routes() -> compat::CompatRouter {
     radarr::routes()
 }
 
 /// Every Sonarr v3 compatibility route, registered once with its permission.
-/// Not included in Unseen's OpenAPI document.
+/// Not included in Unseenarr's OpenAPI document.
 pub fn sonarr_routes() -> compat::CompatRouter {
     sonarr::routes()
 }

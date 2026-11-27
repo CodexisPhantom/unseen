@@ -94,7 +94,7 @@
 	<Dialog.Content class="max-h-[90svh] overflow-y-auto sm:max-w-md">
 		<Dialog.Header>
 			<Dialog.Title>Add {result.title}{year ? ` (${year})` : ''}</Dialog.Title>
-			<Dialog.Description>Choose where the movie lives and how Unseen treats it.</Dialog.Description>
+			<Dialog.Description>Choose where the movie lives and how Unseenarr treats it.</Dialog.Description>
 		</Dialog.Header>
 		<form
 			class="grid gap-4"

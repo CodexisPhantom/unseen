@@ -61,7 +61,7 @@ pub async fn sqlite_version(db: &DatabaseConnection) -> Result<String, DbErr> {
     }
 }
 
-/// Opens `unseen.db` in `data_dir` (WAL mode, foreign keys on), creates it if
+/// Opens `unseenarr.db` in `data_dir` (WAL mode, foreign keys on), creates it if
 /// it is missing, and applies every pending migration.
 pub async fn connect(data_dir: &Path) -> Result<DatabaseConnection, DbErr> {
     let db = open(data_dir).await?;
@@ -72,7 +72,7 @@ pub async fn connect(data_dir: &Path) -> Result<DatabaseConnection, DbErr> {
 
 async fn open(data_dir: &Path) -> Result<DatabaseConnection, DbErr> {
     let options = SqliteConnectOptions::new()
-        .filename(data_dir.join("unseen.db"))
+        .filename(data_dir.join("unseenarr.db"))
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .foreign_keys(true);
@@ -371,12 +371,12 @@ mod tests {
         assert_eq!(folders[0].library_id, libs[0].library.id);
 
         let grants = access::grants_of_user(&db, "u1").await.unwrap();
-        let eff = unseen_core::permission::EffectivePermissions::from_scoped(
+        let eff = unseenarr_core::permission::EffectivePermissions::from_scoped(
             grants.is_owner,
             grants.scoped_permissions,
         );
-        assert!(eff.has_all_libraries(unseen_core::permission::Permission::LibraryRead));
-        assert!(eff.has_all_libraries(unseen_core::permission::Permission::QueueRead));
+        assert!(eff.has_all_libraries(unseenarr_core::permission::Permission::LibraryRead));
+        assert!(eff.has_all_libraries(unseenarr_core::permission::Permission::QueueRead));
     }
 
     #[tokio::test]

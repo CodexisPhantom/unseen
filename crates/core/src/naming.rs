@@ -1,4 +1,4 @@
-//! Names that Unseen derives from movie metadata: the movie naming templates
+//! Names that Unseenarr derives from movie metadata: the movie naming templates
 //! of docs/09-filesystem.md ("Naming templates").
 //!
 //! The engine follows Radarr's `FileNameBuilder` (develop branch): the same
@@ -24,7 +24,7 @@ pub const DEFAULT_MOVIE_FOLDER: &str = "{Movie Title} ({Release Year})";
 pub const DEFAULT_MOVIE_FILE: &str = "{Movie Title} ({Release Year}) {Quality Full}";
 /// What `{Release Group}` renders when the file has no group and the token
 /// has no prefix or suffix. Radarr writes its own name here.
-pub const UNKNOWN_RELEASE_GROUP: &str = "Unseen";
+pub const UNKNOWN_RELEASE_GROUP: &str = "Unseenarr";
 
 /// How Radarr's "colon replacement" setting writes a `:` in a name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

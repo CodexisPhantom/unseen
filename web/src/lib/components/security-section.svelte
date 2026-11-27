@@ -30,7 +30,7 @@
 			const { data, error } = await authClient.twoFactor.enable({
 				password,
 				method: 'totp',
-				issuer: 'Unseen'
+				issuer: 'Unseenarr'
 			});
 			if (!data) throw new Error(error?.message ?? 'Two-factor authentication could not be enabled.');
 			return data;

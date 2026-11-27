@@ -11,7 +11,7 @@ Status: reviewed (2026-11-16). Scope decision: ADR 0008.
 | Adopt an existing library in place | Radarr | Sonarr (M8) |
 | Default naming equals upstream defaults | Yes | TV |
 | Template tokens accepted | See [09-filesystem.md](09-filesystem.md) | TV tokens |
-| Names rendered from a template | Same as Radarr, except `{Release Group}` without a group (`Unseen`, not `Radarr`), Windows-unsafe characters and device names (replaced on every platform), and the `:` token options (refused) | TV |
+| Names rendered from a template | Same as Radarr, except `{Release Group}` without a group (`Unseenarr`, not `Radarr`), Windows-unsafe characters and device names (replaced on every platform), and the `:` token options (refused) | TV |
 | Hardlink behaviour | Same | Same |
 | qBittorrent category convention | Category per client, reused on import | Same |
 
@@ -32,7 +32,7 @@ formats, quality profiles and quality definitions.
 
 Read-only against the source. Safe to re-run (`import_map` table).
 
-| Radarr resource | Endpoint | Becomes in Unseen |
+| Radarr resource | Endpoint | Becomes in Unseenarr |
 |---|---|---|
 | Root folders | `GET /rootfolder` | Root folder with the same path (path mapping if mounts differ) |
 | Quality profiles | `GET /qualityprofile` | Quality profile with language, custom format scores and score limits |
@@ -73,8 +73,8 @@ settings: not in V1, decided in the subtitles design (M10).
 ## D. API for companion tools
 
 Base: `/radarr/api/v3`. Auth: `X-Api-Key` header or `?apikey=` query, backed
-by Unseen API keys (session cookies are not accepted on the compat API). Paths
-are matched case-insensitively. Fields without a value in Unseen are returned
+by Unseenarr API keys (session cookies are not accepted on the compat API). Paths
+are matched case-insensitively. Fields without a value in Unseenarr are returned
 with a default, never omitted. Unimplemented endpoints (after API-key
 authentication) return `501` with `{ "message": "Not implemented", "method": ..., "path": ... }`
 and log one `warn` entry with method and path. Errors use Radarr-style JSON
@@ -159,7 +159,7 @@ Notes:
   `anime`) on `POST /series`. The first needs a column on the show
   (#88).
 - `/series` with a `PUT` body carries the whole resource. Seerr changes only
-  `monitored`, `tags` and the season list; Unseen applies those three.
+  `monitored`, `tags` and the season list; Unseenarr applies those three.
 - The pinned Sonarr OpenAPI document is `v5.0.0.3041` (commit `03f822c`,
   `src/Sonarr.Api.V3/openapi.json`), stored as
   `fixtures/sonarr/openapi-5.0.0.3041.json`. `SONARR_VERSION` in
@@ -174,7 +174,7 @@ Notes:
 
 ## Field mapping: Radarr MovieResource
 
-| Radarr field | Unseen source |
+| Radarr field | Unseenarr source |
 |---|---|
 | `id` | `movies.id` |
 | `title`, `originalTitle`, `sortTitle`, `year`, `overview`, `runtime` | same columns |
@@ -196,7 +196,7 @@ Notes:
 Radarr version: the version of the Radarr release whose OpenAPI document and
 recorded responses are pinned for the contract tests. One constant in
 `arr-compat`, raised together with the pinned schema. A client that reads
-the version then sees exactly the API it was told about. Unseen's own
+the version then sees exactly the API it was told about. Unseenarr's own
 version is in `GET /api/v1/health`.
 
 ### Pinned schema and DTOs
@@ -213,18 +213,18 @@ Rules the contract test (`crates/arr-compat/tests/schema.rs`) checks:
 
 - Every property of the schema is in the output, none is added. The upstream
   document has no `required` lists; the test demands all properties anyway.
-- A value Unseen lacks is the default: empty string, zero, empty list,
+- A value Unseenarr lacks is the default: empty string, zero, empty list,
   `false`, `0001-01-01T00:00:00Z` for a date-time that cannot be null, and
   `null` where the schema is `nullable` (for example `inCinemas`, `hasFile`).
 - Four objects are `null` instead of a made-up default: `movieFile` of a
   movie without a file, `collection`, `movie` of a queue record without a
-  movie, and `quality` of a quality group. Radarr leaves them out; Unseen
+  movie, and `quality` of a quality group. Radarr leaves them out; Unseenarr
   sends `null` so that the key is present. The schema does not mark them
   nullable; the test lists them.
 - Quality profile `language` uses Radarr's language ids (`any` is -1,
-  `original` is -2, `en` is 1; a code Unseen cannot place is 0, `Unknown`).
+  `original` is -2, `en` is 1; a code Unseenarr cannot place is 0, `Unknown`).
 - `minimumAvailability` on input: `tba` means `announced`, `deleted` is
-  rejected. Missing means `released`, as in Unseen's own API.
+  rejected. Missing means `released`, as in Unseenarr's own API.
 - Input bodies are read leniently: unknown fields are ignored and every
   field is optional until an operation needs it (`MovieRequest::into_add`
   needs `tmdbId`, `qualityProfileId` and `rootFolderPath`; `into_update`
@@ -240,8 +240,8 @@ are written with their M6 issues.
 
 ## Known differences
 
-- One Unseen serves what used to be several instances. A companion tool that
-  needs "4K server" and "1080p server" entries points both at Unseen and
+- One Unseenarr serves what used to be several instances. A companion tool that
+  needs "4K server" and "1080p server" entries points both at Unseenarr and
   chooses a different quality profile.
 - Ids differ from the imported instances.
 - A movie can have several profiles and files; the compat API shows the
@@ -261,6 +261,6 @@ are written with their M6 issues.
 
 ## Open questions
 
-- Seerr with a "4K server" entry that points at Unseen: what must `GET
+- Seerr with a "4K server" entry that points at Unseenarr: what must `GET
   /movie?tmdbId=` and `POST /movie` answer so that a 4K request adds a second
   movie profile? Verify with Seerr in M6.

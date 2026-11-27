@@ -2,7 +2,7 @@ import type { components } from './api/schema.js';
 
 export type MovieLookup = components['schemas']['MovieLookup'];
 
-const CHOICES_KEY = 'unseen.add.choices';
+const CHOICES_KEY = 'unseenarr.add.choices';
 
 /** What the add dialog remembers between visits. */
 export interface AddChoices {

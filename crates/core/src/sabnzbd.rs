@@ -3,7 +3,7 @@
 //!
 //! The queue and history calls follow the category of the download client.
 //! A slot in another category is never listed and never touched, even when
-//! its id is given. The client decides where it saves its releases; Unseen
+//! its id is given. The client decides where it saves its releases; Unseenarr
 //! reads `storage` from the history.
 
 use std::collections::HashSet;

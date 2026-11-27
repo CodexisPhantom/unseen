@@ -97,7 +97,7 @@
 </script>
 
 <svelte:head>
-	<title>Add a movie · Unseen</title>
+	<title>Add a movie · Unseenarr</title>
 </svelte:head>
 
 {#if !add}

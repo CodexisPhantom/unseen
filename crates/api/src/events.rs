@@ -12,7 +12,7 @@ use futures_util::stream::{self, Stream};
 use serde_json::Value;
 use tokio::sync::broadcast;
 use tokio::time::Instant;
-use unseen_core::permission::{EffectivePermissions, Permission};
+use unseenarr_core::permission::{EffectivePermissions, Permission};
 
 use crate::AppState;
 use crate::access::Caller;

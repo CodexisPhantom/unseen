@@ -10,9 +10,9 @@ use db::entities::collections;
 use db::movies::{Metadata, MovieError, NewMovie};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::metadata::{MetadataError, MetadataProvider, MovieSummary};
-use unseen_core::naming;
-use unseen_core::permission::Permission;
+use unseenarr_core::metadata::{MetadataError, MetadataProvider, MovieSummary};
+use unseenarr_core::naming;
+use unseenarr_core::permission::Permission;
 use utoipa::ToSchema;
 
 use crate::AppState;

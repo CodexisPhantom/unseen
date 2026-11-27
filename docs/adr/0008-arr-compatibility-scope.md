@@ -5,7 +5,7 @@ Status: accepted (2026-11-15)
 ## Context
 
 People who run Sonarr and Radarr have libraries on disk, download client
-setups and companion tools such as Seerr. Unseen is only useful to them if
+setups and companion tools such as Seerr. Unseenarr is only useful to them if
 those keep working. A full reimplementation of the v3 APIs is not realistic.
 
 Radarr and Sonarr both serve `/api/v3` with overlapping paths
@@ -25,7 +25,7 @@ One app cannot serve both at the same prefix.
 - Response shapes follow the upstream OpenAPI documents. Missing values are
   returned as defaults, never omitted. Unimplemented endpoints return 501
   with a JSON body.
-- Auth with `X-Api-Key` or `?apikey=`, backed by Unseen API keys and their
+- Auth with `X-Api-Key` or `?apikey=`, backed by Unseenarr API keys and their
   permissions.
 - Contract tests compare our responses with recorded responses from a real
   instance and with the upstream schema.

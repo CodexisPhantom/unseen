@@ -11,8 +11,8 @@ use axum::extract::{Path, State};
 use axum::http::{Method, StatusCode};
 use db::tags::TagError;
 use serde_json::json;
-use unseen_core::permission::Permission;
-use unseen_core::profile::Item;
+use unseenarr_core::permission::Permission;
+use unseenarr_core::profile::Item;
 
 use crate::AppState;
 use crate::audit::{Actor, ClientIp, Event, record};

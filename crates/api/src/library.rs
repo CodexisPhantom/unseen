@@ -14,13 +14,13 @@ use db::movies::{Metadata, MovieError, NewFile, NewMovie as StoredNew};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::task::JoinSet;
-use unseen_core::backfill::{file_languages, file_quality};
-use unseen_core::library::{
+use unseenarr_core::backfill::{file_languages, file_quality};
+use unseenarr_core::library::{
     FolderGuess, confident_match, guess_folder, is_extras_folder, is_movie_video,
 };
-use unseen_core::metadata::{MetadataError, MetadataProvider, MovieSummary};
-use unseen_core::permission::Permission;
-use unseen_core::root_folder;
+use unseenarr_core::metadata::{MetadataError, MetadataProvider, MovieSummary};
+use unseenarr_core::permission::Permission;
+use unseenarr_core::root_folder;
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -60,7 +60,7 @@ pub struct ScanFile {
 pub enum ScanStatus {
     /// One confident TMDB match; ready to adopt.
     Matched,
-    /// No confident match. Unseen does not guess.
+    /// No confident match. Unseenarr does not guess.
     Unmatched,
     /// The match is a movie that the library has already, or that another
     /// folder of this scan matched first.

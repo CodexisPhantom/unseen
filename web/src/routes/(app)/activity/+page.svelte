@@ -42,7 +42,7 @@
 </script>
 
 <svelte:head>
-	<title>Activity · Unseen</title>
+	<title>Activity · Unseenarr</title>
 </svelte:head>
 
 {#if !read}

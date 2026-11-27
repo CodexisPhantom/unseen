@@ -16,8 +16,8 @@ use tokio::net::TcpListener;
 use wiremock::matchers::{method, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 struct App {
@@ -416,7 +416,7 @@ async fn reading_needs_settings_read_and_writing_needs_settings_manage() {
 async fn an_environment_proxy_wins_and_refuses_changes() {
     let mut app = App::new().await;
     app.state.settings_overrides = db::settings::Overrides::from_vars([(
-        "UNSEEN_SETTING_PROXY_URL".to_owned(),
+        "UNSEENARR_SETTING_PROXY_URL".to_owned(),
         format!("http://user:{SECRET}@proxy:3128"),
     )]);
     app.router = router(app.state.clone());

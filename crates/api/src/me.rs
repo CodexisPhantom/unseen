@@ -7,7 +7,7 @@ use axum::extract::State;
 use better_auth::seaorm::sea_orm::EntityTrait;
 use db::auth_schema::user;
 use serde::Serialize;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa::openapi::RefOr;
 use utoipa::openapi::schema::{ObjectBuilder, Schema, Type};
 use utoipa::{PartialSchema, ToSchema};

@@ -641,7 +641,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Downloads one daily log file (`unseen-YYYY-MM-DD.log`). */
+        /** Downloads one daily log file (`unseenarr-YYYY-MM-DD.log`). */
         get: operations["download_log_file"];
         put?: never;
         post?: never;
@@ -720,7 +720,7 @@ export interface paths {
         get: operations["list_movies"];
         put?: never;
         /**
-         * Adds a movie by TMDB id. Unseen fetches the metadata and names the movie
+         * Adds a movie by TMDB id. Unseenarr fetches the metadata and names the movie
          *     folder with the default template `{Movie Title} ({Release Year})`.
          */
         post: operations["create_movie"];
@@ -1590,13 +1590,13 @@ export interface components {
              *     requires one.
              */
             apiKeyMustBeReentered: boolean;
-            /** @description The category of the torrents or NZBs Unseen adds. */
+            /** @description The category of the torrents or NZBs Unseenarr adds. */
             category: string;
             createdAt: string;
             enabled: boolean;
             /**
              * @description The API key (qBittorrent 5.2 or later) is never returned. When one is
-             *     set, Unseen uses it and ignores the username and password. SABnzbd
+             *     set, Unseenarr uses it and ignores the username and password. SABnzbd
              *     requires one.
              */
             hasApiKey: boolean;
@@ -1606,7 +1606,7 @@ export interface components {
             id: number;
             /** @description `qbittorrent` or `sabnzbd`. */
             kind: string;
-            /** @description ... and the same folder as Unseen sees it. */
+            /** @description ... and the same folder as Unseenarr sees it. */
             localPath?: string | null;
             name: string;
             /** @description A password is stored but cannot be decrypted: enter it again. */
@@ -1758,7 +1758,7 @@ export interface components {
             /**
              * Format: int32
              * @description Index into `items`: once that item and every item before it exist,
-             *     Unseen stops looking. Absent: look for every item.
+             *     Unseenarr stops looking. Absent: look for every item.
              */
             cutoff?: number | null;
             /** Format: int32 */
@@ -1798,7 +1798,7 @@ export interface components {
         LogFileInfo: {
             /** @description UTC date covered by this file (`YYYY-MM-DD`). */
             date: string;
-            /** @description File name (`unseen-YYYY-MM-DD.log`). */
+            /** @description File name (`unseenarr-YYYY-MM-DD.log`). */
             name: string;
             /**
              * Format: int64
@@ -2052,7 +2052,7 @@ export interface components {
              */
             movieFolder: string;
             /**
-             * @description Fields set by an environment variable (`UNSEEN_SETTING_...`). They are
+             * @description Fields set by an environment variable (`UNSEENARR_SETTING_...`). They are
              *     read-only: a change is refused with 409 `setting_overridden`.
              */
             overridden: string[];
@@ -2160,7 +2160,7 @@ export interface components {
             libraryId?: number | null;
             /**
              * @description An absolute path on the server. It must exist, be a directory that
-             *     Unseen can write to, and not lie inside or contain another root folder.
+             *     Unseenarr can write to, and not lie inside or contain another root folder.
              */
             path: string;
         };
@@ -2273,7 +2273,7 @@ export interface components {
             hasCredentials: boolean;
             /** @description A proxy is set. */
             hasUrl: boolean;
-            /** @description Fields set by an environment variable (`UNSEEN_SETTING_...`). */
+            /** @description Fields set by an environment variable (`UNSEENARR_SETTING_...`). */
             overridden: string[];
             /** @description A URL is stored but cannot be decrypted: enter it again. */
             urlMustBeReentered: boolean;
@@ -2570,7 +2570,7 @@ export interface components {
             createdAt: string;
             /**
              * Format: int64
-             * @description Bytes available to Unseen on the filesystem of the folder. Absent when
+             * @description Bytes available to Unseenarr on the filesystem of the folder. Absent when
              *     the folder is not accessible.
              */
             freeSpace?: number | null;
@@ -2722,7 +2722,7 @@ export interface components {
             /** @description For example `en-US`. */
             language: string;
             /**
-             * @description Fields set by an environment variable (`UNSEEN_SETTING_...`). They are
+             * @description Fields set by an environment variable (`UNSEENARR_SETTING_...`). They are
              *     read-only: a change is refused with 409 `setting_overridden`.
              */
             overridden: string[];
@@ -4894,7 +4894,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Daily log file name (`unseen-YYYY-MM-DD.log`) */
+                /** @description Daily log file name (`unseenarr-YYYY-MM-DD.log`) */
                 name: string;
             };
             cookie?: never;

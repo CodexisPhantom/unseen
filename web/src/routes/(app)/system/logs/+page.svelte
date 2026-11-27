@@ -96,7 +96,7 @@
 </script>
 
 <svelte:head>
-	<title>Logs · Unseen</title>
+	<title>Logs · Unseenarr</title>
 </svelte:head>
 
 <div class="flex flex-wrap items-start justify-between gap-3">

@@ -296,7 +296,7 @@ describe('monitoring draft, validation and patches', () => {
 describe('API problem helpers', () => {
 	it('picks detail, field error, title or fallback from a problem', () => {
 		const base: Problem = {
-			type: 'https://unseen.invalid/problems/test',
+			type: 'https://unseenarr.invalid/problems/test',
 			title: 'TMDB refused the API key',
 			status: 502,
 			code: 'tmdb_key_rejected'
@@ -326,7 +326,7 @@ describe('API problem helpers', () => {
 
 		const err = toCollectionError(
 			{
-				type: 'https://unseen.invalid/problems/tmdb',
+				type: 'https://unseenarr.invalid/problems/tmdb',
 				title: 'TMDB is not configured',
 				status: 409,
 				code: 'tmdb_not_configured',

@@ -15,18 +15,18 @@ use db::entities::movie_files;
 use db::secret::decrypt;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
-use unseen_core::custom_format::{
+use unseenarr_core::custom_format::{
     self, CustomFormat, ScoredFormat, Specification, code_language_ids, release_info_from_parsed,
     release_language_ids,
 };
-use unseen_core::newznab::{MovieQuery as NewznabMovieQuery, NewznabClient, NzbRelease};
-use unseen_core::permission::Permission;
-use unseen_core::profile::{Item, Profile};
-use unseen_core::quality::{Quality, SizeLimits};
-use unseen_core::release;
-use unseen_core::scoring::{self, ProtocolPreference, ReleaseRef};
-use unseen_core::search::CachedRelease;
-use unseen_core::torznab::{MovieQuery, Release as TorznabRelease, TorznabClient};
+use unseenarr_core::newznab::{MovieQuery as NewznabMovieQuery, NewznabClient, NzbRelease};
+use unseenarr_core::permission::Permission;
+use unseenarr_core::profile::{Item, Profile};
+use unseenarr_core::quality::{Quality, SizeLimits};
+use unseenarr_core::release;
+use unseenarr_core::scoring::{self, ProtocolPreference, ReleaseRef};
+use unseenarr_core::search::CachedRelease;
+use unseenarr_core::torznab::{MovieQuery, Release as TorznabRelease, TorznabClient};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;

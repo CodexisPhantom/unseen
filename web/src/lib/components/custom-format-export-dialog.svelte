@@ -40,7 +40,7 @@
 			<Dialog.Title>{title}</Dialog.Title>
 			<Dialog.Description>
 				Radarr-compatible JSON without internal ids. Copy or download to reuse in Radarr or another
-				Unseen instance.
+				Unseenarr instance.
 			</Dialog.Description>
 		</Dialog.Header>
 

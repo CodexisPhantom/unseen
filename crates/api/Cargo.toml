@@ -4,9 +4,9 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
-# The shipped binary is `unseen`; `cargo run -p api` still starts it.
+# The shipped binary is `unseenarr`; `cargo run -p api` still starts it.
 [[bin]]
-name = "unseen"
+name = "unseenarr"
 path = "src/main.rs"
 
 [dependencies]

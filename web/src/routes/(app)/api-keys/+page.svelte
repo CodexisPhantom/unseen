@@ -93,7 +93,7 @@
 {/snippet}
 
 <svelte:head>
-	<title>API keys · Unseen</title>
+	<title>API keys · Unseenarr</title>
 </svelte:head>
 
 <div class="flex items-center justify-between">

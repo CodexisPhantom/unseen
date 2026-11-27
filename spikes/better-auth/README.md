@@ -9,7 +9,7 @@ Throwaway code. Results are in `docs/adr/0006-authentication-library.md`.
 Linux (Docker):
 
 ```
-docker build -t unseen-spike-auth .
+docker build -t unseenarr-spike-auth .
 bash run.sh
 cd client && pnpm install && node test.mjs
 ```

@@ -47,7 +47,7 @@
 </script>
 
 <svelte:head>
-	<title>Quality profiles · Unseen</title>
+	<title>Quality profiles · Unseenarr</title>
 </svelte:head>
 
 {#if !read}

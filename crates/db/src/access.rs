@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder};
-use unseen_core::permission::LibraryScope;
+use unseenarr_core::permission::LibraryScope;
 
 use crate::entities::{
     role_permissions, roles, user_permission_libraries, user_permissions, user_role_libraries,

@@ -12,7 +12,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa::ToSchema;
 
 use crate::AppState;

@@ -5,7 +5,7 @@ Status: accepted (2026-11-15)
 ## Context
 
 Radarr keeps one file per movie. People who want a 1080p and a 4K copy run
-two Radarr instances. Unseen exists to remove that second instance, and the
+two Radarr instances. Unseenarr exists to remove that second instance, and the
 import from two instances must not lose one of the two files.
 
 ## Decision

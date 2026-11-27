@@ -47,7 +47,7 @@
 </script>
 
 <svelte:head>
-	<title>Audit log · Unseen</title>
+	<title>Audit log · Unseenarr</title>
 </svelte:head>
 
 <h1 class="text-2xl font-semibold">Audit log</h1>

@@ -8,9 +8,9 @@ use db::indexers::{Indexer as Stored, IndexerError, Values};
 use db::secret::{Secret, decrypt, encrypt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::http::check_url_text;
-use unseen_core::newznab::{NewznabClient, NewznabError};
-use unseen_core::torznab::{TorznabClient, TorznabError};
+use unseenarr_core::http::check_url_text;
+use unseenarr_core::newznab::{NewznabClient, NewznabError};
+use unseenarr_core::torznab::{TorznabClient, TorznabError};
 use utoipa::ToSchema;
 
 use crate::AppState;

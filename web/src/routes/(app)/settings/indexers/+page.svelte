@@ -63,7 +63,7 @@
 </script>
 
 <svelte:head>
-	<title>Indexers · Unseen</title>
+	<title>Indexers · Unseenarr</title>
 </svelte:head>
 
 {#if !read}
@@ -76,7 +76,7 @@
 		{/if}
 	</div>
 	<p class="mt-1 text-sm text-muted-foreground">
-		Unseen searches these Torznab and Newznab indexers for releases. A lower priority number wins
+		Unseenarr searches these Torznab and Newznab indexers for releases. A lower priority number wins
 		when two releases tie.
 	</p>
 
@@ -159,7 +159,7 @@
 			<AlertDialog.Header>
 				<AlertDialog.Title>Remove this indexer?</AlertDialog.Title>
 				<AlertDialog.Description>
-					Unseen no longer searches {removing?.name}.
+					Unseenarr no longer searches {removing?.name}.
 				</AlertDialog.Description>
 			</AlertDialog.Header>
 			<AlertDialog.Footer>

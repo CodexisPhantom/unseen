@@ -36,7 +36,7 @@
 	<Dialog.Content class="max-h-[90svh] overflow-y-auto sm:max-w-xl">
 		<Dialog.Header>
 			<Dialog.Title>Choose a folder</Dialog.Title>
-			<Dialog.Description>The folders on the server that Unseen can see.</Dialog.Description>
+			<Dialog.Description>The folders on the server that Unseenarr can see.</Dialog.Description>
 		</Dialog.Header>
 		<div class="grid gap-2">
 			<div class="flex items-center gap-2">

@@ -6,8 +6,8 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use db::settings::{SecretSetting, get_secret, get_string, set_secret, set_string};
 use serde::{Deserialize, Serialize};
-use unseen_core::metadata::{MetadataError, MetadataProvider};
-use unseen_core::tmdb::{DEFAULT_LANGUAGE, TmdbClient, is_valid_language};
+use unseenarr_core::metadata::{MetadataError, MetadataProvider};
+use unseenarr_core::tmdb::{DEFAULT_LANGUAGE, TmdbClient, is_valid_language};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -100,7 +100,7 @@ pub struct TmdbSettings {
     api_key_must_be_reentered: bool,
     /// For example `en-US`.
     language: String,
-    /// Fields set by an environment variable (`UNSEEN_SETTING_...`). They are
+    /// Fields set by an environment variable (`UNSEENARR_SETTING_...`). They are
     /// read-only: a change is refused with 409 `setting_overridden`.
     overridden: Vec<&'static str>,
 }

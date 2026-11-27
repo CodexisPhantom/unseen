@@ -10,8 +10,8 @@ use tower::ServiceExt;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 struct App {
@@ -431,9 +431,9 @@ async fn an_environment_setting_wins_and_refuses_changes() {
     let server = MockServer::start().await;
     let mut app = App::new(&server).await;
     app.state.settings_overrides = db::settings::Overrides::from_vars([
-        ("UNSEEN_SETTING_TMDB_API_KEY".to_owned(), KEY.to_owned()),
+        ("UNSEENARR_SETTING_TMDB_API_KEY".to_owned(), KEY.to_owned()),
         (
-            "UNSEEN_SETTING_TMDB_LANGUAGE".to_owned(),
+            "UNSEENARR_SETTING_TMDB_LANGUAGE".to_owned(),
             "it-IT".to_owned(),
         ),
     ]);
@@ -463,7 +463,7 @@ async fn an_environment_setting_wins_and_refuses_changes() {
             reply["detail"]
                 .as_str()
                 .unwrap()
-                .contains("UNSEEN_SETTING_")
+                .contains("UNSEENARR_SETTING_")
         );
     }
     // Nothing was written, and no audit entry was made.

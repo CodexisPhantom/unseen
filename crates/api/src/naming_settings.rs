@@ -1,11 +1,11 @@
 //! The movie naming settings and their live preview (docs/09-filesystem.md,
-//! "Naming templates"). The engine is `unseen_core::naming`.
+//! "Naming templates"). The engine is `unseenarr_core::naming`.
 
 use axum::Json;
 use axum::extract::State;
 use db::settings::{get_bool, get_string, set_bool, set_string};
 use serde::{Deserialize, Serialize};
-use unseen_core::naming::{
+use unseenarr_core::naming::{
     self, ColonReplacement, MovieFacts, NamingConfig, TemplateError, validate_template,
 };
 use utoipa::ToSchema;
@@ -113,7 +113,7 @@ pub struct NamingSettings {
     /// How a colon is written: `delete`, `dash`, `spaceDash`,
     /// `spaceDashSpace` or `smart`.
     colon_replacement: String,
-    /// Fields set by an environment variable (`UNSEEN_SETTING_...`). They are
+    /// Fields set by an environment variable (`UNSEENARR_SETTING_...`). They are
     /// read-only: a change is refused with 409 `setting_overridden`.
     overridden: Vec<&'static str>,
 }

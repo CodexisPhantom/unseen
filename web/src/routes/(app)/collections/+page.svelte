@@ -78,7 +78,7 @@
 </script>
 
 <svelte:head>
-	<title>Collections · Unseen</title>
+	<title>Collections · Unseenarr</title>
 </svelte:head>
 
 {#if !read}

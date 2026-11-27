@@ -183,7 +183,7 @@ async fn assign_first_owner(tx: &impl ConnectionTrait, user_id: &str) -> AuthRes
 }
 
 /// Builds the auth instance on the migrated database. `secret` is the root
-/// secret from [`load_secret`]; `base_url` is `UNSEEN_BASE_URL`.
+/// secret from [`load_secret`]; `base_url` is `UNSEENARR_BASE_URL`.
 pub async fn build(
     db: DatabaseConnection,
     secret: &str,
@@ -207,9 +207,9 @@ pub async fn build(
     let passkey = match origin {
         Some(origin) => PasskeyPlugin::new()
             .rp_id(rp_id)
-            .rp_name("Unseen")
+            .rp_name("Unseenarr")
             .origin(origin),
-        None => PasskeyPlugin::new().rp_id(rp_id).rp_name("Unseen"),
+        None => PasskeyPlugin::new().rp_id(rp_id).rp_name("Unseenarr"),
     };
     let auth = BetterAuth::<AppAuthSchema>::new(config)
         .store(store)
@@ -228,7 +228,7 @@ pub async fn build(
     Ok((Arc::new(auth), policy))
 }
 
-/// The WebAuthn relying party: the host of `UNSEEN_BASE_URL` and its origin.
+/// The WebAuthn relying party: the host of `UNSEENARR_BASE_URL` and its origin.
 /// Without a base URL the library takes the RP ID from the auth config (and
 /// fails when that is unset) and accepts the request's `Origin` header.
 fn passkey_relying_party(base_url: Option<&str>) -> (String, Option<String>) {
@@ -239,7 +239,7 @@ fn passkey_relying_party(base_url: Option<&str>) -> (String, Option<String>) {
     (rp_id, Some(url.origin().ascii_serialization()))
 }
 
-/// The root secret: `UNSEEN_SECRET` when set, else the file `secret` in the
+/// The root secret: `UNSEENARR_SECRET` when set, else the file `secret` in the
 /// data directory, created with a random value on first run.
 pub fn load_secret(env: Option<String>, data_dir: &Path) -> io::Result<String> {
     if let Some(secret) = env.filter(|secret| !secret.is_empty()) {

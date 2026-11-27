@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa::ToSchema;
 
 use crate::AppState;

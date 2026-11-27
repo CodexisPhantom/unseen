@@ -19,7 +19,7 @@ use db::entities::episode_files;
 use db::entities::episodes;
 use db::entities::seasons;
 use db::entities::shows::Model as StoredShow;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 
 use crate::AppState;
 use crate::compat::{ApiKeyCaller, CompatError, OriginalCompatPath};

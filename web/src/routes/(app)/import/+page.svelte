@@ -140,7 +140,7 @@
 </script>
 
 <svelte:head>
-	<title>Import · Unseen</title>
+	<title>Import · Unseenarr</title>
 </svelte:head>
 
 {#if !allowed}
@@ -148,7 +148,7 @@
 {:else}
 	<h1 class="text-2xl font-semibold">Adopt a library</h1>
 	<p class="mt-1 max-w-2xl text-sm text-muted-foreground">
-		Scan a root folder for movie folders that Unseen does not know yet, check the matches, then
+		Scan a root folder for movie folders that Unseenarr does not know yet, check the matches, then
 		adopt them. Adopting never moves, renames or deletes a file. The quality of each file is
 		unknown until the parser fills it in.
 	</p>

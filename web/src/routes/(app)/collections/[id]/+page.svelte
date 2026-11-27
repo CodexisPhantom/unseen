@@ -319,7 +319,7 @@
 </script>
 
 <svelte:head>
-	<title>{current?.title ?? 'Collection'} · Unseen</title>
+	<title>{current?.title ?? 'Collection'} · Unseenarr</title>
 </svelte:head>
 
 {#if !read}

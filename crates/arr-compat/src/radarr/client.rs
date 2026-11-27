@@ -11,7 +11,7 @@ use std::fmt;
 use reqwest::StatusCode;
 use reqwest::header::{ACCEPT, USER_AGENT};
 use serde::de::DeserializeOwned;
-use unseen_core::http::{OutboundClient, UrlError, check_url};
+use unseenarr_core::http::{OutboundClient, UrlError, check_url};
 use url::Url;
 
 use super::dto::{
@@ -20,7 +20,7 @@ use super::dto::{
     SystemResource, TagResource,
 };
 
-const AGENT: &str = concat!("Unseen/", env!("CARGO_PKG_VERSION"));
+const AGENT: &str = concat!("Unseenarr/", env!("CARGO_PKG_VERSION"));
 const API_KEY_HEADER: &str = "X-Api-Key";
 
 /// Why a read-only Radarr v3 API call failed.

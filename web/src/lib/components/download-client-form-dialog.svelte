@@ -58,7 +58,7 @@
 		<Dialog.Header>
 			<Dialog.Title>{client ? `Edit ${client.name}` : 'New download client'}</Dialog.Title>
 			<Dialog.Description>
-				Unseen sends releases to qBittorrent or SABnzbd and follows them by category. Save the
+				Unseenarr sends releases to qBittorrent or SABnzbd and follows them by category. Save the
 				client, then use Test to check the connection.
 			</Dialog.Description>
 		</Dialog.Header>
@@ -139,10 +139,10 @@
 				/>
 				<p class="text-xs text-muted-foreground">
 					{#if draft.kind === 'sabnzbd'}
-						SABnzbd: Config, General, API key. Unseen needs the key; SABnzbd has no username or
+						SABnzbd: Config, General, API key. Unseenarr needs the key; SABnzbd has no username or
 						password.
 					{:else}
-						qBittorrent 5.2 or later: Options, Web UI, API key. When a key is set, Unseen uses it
+						qBittorrent 5.2 or later: Options, Web UI, API key. When a key is set, Unseenarr uses it
 						and ignores the username and password.
 					{/if}
 				</p>
@@ -154,13 +154,13 @@
 				<Label for="client-category">Category</Label>
 				<Input id="client-category" required bind:value={draft.category} />
 				<p class="text-xs text-muted-foreground">
-					Unseen finds its own downloads by this category. Radarr uses <code>radarr</code>.
+					Unseenarr finds its own downloads by this category. Radarr uses <code>radarr</code>.
 				</p>
 			</div>
 			<fieldset class="grid gap-2">
 				<legend class="mb-1 text-sm font-medium">Remote path mapping</legend>
 				<p class="text-xs text-muted-foreground">
-					Fill both when the client sees the download folder under another path than Unseen does.
+					Fill both when the client sees the download folder under another path than Unseenarr does.
 				</p>
 				<div class="grid gap-4 sm:grid-cols-2">
 					<Input
@@ -170,7 +170,7 @@
 						bind:value={draft.remotePath}
 					/>
 					<Input
-						aria-label="Path as Unseen sees it"
+						aria-label="Path as Unseenarr sees it"
 						placeholder="/data/downloads"
 						class="font-mono"
 						bind:value={draft.localPath}

@@ -14,10 +14,10 @@ use db::entities::{role_permissions, roles, user_permissions, user_roles};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa_axum::routes;
 
-const HOST: &str = "unseen.test";
+const HOST: &str = "unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 struct TestApp {
@@ -51,7 +51,7 @@ impl TestApp {
         let state = AppState::new(db, "test secret", base_url).await.unwrap();
         Self {
             state,
-            origin: base_url.unwrap_or("http://unseen.test").to_owned(),
+            origin: base_url.unwrap_or("http://unseenarr.test").to_owned(),
             _dir: dir,
         }
     }
@@ -714,7 +714,7 @@ fn app_router_passes_route_coverage() {
         !paths
             .keys()
             .any(|path| path.starts_with("/radarr") || path.starts_with("/sonarr")),
-        "compat routes must not appear in Unseen's OpenAPI document"
+        "compat routes must not appear in Unseenarr's OpenAPI document"
     );
 }
 
@@ -979,7 +979,7 @@ async fn same_path_different_methods_enforce_different_permissions() {
 
 #[tokio::test]
 async fn secure_cookie_works_with_https_base_url() {
-    let app = TestApp::new(Some("https://unseen.example.com")).await;
+    let app = TestApp::new(Some("https://unseenarr.example.com")).await;
     let router = app.mount(sample_api_router());
     let (user_id, cookie) = app
         .create_user_and_sign_in(&router, "https@example.com")

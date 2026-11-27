@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 use db::libraries::{LibraryDetail, LibraryError};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa::ToSchema;
 
 use crate::AppState;

@@ -142,7 +142,7 @@
 </script>
 
 <svelte:head>
-	<title>Custom formats · Unseen</title>
+	<title>Custom formats · Unseenarr</title>
 </svelte:head>
 
 {#if !read}

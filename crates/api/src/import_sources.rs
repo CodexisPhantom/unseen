@@ -21,8 +21,8 @@ use db::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use unseen_core::metadata::{CollectionRef, MetadataProvider};
-use unseen_core::profile::{self, Item};
+use unseenarr_core::metadata::{CollectionRef, MetadataProvider};
+use unseenarr_core::profile::{self, Item};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -146,7 +146,7 @@ fn date(value: Option<&Timestamp>) -> Option<String> {
         .filter(|text| !text.starts_with("0001-"))
 }
 
-/// The status Unseen stores: it has no `tba` or `deleted`.
+/// The status Unseenarr stores: it has no `tba` or `deleted`.
 fn status_wire(status: MovieStatusType) -> &'static str {
     match status {
         MovieStatusType::InCinemas => "inCinemas",
@@ -243,7 +243,7 @@ impl ProfileRules<'_> {
 }
 
 /// Ids of the source ids whose import is running. The server is one process.
-// An in-process guard is enough because Unseen is a single process; a database
+// An in-process guard is enough because Unseenarr is a single process; a database
 // lock is not used on purpose.
 /// It lives in `AppState`, so each app has its own set.
 #[derive(Clone, Default)]
@@ -385,7 +385,7 @@ impl Run<'_> {
             let Ok(label) = crate::tags::validate_label(&tag.label) else {
                 self.report.tags.skipped += 1;
                 self.report.notes.push(format!(
-                    "Tag \"{}\" has a label Unseen does not accept.",
+                    "Tag \"{}\" has a label Unseenarr does not accept.",
                     tag.label
                 ));
                 continue;
@@ -409,7 +409,7 @@ impl Run<'_> {
                     Err(_) => {
                         self.report.tags.skipped += 1;
                         self.report.notes.push(format!(
-                            "Tag \"{}\" has a label Unseen does not accept.",
+                            "Tag \"{}\" has a label Unseenarr does not accept.",
                             tag.label
                         ));
                         continue;
@@ -1099,7 +1099,7 @@ fn count(len: usize) -> u32 {
     u32::try_from(len).unwrap_or(u32::MAX)
 }
 
-/// The file of a source movie as Unseen stores it, relative to the movie
+/// The file of a source movie as Unseenarr stores it, relative to the movie
 /// folder as the source reports it.
 fn new_file(file: &MovieFileResource) -> NewFile {
     NewFile {
@@ -1120,7 +1120,7 @@ fn metadata(movie: &MovieResource) -> Metadata {
         imdb_id: non_empty(&movie.imdb_id),
         title: movie.title.clone(),
         original_title: non_empty(&movie.original_title),
-        sort_title: unseen_core::naming::sort_title(&movie.title),
+        sort_title: unseenarr_core::naming::sort_title(&movie.title),
         year: movie.year,
         overview: non_empty(&movie.overview),
         runtime: (movie.runtime > 0).then_some(movie.runtime),

@@ -45,7 +45,7 @@ fn is_reserved(path: &str) -> bool {
 }
 
 fn inject(html: &str, base_path: &str) -> String {
-    let meta = format!(r#"<meta name="unseen-base" content="{base_path}" />"#);
+    let meta = format!(r#"<meta name="unseenarr-base" content="{base_path}" />"#);
     let mut html = html.replacen("<head>", &format!("<head>{meta}"), 1);
     if !html.contains(&meta) {
         // No <head>: still expose the base path.
@@ -123,18 +123,18 @@ mod tests {
 
     #[test]
     fn inject_prefixes_asset_urls_and_base() {
-        let out = inject(SAMPLE, "/unseen");
-        assert!(out.contains(r#"<meta name="unseen-base" content="/unseen" />"#));
-        assert!(out.contains(r#"href="/unseen/favicon.svg""#));
-        assert!(out.contains(r#"src="/unseen/x.js""#));
-        assert!(out.contains(r#"import("/unseen/_app/start.js")"#));
-        assert!(out.contains(r#"base: "/unseen""#));
+        let out = inject(SAMPLE, "/unseenarr");
+        assert!(out.contains(r#"<meta name="unseenarr-base" content="/unseenarr" />"#));
+        assert!(out.contains(r#"href="/unseenarr/favicon.svg""#));
+        assert!(out.contains(r#"src="/unseenarr/x.js""#));
+        assert!(out.contains(r#"import("/unseenarr/_app/start.js")"#));
+        assert!(out.contains(r#"base: "/unseenarr""#));
     }
 
     #[test]
     fn inject_at_root_only_adds_meta() {
         let out = inject(SAMPLE, "");
-        assert!(out.contains(r#"<meta name="unseen-base" content="" />"#));
+        assert!(out.contains(r#"<meta name="unseenarr-base" content="" />"#));
         assert!(out.contains(r#"href="/favicon.svg""#));
         assert!(out.contains(r#"base: """#));
         assert!(!out.contains("//"));

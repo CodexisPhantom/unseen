@@ -96,7 +96,7 @@ guide map form (`{"value": 1080}`), and serialize in the list form.
 
 ## TRaSH guides
 
-Unseen reads the JSON that the TRaSH guides publish in their repository
+Unseenarr reads the JSON that the TRaSH guides publish in their repository
 (custom formats, custom format groups, quality profiles with score sets,
 quality sizes for Radarr). Verify the paths and file formats when the issue
 is implemented.
@@ -293,10 +293,10 @@ Source: `Quality.cs` in Sonarr, read on 2026-11-25. Check it against
 `GET /api/v3/qualitydefinition` of a new Sonarr, as for movies.
 
 Quality ids: Sonarr and Radarr give the same id to every quality they share,
-except four. Unseen stores Radarr's ids. The Sonarr compat layer translates
+except four. Unseenarr stores Radarr's ids. The Sonarr compat layer translates
 these four in both directions:
 
-| Quality (Sonarr's name) | Unseen and Radarr id | Sonarr id |
+| Quality (Sonarr's name) | Unseenarr and Radarr id | Sonarr id |
 |---|---|---|
 | `Bluray-480p` | 20 | 13 |
 | `Bluray-576p` | 21 | 22 |
@@ -340,7 +340,7 @@ Replaces the list for movies when the target is an episode.
 4. A covered episode is not a wanted episode of the profile: unmonitored,
    not aired, or already has a file the release would not upgrade. This is
    why a pack for a season with unwanted episodes is rejected. Sonarr
-   accepts such a pack when it upgrades enough episodes; Unseen takes the
+   accepts such a pack when it upgrades enough episodes; Unseenarr takes the
    simpler rule and downloads those episodes one by one.
 5. A covered episode is in an active download of the same show profile.
 6. Quality is not allowed in the profile.
