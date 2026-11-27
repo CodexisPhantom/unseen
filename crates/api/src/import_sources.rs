@@ -243,6 +243,8 @@ impl ProfileRules<'_> {
 }
 
 /// Ids of the source ids whose import is running. The server is one process.
+// An in-process guard is enough because Unseen is a single process; a database
+// lock is not used on purpose.
 static RUNNING: LazyLock<Mutex<HashSet<i32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 /// Holds a source id in [`RUNNING`] until dropped, panic included.
@@ -697,6 +699,16 @@ impl Run<'_> {
         Ok(())
     }
 
+    /// Local tag ids for remote ones, sorted. Unmapped remote ids are dropped.
+    fn local_tags(&self, remote: &[i32]) -> Vec<i32> {
+        let mut tags: Vec<i32> = remote
+            .iter()
+            .filter_map(|id| self.tag_ids.get(id).copied())
+            .collect();
+        tags.sort_unstable();
+        tags
+    }
+
     fn skip_movie(&mut self, movie: &MovieResource, why: &str) {
         self.report.movies.skipped += 1;
         self.report
@@ -956,7 +968,7 @@ impl Run<'_> {
                         priority: item.priority,
                         use_proxy: false,
                         enabled: false,
-                        tags: Vec::new(),
+                        tags: self.local_tags(&item.tags),
                     },
                 )
                 .await
@@ -1047,7 +1059,7 @@ impl Run<'_> {
                         remote_path: None,
                         local_path: None,
                         enabled: false,
-                        tags: Vec::new(),
+                        tags: self.local_tags(&item.tags),
                     },
                 )
                 .await

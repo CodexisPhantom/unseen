@@ -334,10 +334,34 @@ fn single(profile: &Value, root: &str, file: &str, size: i64) -> Fake {
 async fn a_run_imports_an_instance_and_a_second_run_creates_nothing() {
     let (app, _tmdb) = app().await;
     let radarr = MockServer::start().await;
-    Fake::new().mount(&radarr, 2).await;
+    let mut clients: Vec<Value> = serde_json::from_str(DOWNLOAD_CLIENTS).unwrap();
+    clients[0]["tags"] = json!([2]);
+    Fake::new()
+        .with("downloadclient", json!(clients))
+        .mount(&radarr, 2)
+        .await;
     let id = add_source(&app, "Main", &radarr, None).await;
 
     let first = import(&app, id, "run").await;
+    let local_tag = |label: &str| {
+        let label = label.to_owned();
+        let db = app.state.db.clone();
+        async move {
+            db::tags::list(&db)
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|tag| tag.label == label)
+                .unwrap()
+                .id
+        }
+    };
+    let indexers = db::indexers::list(&app.state.db).await.unwrap();
+    assert_eq!(indexers.len(), 1, "{first}");
+    assert_eq!(indexers[0].tags, vec![local_tag("4k").await]);
+    let clients = db::download_clients::list(&app.state.db).await.unwrap();
+    assert_eq!(clients.len(), 1, "{first}");
+    assert_eq!(clients[0].tags, vec![local_tag("family").await]);
     let counts = all_created(&first);
     for kind in ["rootFolders", "qualityProfiles", "tags", "movies"] {
         assert!(created(&first, kind) > 0, "{kind}: {first}");

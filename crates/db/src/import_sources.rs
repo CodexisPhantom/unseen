@@ -6,7 +6,7 @@
 use crate::entities::{import_map, import_sources};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set, SqlErr,
+    Set, SqlErr, sea_query::OnConflict,
 };
 use std::collections::HashMap;
 /// The resources an import maps. The value is stored in `import_map.resource`.
@@ -150,6 +150,7 @@ pub async fn map_for(
 }
 
 /// Records a mapping. A second run of the same import finds it and skips.
+/// One atomic upsert: a repeated put overwrites `local_id`.
 pub async fn map_put(
     db: &DatabaseConnection,
     source_id: i32,
@@ -157,27 +158,23 @@ pub async fn map_put(
     source_resource_id: i32,
     local_id: i32,
 ) -> Result<(), DbErr> {
-    let existing =
-        import_map::Entity::find_by_id((source_id, resource.to_owned(), source_resource_id))
-            .one(db)
-            .await?;
-    match existing {
-        Some(row) => {
-            let mut active: import_map::ActiveModel = row.into();
-            active.local_id = Set(local_id);
-            active.update(db).await?;
-        }
-        None => {
-            import_map::ActiveModel {
-                source_id: Set(source_id),
-                resource: Set(resource.to_owned()),
-                source_resource_id: Set(source_resource_id),
-                local_id: Set(local_id),
-            }
-            .insert(db)
-            .await?;
-        }
-    }
+    import_map::Entity::insert(import_map::ActiveModel {
+        source_id: Set(source_id),
+        resource: Set(resource.to_owned()),
+        source_resource_id: Set(source_resource_id),
+        local_id: Set(local_id),
+    })
+    .on_conflict(
+        OnConflict::columns([
+            import_map::Column::SourceId,
+            import_map::Column::Resource,
+            import_map::Column::SourceResourceId,
+        ])
+        .update_column(import_map::Column::LocalId)
+        .to_owned(),
+    )
+    .exec_without_returning(db)
+    .await?;
     Ok(())
 }
 
