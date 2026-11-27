@@ -1,5 +1,6 @@
 //! Versioned migrations. Never edit a released migration; add a new one.
 
+use sea_orm::{DatabaseBackend, Statement};
 use sea_orm_migration::prelude::*;
 
 pub struct Migrator;
@@ -838,27 +839,30 @@ impl MigrationName for M0016TvShows {
 /// "TV tables (M7)"). The `downloads` rebuild makes `movie_id` nullable, so
 /// the table must be recreated to add the check that exactly one target is set.
 const M0016_UP: &str = r#"
+PRAGMA foreign_keys = OFF;
+BEGIN;
+
 CREATE TABLE shows (
     id integer PRIMARY KEY AUTOINCREMENT,
     tvdb_id integer UNIQUE,
     tmdb_id integer UNIQUE,
     imdb_id text,
-    metadata_provider text NOT NULL,
+    metadata_provider text NOT NULL CHECK (metadata_provider IN ('tvdb', 'tmdb')),
     title text NOT NULL,
     original_title text,
     sort_title text NOT NULL,
     year integer NOT NULL,
     overview text,
     runtime integer,
-    status text NOT NULL,
-    series_type text NOT NULL,
+    status text NOT NULL CHECK (status IN ('continuing', 'ended', 'upcoming')),
+    series_type text NOT NULL CHECK (series_type IN ('standard', 'daily', 'anime')),
     network text,
     poster_path text,
     season_folder boolean NOT NULL DEFAULT TRUE,
     root_folder_id integer NOT NULL REFERENCES root_folders (id),
     folder_name text NOT NULL,
     monitored boolean NOT NULL,
-    monitor_new_items text NOT NULL DEFAULT 'all',
+    monitor_new_items text NOT NULL DEFAULT 'all' CHECK (monitor_new_items IN ('all', 'none')),
     refreshed_at text,
     added_at text NOT NULL,
     updated_at text NOT NULL,
@@ -916,9 +920,6 @@ CREATE TABLE episode_file_episodes (
 );
 CREATE INDEX episode_file_episodes_episode_id_idx ON episode_file_episodes (episode_id);
 
-PRAGMA foreign_keys = OFF;
-BEGIN;
-
 CREATE TABLE downloads_new (
     id integer PRIMARY KEY AUTOINCREMENT,
     movie_id integer REFERENCES movies (id) ON DELETE CASCADE,
@@ -954,24 +955,40 @@ CREATE INDEX downloads_state_idx ON downloads (state);
 CREATE INDEX downloads_movie_id_idx ON downloads (movie_id);
 CREATE INDEX downloads_show_id_idx ON downloads (show_id);
 
-COMMIT;
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE download_episodes (
     download_id integer NOT NULL REFERENCES downloads (id) ON DELETE CASCADE,
     episode_id integer NOT NULL REFERENCES episodes (id) ON DELETE CASCADE,
     PRIMARY KEY (download_id, episode_id)
 );
 CREATE INDEX download_episodes_episode_id_idx ON download_episodes (episode_id);
+
+COMMIT;
+PRAGMA foreign_keys = ON;
 "#;
 
 #[async_trait::async_trait]
 impl MigrationTrait for M0016TvShows {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .get_connection()
-            .execute_unprepared(M0016_UP)
+        let db = manager.get_connection();
+        if let Err(error) = db.execute_unprepared(M0016_UP).await {
+            // The script switches foreign keys off and opens a transaction: undo both
+            // so the connection goes back to the pool in its normal state.
+            let _ = db.execute_unprepared("ROLLBACK").await;
+            let _ = db.execute_unprepared("PRAGMA foreign_keys = ON").await;
+            return Err(error);
+        }
+        let violations = db
+            .query_all_raw(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                "PRAGMA foreign_key_check",
+            ))
             .await?;
+        if !violations.is_empty() {
+            return Err(DbErr::Migration(format!(
+                "m0016_tv_shows left {} foreign key violations",
+                violations.len()
+            )));
+        }
         Ok(())
     }
 }

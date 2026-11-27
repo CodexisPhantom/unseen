@@ -297,6 +297,7 @@ pub async fn remove_queue_item(
     if db::downloads::is_final_state(&existing.state) {
         return Err(Problem::not_found());
     }
+    // TODO(#91): remove TV downloads too.
     let Some(movie_id) = existing.movie_id else {
         return Err(Problem::not_found());
     };

@@ -23,6 +23,7 @@ pub fn is_final_state(state: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueuedDownload {
     pub download: downloads::Model,
+    /// `download.movie_id` unwrapped: the queue only lists movie downloads.
     pub movie_id: i32,
     pub movie_title: String,
     pub movie_year: i32,
@@ -76,6 +77,8 @@ pub async fn find(db: &DatabaseConnection, id: i32) -> Result<Option<downloads::
 }
 
 /// Every non-final movie download, newest grabbed first, with its movie and client.
+///
+/// TV downloads are left out until the TV queue exists (#91).
 pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<QueuedDownload>, DbErr> {
     let rows = downloads::Entity::find()
         .filter(downloads::Column::State.is_not_in(FINAL_STATES.iter().copied()))
@@ -153,6 +156,7 @@ pub async fn mark_removed(
     active.state = Set("removed".to_owned());
     active.update(&txn).await?;
 
+    // TODO(#91): blocklist TV releases once `blocklist` can target a show.
     if add_to_blocklist && let Some(movie_id) = existing.movie_id {
         blocklist::ActiveModel {
             movie_id: Set(movie_id),

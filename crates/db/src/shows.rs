@@ -1,5 +1,6 @@
 //! Basic show, season, episode and episode file queries (docs/04-database.md, "TV tables (M7)").
 
+use sea_orm::sea_query::{Query, SelectStatement};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
     Set,
@@ -142,23 +143,28 @@ pub async fn files_of(
         .await
 }
 
+/// `SELECT pick FROM link WHERE by = value`, the id side of a link-table lookup.
+fn linked_ids<L: EntityTrait>(pick: L::Column, by: L::Column, value: i32) -> SelectStatement {
+    Query::select()
+        .column(pick)
+        .from(L::default())
+        .and_where(by.eq(value))
+        .to_owned()
+}
+
 /// Every file covering an episode, by path.
 pub async fn files_of_episode(
     db: &DatabaseConnection,
     episode_id: i32,
 ) -> Result<Vec<episode_files::Model>, DbErr> {
-    let ids: Vec<i32> = episode_file_episodes::Entity::find()
-        .filter(episode_file_episodes::Column::EpisodeId.eq(episode_id))
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|link| link.episode_file_id)
-        .collect();
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
     episode_files::Entity::find()
-        .filter(episode_files::Column::Id.is_in(ids))
+        .filter(
+            episode_files::Column::Id.in_subquery(linked_ids::<episode_file_episodes::Entity>(
+                episode_file_episodes::Column::EpisodeFileId,
+                episode_file_episodes::Column::EpisodeId,
+                episode_id,
+            )),
+        )
         .order_by_asc(episode_files::Column::RelativePath)
         .all(db)
         .await
@@ -169,18 +175,14 @@ pub async fn episodes_of_file(
     db: &DatabaseConnection,
     episode_file_id: i32,
 ) -> Result<Vec<episodes::Model>, DbErr> {
-    let ids: Vec<i32> = episode_file_episodes::Entity::find()
-        .filter(episode_file_episodes::Column::EpisodeFileId.eq(episode_file_id))
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|link| link.episode_id)
-        .collect();
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
     episodes::Entity::find()
-        .filter(episodes::Column::Id.is_in(ids))
+        .filter(
+            episodes::Column::Id.in_subquery(linked_ids::<episode_file_episodes::Entity>(
+                episode_file_episodes::Column::EpisodeId,
+                episode_file_episodes::Column::EpisodeFileId,
+                episode_file_id,
+            )),
+        )
         .order_by_asc(episodes::Column::SeasonNumber)
         .order_by_asc(episodes::Column::EpisodeNumber)
         .all(db)
@@ -192,18 +194,14 @@ pub async fn episodes_of_download(
     db: &DatabaseConnection,
     download_id: i32,
 ) -> Result<Vec<episodes::Model>, DbErr> {
-    let ids: Vec<i32> = download_episodes::Entity::find()
-        .filter(download_episodes::Column::DownloadId.eq(download_id))
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|link| link.episode_id)
-        .collect();
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
     episodes::Entity::find()
-        .filter(episodes::Column::Id.is_in(ids))
+        .filter(
+            episodes::Column::Id.in_subquery(linked_ids::<download_episodes::Entity>(
+                download_episodes::Column::EpisodeId,
+                download_episodes::Column::DownloadId,
+                download_id,
+            )),
+        )
         .order_by_asc(episodes::Column::SeasonNumber)
         .order_by_asc(episodes::Column::EpisodeNumber)
         .all(db)
@@ -328,6 +326,7 @@ mod tests {
         .unwrap();
     }
 
+    /// `sea-orm` has no typed error for CHECK violations; SQLite words them like this.
     fn check_violation(error: &DbErr) -> bool {
         error.to_string().contains("CHECK constraint failed")
     }
@@ -493,11 +492,8 @@ mod tests {
         assert!(downloads::Entity::find().all(&db).await.unwrap().is_empty());
     }
 
-    #[tokio::test]
-    async fn a_download_targets_a_movie_or_a_show() {
-        let (db, _dir) = temp_db().await;
-        let root = root_folder(&db).await;
-        let movie = movies::ActiveModel {
+    async fn matrix_movie(db: &DatabaseConnection, root: i32) -> i32 {
+        movies::ActiveModel {
             tmdb_id: Set(603),
             title: Set("The Matrix".into()),
             sort_title: Set("matrix".into()),
@@ -511,84 +507,149 @@ mod tests {
             updated_at: Set(NOW.into()),
             ..Default::default()
         }
-        .insert(&db)
+        .insert(db)
         .await
-        .unwrap();
+        .unwrap()
+        .id
+    }
+
+    async fn insert_download(
+        db: &DatabaseConnection,
+        movie_id: Option<i32>,
+        show_id: Option<i32>,
+        hash: &str,
+    ) -> Result<downloads::Model, DbErr> {
+        downloads::ActiveModel {
+            movie_id: Set(movie_id),
+            show_id: Set(show_id),
+            client_download_id: Set(hash.into()),
+            release_title: Set(hash.into()),
+            quality_id: Set(7),
+            size: Set(1_000),
+            state: Set("downloading".into()),
+            grabbed_at: Set(NOW.into()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_movie_download_has_no_show() {
+        let (db, _dir) = temp_db().await;
+        let root = root_folder(&db).await;
+        let movie = matrix_movie(&db, root).await;
+
+        let download = insert_download(&db, Some(movie), None, "hash-movie")
+            .await
+            .unwrap();
+
+        assert_eq!((download.movie_id, download.show_id), (Some(movie), None));
+    }
+
+    #[tokio::test]
+    async fn a_show_download_lists_its_episodes() {
+        let (db, _dir) = temp_db().await;
+        let root = root_folder(&db).await;
         let show_id = show(&db, Some(1), None, "alpha", root).await;
         season(&db, show_id, 1, true).await;
         let ep = episode(&db, show_id, 1, 1, true).await;
+        let download = insert_download(&db, None, Some(show_id), "hash-show")
+            .await
+            .unwrap();
+        link_download(&db, download.id, ep).await;
 
-        let movie_dl = downloads::ActiveModel {
-            movie_id: Set(Some(movie.id)),
-            show_id: Set(None),
-            client_download_id: Set("hash-movie".into()),
-            release_title: Set("The.Matrix.1999.1080p".into()),
-            quality_id: Set(7),
-            size: Set(1_000),
-            state: Set("downloading".into()),
-            grabbed_at: Set(NOW.into()),
-            ..Default::default()
-        }
-        .insert(&db)
-        .await
-        .unwrap();
-        assert_eq!(movie_dl.movie_id, Some(movie.id));
-        assert_eq!(movie_dl.show_id, None);
+        let eps = episodes_of_download(&db, download.id).await.unwrap();
 
-        let show_dl = downloads::ActiveModel {
-            movie_id: Set(None),
-            show_id: Set(Some(show_id)),
-            client_download_id: Set("hash-show".into()),
-            release_title: Set("Show.S01E01.1080p".into()),
-            quality_id: Set(7),
-            size: Set(1_000),
-            state: Set("downloading".into()),
-            grabbed_at: Set(NOW.into()),
-            ..Default::default()
-        }
-        .insert(&db)
-        .await
-        .unwrap();
-        link_download(&db, show_dl.id, ep).await;
-        let eps = episodes_of_download(&db, show_dl.id).await.unwrap();
-        assert_eq!(eps.len(), 1);
-        assert_eq!(eps[0].id, ep);
+        assert_eq!(eps.iter().map(|e| e.id).collect::<Vec<_>>(), [ep]);
+    }
 
-        let both = downloads::ActiveModel {
-            movie_id: Set(Some(movie.id)),
-            show_id: Set(Some(show_id)),
-            client_download_id: Set("hash-both".into()),
-            release_title: Set("Both".into()),
-            quality_id: Set(7),
-            size: Set(1),
-            state: Set("downloading".into()),
-            grabbed_at: Set(NOW.into()),
-            ..Default::default()
-        }
-        .insert(&db)
-        .await;
-        let error = both.unwrap_err();
+    #[tokio::test]
+    async fn a_download_with_a_movie_and_a_show_is_rejected() {
+        let (db, _dir) = temp_db().await;
+        let root = root_folder(&db).await;
+        let movie = matrix_movie(&db, root).await;
+        let show_id = show(&db, Some(1), None, "alpha", root).await;
+
+        let error = insert_download(&db, Some(movie), Some(show_id), "hash-both")
+            .await
+            .unwrap_err();
+
         assert!(
             check_violation(&error),
             "expected the target check, got {error}"
         );
-        let neither = downloads::ActiveModel {
-            movie_id: Set(None),
-            show_id: Set(None),
-            client_download_id: Set("hash-neither".into()),
-            release_title: Set("Neither".into()),
-            quality_id: Set(7),
-            size: Set(1),
-            state: Set("downloading".into()),
-            grabbed_at: Set(NOW.into()),
-            ..Default::default()
-        }
-        .insert(&db)
-        .await;
-        let error = neither.unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn a_download_with_no_target_is_rejected() {
+        let (db, _dir) = temp_db().await;
+
+        let error = insert_download(&db, None, None, "hash-neither")
+            .await
+            .unwrap_err();
+
         assert!(
             check_violation(&error),
             "expected the target check, got {error}"
         );
+    }
+
+    #[tokio::test]
+    async fn a_show_needs_a_tvdb_or_a_tmdb_id() {
+        let (db, _dir) = temp_db().await;
+        let root = root_folder(&db).await;
+        let error = shows::ActiveModel {
+            metadata_provider: Set("tvdb".into()),
+            title: Set("t".into()),
+            sort_title: Set("t".into()),
+            year: Set(2020),
+            status: Set("continuing".into()),
+            series_type: Set("standard".into()),
+            folder_name: Set("t".into()),
+            monitored: Set(true),
+            root_folder_id: Set(root),
+            added_at: Set(NOW.into()),
+            updated_at: Set(NOW.into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap_err();
+
+        assert!(
+            check_violation(&error),
+            "expected the id check, got {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_show_rejects_an_unknown_series_type() {
+        let (db, _dir) = temp_db().await;
+        let root = root_folder(&db).await;
+        let mut model = shows::ActiveModel {
+            tvdb_id: Set(Some(1)),
+            metadata_provider: Set("tvdb".into()),
+            title: Set("t".into()),
+            sort_title: Set("t".into()),
+            year: Set(2020),
+            status: Set("continuing".into()),
+            series_type: Set("miniseries".into()),
+            folder_name: Set("t".into()),
+            monitored: Set(true),
+            root_folder_id: Set(root),
+            added_at: Set(NOW.into()),
+            updated_at: Set(NOW.into()),
+            ..Default::default()
+        };
+
+        let error = model.clone().insert(&db).await.unwrap_err();
+        assert!(
+            check_violation(&error),
+            "expected the type check, got {error}"
+        );
+
+        model.series_type = Set("anime".into());
+        model.insert(&db).await.unwrap();
     }
 }
