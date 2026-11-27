@@ -23,6 +23,8 @@ pub fn is_final_state(state: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueuedDownload {
     pub download: downloads::Model,
+    /// `download.movie_id` unwrapped: the queue only lists movie downloads.
+    pub movie_id: i32,
     pub movie_title: String,
     pub movie_year: i32,
     pub movie_root_folder_id: i32,
@@ -47,7 +49,8 @@ pub struct NewDownload {
 /// Inserts a new download row and returns it.
 pub async fn create(db: &DatabaseConnection, new: NewDownload) -> Result<downloads::Model, DbErr> {
     downloads::ActiveModel {
-        movie_id: Set(new.movie_id),
+        movie_id: Set(Some(new.movie_id)),
+        show_id: Set(None),
         movie_profile_id: Set(new.movie_profile_id),
         indexer_id: Set(new.indexer_id),
         download_client_id: Set(new.download_client_id),
@@ -73,10 +76,13 @@ pub async fn find(db: &DatabaseConnection, id: i32) -> Result<Option<downloads::
     downloads::Entity::find_by_id(id).one(db).await
 }
 
-/// Every non-final download, newest grabbed first, with its movie and client.
+/// Every non-final movie download, newest grabbed first, with its movie and client.
+///
+/// TV downloads are left out until the TV queue exists (#91).
 pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<QueuedDownload>, DbErr> {
     let rows = downloads::Entity::find()
         .filter(downloads::Column::State.is_not_in(FINAL_STATES.iter().copied()))
+        .filter(downloads::Column::MovieId.is_not_null())
         .order_by_desc(downloads::Column::GrabbedAt)
         .order_by_desc(downloads::Column::Id)
         .all(db)
@@ -85,7 +91,7 @@ pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<QueuedDownload>,
         return Ok(Vec::new());
     }
 
-    let movie_ids: Vec<i32> = rows.iter().map(|row| row.movie_id).collect();
+    let movie_ids: Vec<i32> = rows.iter().filter_map(|row| row.movie_id).collect();
     let movie_map: HashMap<i32, movies::Model> = movies::Entity::find()
         .filter(movies::Column::Id.is_in(movie_ids))
         .all(db)
@@ -113,11 +119,12 @@ pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<QueuedDownload>,
     Ok(rows
         .into_iter()
         .filter_map(|download| {
-            let movie = movie_map.get(&download.movie_id)?;
+            let movie = movie_map.get(&download.movie_id?)?;
             let client = download
                 .download_client_id
                 .and_then(|id| client_map.get(&id).cloned());
             Some(QueuedDownload {
+                movie_id: movie.id,
                 movie_title: movie.title.clone(),
                 movie_year: movie.year,
                 movie_root_folder_id: movie.root_folder_id,
@@ -149,9 +156,10 @@ pub async fn mark_removed(
     active.state = Set("removed".to_owned());
     active.update(&txn).await?;
 
-    if add_to_blocklist {
+    // TODO(#91): blocklist TV releases once `blocklist` can target a show.
+    if add_to_blocklist && let Some(movie_id) = existing.movie_id {
         blocklist::ActiveModel {
-            movie_id: Set(existing.movie_id),
+            movie_id: Set(movie_id),
             release_title: Set(existing.release_title.clone()),
             indexer_id: Set(existing.indexer_id),
             reason: Set(reason.to_owned()),
