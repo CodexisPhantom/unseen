@@ -4,10 +4,14 @@
 //! The release comes from the short-lived search cache, so a grab never asks
 //! an indexer again and the indexer's download URL stays on the server.
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
+use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
 use unseen_core::permission::Permission;
 use utoipa::ToSchema;
 
@@ -20,6 +24,25 @@ use crate::error::Problem;
 const SABNZBD: &str = "sabnzbd";
 /// The protocol of Usenet releases.
 const USENET: &str = "usenet";
+
+/// One lock per movie profile, so that the one-active-download guard and the
+/// add cannot interleave with another grab of the same profile.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ProfileLocks {
+    locks: Arc<Mutex<HashMap<i32, Arc<AsyncMutex<()>>>>>,
+}
+
+impl ProfileLocks {
+    /// Waits for the turn of `movie_profile_id`; dropping the guard frees the
+    /// next caller.
+    pub(crate) async fn acquire(&self, movie_profile_id: i32) -> OwnedMutexGuard<()> {
+        let lock = {
+            let mut locks = self.locks.lock().expect("profile locks");
+            Arc::clone(locks.entry(movie_profile_id).or_default())
+        };
+        lock.lock_owned().await
+    }
+}
 
 /// Body of `POST /api/v1/releases/grab`.
 #[derive(Debug, Deserialize, ToSchema)]
@@ -62,7 +85,7 @@ pub async fn grab_release(
 ) -> Result<Json<Grabbed>, Problem> {
     let release = state
         .search_cache
-        .remove(&body.id)
+        .get(&body.id)
         .ok_or_else(Problem::not_found)?;
     let movie = db::movies::find(&state.db, release.movie_id)
         .await
@@ -81,6 +104,9 @@ pub async fn grab_release(
             "the movie's quality profile rejected this release",
         ));
     }
+    // The check, the add and the insert happen under the profile's lock, so a
+    // second grab of the same profile cannot pass the guard in between.
+    let _profile = state.grabs.acquire(release.movie_profile_id).await;
     if db::downloads::has_active_for_profile(&state.db, release.movie_profile_id)
         .await
         .map_err(failed)?
@@ -90,6 +116,12 @@ pub async fn grab_release(
             "The movie profile already has an active download",
         ));
     }
+    // Every database prerequisite is resolved before the client is asked, so a
+    // failure here leaves the client untouched.
+    let indexer_id = db::indexers::find(&state.db, release.indexer_id)
+        .await
+        .map_err(failed)?
+        .map(|indexer| indexer.model.id);
     let usenet = release.protocol == USENET;
     let client = db::download_clients::list(&state.db)
         .await
@@ -110,7 +142,7 @@ pub async fn grab_release(
         .ok_or_else(|| Problem::validation("id", "the release has no download link"))?;
     let category = client.model.category.clone();
     let connected = connect(&state, &client.model)?;
-    let client_download_id = match connected {
+    let client_download_id = match &connected {
         ConnectedClient::Qbittorrent(qbittorrent) => {
             match qbittorrent.add(&category, &url).await.map_err(qb_error)? {
                 Some(hash) => hash,
@@ -150,12 +182,7 @@ pub async fn grab_release(
                 )
             })?,
     };
-    // The indexer may have been deleted while the release sat in the cache.
-    let indexer_id = db::indexers::find(&state.db, release.indexer_id)
-        .await
-        .map_err(failed)?
-        .map(|indexer| indexer.model.id);
-    let download = db::downloads::create(
+    let download = match db::downloads::create(
         &state.db,
         db::downloads::NewDownload {
             movie_id: release.movie_id,
@@ -171,7 +198,29 @@ pub async fn grab_release(
         },
     )
     .await
-    .map_err(failed)?;
+    {
+        Ok(download) => download,
+        Err(error) => {
+            // The client already holds the release: take it back, so the queue
+            // has no orphan and a retry is not refused as a duplicate.
+            let taken_back = match &connected {
+                ConnectedClient::Qbittorrent(qbittorrent) => qbittorrent
+                    .delete(&category, std::slice::from_ref(&client_download_id), true)
+                    .await
+                    .map(|_| ())
+                    .map_err(|error| error.to_string()),
+                ConnectedClient::Sabnzbd(sabnzbd) => sabnzbd
+                    .delete(&category, std::slice::from_ref(&client_download_id), true)
+                    .await
+                    .map(|_| ())
+                    .map_err(|error| error.to_string()),
+            };
+            if let Err(error) = taken_back {
+                tracing::error!(%error, "could not take the release back from the download client");
+            }
+            return Err(failed(error));
+        }
+    };
     let data = serde_json::json!({
         "downloadId": download.id,
         "downloadClientId": client.model.id,
@@ -188,6 +237,8 @@ pub async fn grab_release(
         // turn a successful grab into an error.
         tracing::error!(%error, download_id = download.id, "could not record the grab");
     }
+    // The grab is recorded, so the id is spent: only now is it dropped.
+    let _ = state.search_cache.remove(&body.id);
     Ok(Json(Grabbed {
         download_id: download.id,
         download_client_id: client.model.id,

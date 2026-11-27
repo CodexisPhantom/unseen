@@ -76,6 +76,8 @@ pub struct AppState {
     /// Short-lived cache of manual search results, keyed by release id, so
     /// grab requests can look up a searched release without re-querying.
     pub search_cache: unseen_core::search::SearchCache,
+    /// Serializes grabs per movie profile, so one profile gets one download.
+    pub(crate) grabs: grab::ProfileLocks,
     /// UTC ISO 8601 timestamp recorded when the server state was created.
     pub started_at: String,
 }
@@ -292,6 +294,7 @@ impl AppState {
             settings_overrides: db::settings::Overrides::from_env(),
             logs_dir: std::env::temp_dir().join("unseen-logs-default"),
             search_cache: unseen_core::search::SearchCache::new(),
+            grabs: grab::ProfileLocks::default(),
             started_at: db::now(),
         })
     }

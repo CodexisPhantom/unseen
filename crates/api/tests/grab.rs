@@ -162,7 +162,7 @@ impl App {
 }
 
 /// The calls qBittorrent needs before it accepts a magnet link.
-async fn mount_qbittorrent(server: &MockServer, add_status: u16) {
+async fn mount_qbittorrent(server: &MockServer, add_status: u16, adds: u64) {
     Mock::given(method("POST"))
         .and(path("/api/v2/auth/login"))
         .respond_with(
@@ -189,7 +189,7 @@ async fn mount_qbittorrent(server: &MockServer, add_status: u16) {
                 "Fails."
             }),
         )
-        .expect(1)
+        .expect(adds)
         .mount(server)
         .await;
 }
@@ -218,7 +218,7 @@ fn cached_release(movie_id: i32, movie_profile_id: i32, accepted: bool) -> Cache
 #[tokio::test]
 async fn grab_sends_the_release_with_the_client_category_and_records_it() {
     let server = MockServer::start().await;
-    mount_qbittorrent(&server, 200).await;
+    mount_qbittorrent(&server, 200, 1).await;
     let app = App::new(SearchCache::new()).await;
     let (movie_id, movie_profile_id) = app.seed_movie().await;
     let client_id = app.add_client(&server).await;
@@ -251,7 +251,7 @@ async fn grab_sends_the_release_with_the_client_category_and_records_it() {
 #[tokio::test]
 async fn a_second_grab_of_the_profile_is_refused() {
     let server = MockServer::start().await;
-    mount_qbittorrent(&server, 200).await;
+    mount_qbittorrent(&server, 200, 1).await;
     let app = App::new(SearchCache::new()).await;
     let (movie_id, movie_profile_id) = app.seed_movie().await;
     app.add_client(&server).await;
@@ -277,7 +277,7 @@ async fn a_second_grab_of_the_profile_is_refused() {
 #[tokio::test]
 async fn a_client_failure_is_a_bad_gateway_and_leaves_no_download() {
     let server = MockServer::start().await;
-    mount_qbittorrent(&server, 500).await;
+    mount_qbittorrent(&server, 500, 2).await;
     let app = App::new(SearchCache::new()).await;
     let (movie_id, movie_profile_id) = app.seed_movie().await;
     app.add_client(&server).await;
@@ -289,6 +289,13 @@ async fn a_client_failure_is_a_bad_gateway_and_leaves_no_download() {
         .owner(Method::POST, GRAB, Some(json!({ "id": "rel1" })))
         .await;
     assert_eq!(status, StatusCode::BAD_GATEWAY, "{reply}");
+    // The id survives the failure, so the user can retry the same release.
+    assert!(app.state.search_cache.get("rel1").is_some());
+    let (status, reply) = app
+        .owner(Method::POST, GRAB, Some(json!({ "id": "rel1" })))
+        .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "{reply}");
+    assert!(app.state.search_cache.get("rel1").is_some());
     assert!(
         db::downloads::list_active(&app.state.db)
             .await
@@ -320,4 +327,86 @@ async fn an_unknown_or_rejected_release_is_refused() {
         .owner(Method::POST, GRAB, Some(json!({ "id": "rel1" })))
         .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{reply}");
+}
+
+/// Two grabs of one movie profile run at the same time: the second waits for
+/// the first, sees its download, and is refused, so the client is asked once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_grabs_of_one_profile_add_once() {
+    let server = MockServer::start().await;
+    mount_qbittorrent(&server, 200, 1).await;
+    let app = App::new(SearchCache::new()).await;
+    let (movie_id, movie_profile_id) = app.seed_movie().await;
+    app.add_client(&server).await;
+    app.state.search_cache.insert(
+        "rel1".into(),
+        cached_release(movie_id, movie_profile_id, true),
+    );
+    app.state.search_cache.insert(
+        "rel2".into(),
+        cached_release(movie_id, movie_profile_id, true),
+    );
+    let (first, second) = tokio::join!(
+        app.owner(Method::POST, GRAB, Some(json!({ "id": "rel1" }))),
+        app.owner(Method::POST, GRAB, Some(json!({ "id": "rel2" }))),
+    );
+    let statuses = [first.0, second.0];
+    let ok = statuses
+        .iter()
+        .filter(|status| **status == StatusCode::OK)
+        .count();
+    let conflict = statuses
+        .iter()
+        .filter(|status| **status == StatusCode::CONFLICT)
+        .count();
+    assert_eq!((ok, conflict), (1, 1), "{first:?} {second:?}");
+    assert_eq!(
+        db::downloads::list_active(&app.state.db)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// The client takes the release, then the download row cannot be stored: the
+/// release is taken back from the client instead of piling up there.
+#[tokio::test]
+async fn a_failed_download_insert_takes_the_release_back() {
+    let server = MockServer::start().await;
+    mount_qbittorrent(&server, 200, 1).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/torrents/info"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+            "hash": HASH,
+            "name": "The.Matrix.1999.1080p.BluRay",
+            "category": CATEGORY,
+        }])))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v2/torrents/delete"))
+        .and(body_string_contains(HASH))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let app = App::new(SearchCache::new()).await;
+    let (movie_id, _) = app.seed_movie().await;
+    app.add_client(&server).await;
+    // A movie profile id that does not exist makes the insert fail after the
+    // client accepted the release.
+    app.state
+        .search_cache
+        .insert("rel1".into(), cached_release(movie_id, 9999, true));
+    let (status, reply) = app
+        .owner(Method::POST, GRAB, Some(json!({ "id": "rel1" })))
+        .await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{reply}");
+    assert!(
+        db::downloads::list_active(&app.state.db)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
