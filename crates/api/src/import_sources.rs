@@ -3,7 +3,7 @@
 //! walks the same path without writing, so the preview counts match a run.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{LazyLock, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use arr_compat::radarr::client::RadarrClient;
 use arr_compat::radarr::dto::{
@@ -245,27 +245,36 @@ impl ProfileRules<'_> {
 /// Ids of the source ids whose import is running. The server is one process.
 // An in-process guard is enough because Unseen is a single process; a database
 // lock is not used on purpose.
-static RUNNING: LazyLock<Mutex<HashSet<i32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+/// It lives in `AppState`, so each app has its own set.
+#[derive(Clone, Default)]
+pub struct RunSet(Arc<Mutex<HashSet<i32>>>);
 
-/// Holds a source id in [`RUNNING`] until dropped, panic included.
-struct RunGuard(i32);
+/// Holds a source id in its [`RunSet`] until dropped, panic included.
+struct RunGuard {
+    set: RunSet,
+    id: i32,
+}
 
 impl RunGuard {
     /// `None` when `id` is already running.
-    fn acquire(id: i32) -> Option<Self> {
-        let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
+    fn acquire(set: &RunSet, id: i32) -> Option<Self> {
+        let mut running = set.0.lock().unwrap_or_else(PoisonError::into_inner);
         // Lazy on purpose: an eagerly built `Self` would be dropped while
         // `running` is locked when `id` is taken, and its `Drop` would deadlock.
-        running.insert(id).then(|| Self(id))
+        running.insert(id).then(|| Self {
+            set: set.clone(),
+            id,
+        })
     }
 }
 
 impl Drop for RunGuard {
     fn drop(&mut self) {
-        RUNNING
+        self.set
+            .0
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .remove(&self.0);
+            .remove(&self.id);
     }
 }
 
@@ -1388,7 +1397,7 @@ pub async fn run_source(
     UrlPath(id): UrlPath<i32>,
 ) -> Result<Json<Report>, Problem> {
     let source = load(&state, id).await?;
-    let _running = RunGuard::acquire(id).ok_or_else(|| {
+    let _running = RunGuard::acquire(&state.import_runs, id).ok_or_else(|| {
         Problem::conflict(
             "import_running",
             "An import of this source is already running",
@@ -1422,10 +1431,11 @@ mod tests {
     #[test]
     fn a_source_runs_once_at_a_time() {
         let id = 987_654;
-        let guard = RunGuard::acquire(id).expect("first acquire");
-        assert!(RunGuard::acquire(id).is_none());
+        let set = RunSet::default();
+        let guard = RunGuard::acquire(&set, id).expect("first acquire");
+        assert!(RunGuard::acquire(&set, id).is_none());
         drop(guard);
-        assert!(RunGuard::acquire(id).is_some());
+        assert!(RunGuard::acquire(&set, id).is_some());
     }
 
     #[test]

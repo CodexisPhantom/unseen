@@ -520,9 +520,16 @@ async fn two_sources_with_the_same_profile_name_but_different_scores_are_kept_ap
         .unwrap()
         .into_iter()
         .map(|row| row.name)
+        .filter(|row| row.starts_with(name))
         .collect();
     names.sort();
-    let mut expected = vec![name.to_owned(), format!("{name} (B)")];
+    // A default profile already has this name, so each source's copy is
+    // suffixed with the source name.
+    let mut expected = vec![
+        name.to_owned(),
+        format!("{name} (A)"),
+        format!("{name} (B)"),
+    ];
     expected.sort();
     assert_eq!(names, expected);
     assert_eq!(
