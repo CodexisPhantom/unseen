@@ -23,7 +23,7 @@ const NONCE_LEN: usize = 24;
 pub struct SecretKey(Key);
 
 impl SecretKey {
-    /// Derives the key from the root secret (`UNSEEN_SECRET`).
+    /// Derives the key from the root secret (`UNSEENARR_SECRET`).
     pub fn derive(root_secret: &str) -> Self {
         let mut key = [0u8; 32];
         Hkdf::<Sha256>::new(None, root_secret.as_bytes())

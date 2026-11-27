@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use db::secret::Secret;
 use db::settings::{SecretSetting, get_bool, get_secret, remove, set_bool, set_secret};
 use serde::{Deserialize, Serialize};
-use unseen_core::http::{OutboundClient, Proxy, check_url_text};
+use unseenarr_core::http::{OutboundClient, Proxy, check_url_text};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -108,7 +108,7 @@ pub struct ProxySettings {
     url_must_be_reentered: bool,
     /// Requests to local addresses skip the proxy.
     bypass_local: bool,
-    /// Fields set by an environment variable (`UNSEEN_SETTING_...`).
+    /// Fields set by an environment variable (`UNSEENARR_SETTING_...`).
     overridden: Vec<&'static str>,
 }
 

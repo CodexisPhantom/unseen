@@ -8,8 +8,8 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, SqlErr,
 };
-use unseen_core::metadata::{CollectionRef, MetadataProvider};
-use unseen_core::naming;
+use unseenarr_core::metadata::{CollectionRef, MetadataProvider};
+use unseenarr_core::naming;
 
 use crate::entities::{collections, movies};
 
@@ -179,7 +179,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use async_trait::async_trait;
-    use unseen_core::metadata::{Collection, MetadataError, MovieDetails, MovieSummary};
+    use unseenarr_core::metadata::{Collection, MetadataError, MovieDetails, MovieSummary};
 
     use super::*;
     use crate::entities::root_folders;

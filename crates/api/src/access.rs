@@ -14,7 +14,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::MethodRouter;
 use better_auth::integrations::axum::OptionalSession;
 use db::auth_schema::AppAuthSchema;
-use unseen_core::permission::{EffectivePermissions, LibraryScope, Permission};
+use unseenarr_core::permission::{EffectivePermissions, LibraryScope, Permission};
 use utoipa::openapi::extensions::Extensions;
 use utoipa::openapi::path::{Operation, PathItem};
 use utoipa::openapi::{Components, OpenApi};
@@ -312,7 +312,7 @@ macro_rules! permission_markers {
     };
 }
 
-unseen_core::for_each_permission!(permission_markers);
+unseenarr_core::for_each_permission!(permission_markers);
 
 /// Extractor that authenticates the caller and requires permission `P`.
 #[derive(Debug, Clone)]

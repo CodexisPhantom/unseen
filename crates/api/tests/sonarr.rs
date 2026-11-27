@@ -23,11 +23,11 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 use tracing::instrument::WithSubscriber;
 use tracing_subscriber::prelude::*;
-use unseen_core::permission::Permission;
-use unseen_core::quality::Quality as CoreQuality;
+use unseenarr_core::permission::Permission;
+use unseenarr_core::quality::Quality as CoreQuality;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 #[derive(Debug, Clone)]
@@ -456,11 +456,11 @@ async fn system_status_reports_sonarr_version_and_respects_base_path() {
     }
 
     // Sub-path hosting prefixes `urlBase` cleanly.
-    let sub = App::with_base_url(Some("http://unseen.test/unseen")).await;
+    let sub = App::with_base_url(Some("http://unseenarr.test/unseenarr")).await;
     let sub_key = sub.create_key(&sub.owner, &["settings:read"]).await;
     let reply = sub
         .send(
-            req(Method::GET, "/unseen/sonarr/api/v3/system/status")
+            req(Method::GET, "/unseenarr/sonarr/api/v3/system/status")
                 .header("X-Api-Key", &sub_key)
                 .body(Body::empty())
                 .unwrap(),
@@ -468,7 +468,7 @@ async fn system_status_reports_sonarr_version_and_respects_base_path() {
         .await;
     assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
     let status: SystemResource = serde_json::from_value(reply.body).unwrap();
-    assert_eq!(status.url_base, "/unseen/sonarr");
+    assert_eq!(status.url_base, "/unseenarr/sonarr");
 }
 
 #[tokio::test]
@@ -476,13 +476,13 @@ async fn quality_profiles_translate_tv_quality_ids_and_match_case_insensitively(
     let app = App::new().await;
     let key = app.create_key(&app.owner, &["profiles:read"]).await;
 
-    // Create a profile using qualities whose Sonarr ids differ from Unseen's.
+    // Create a profile using qualities whose Sonarr ids differ from Unseenarr's.
     let custom = db::profiles::create(
         &app.state.db,
         db::profiles::Values {
             name: "Remux TV".to_owned(),
             upgrade_allowed: true,
-            cutoff_quality_id: CoreQuality::Remux1080p.id(), // Unseen 30 -> Sonarr 20
+            cutoff_quality_id: CoreQuality::Remux1080p.id(), // Unseenarr 30 -> Sonarr 20
             items: json!([
                 { "type": "quality", "qualityId": CoreQuality::Bluray480p.id(), "allowed": false },
                 { "type": "quality", "qualityId": CoreQuality::Remux1080p.id(), "allowed": true }

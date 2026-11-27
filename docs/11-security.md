@@ -25,7 +25,7 @@ clients themselves.
 
 Handled by Better Auth RS (ADR 0006). Required settings:
 
-- Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` when `UNSEEN_BASE_URL` is https. The session cookie uses `Path=/` so it is sent under any sub-path.
+- Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` when `UNSEENARR_BASE_URL` is https. The session cookie uses `Path=/` so it is sent under any sub-path.
 - Session lifetime 30 days, sliding. Configurable.
 - Sessions of a disabled user are deleted at once.
 - Permissions are loaded per request, never stored in the session.
@@ -59,7 +59,7 @@ Measured on the spike server (2026-11-16):
   crate defaults, PHC string). It does not read scrypt hashes.
 - The default minimum length is 8; the maximum is 128.
 
-Decision (2026-11-16): Unseen uses `Argon2PasswordHasher` and a minimum
+Decision (2026-11-16): Unseenarr uses `Argon2PasswordHasher` and a minimum
 length of 10. Both are set in the auth issue in M1 (#30), before the first
 user exists, because the hasher cannot be changed later without resetting
 every password.
@@ -82,19 +82,19 @@ every password.
 | Secret | Storage |
 |---|---|
 | User passwords | Argon2id hash (auth library, see Passwords) |
-| Unseen API keys | SHA-256 hash; shown once at creation; a short prefix is stored for display |
+| Unseenarr API keys | SHA-256 hash; shown once at creation; a short prefix is stored for display |
 | Indexer keys, download client passwords, TMDB key, proxy credentials, import source keys | In SQLite, encrypted (ADR 0011) |
 
 Encryption of integration secrets:
 
-- An encryption key is derived from `UNSEEN_SECRET` with HKDF, separate from
+- An encryption key is derived from `UNSEENARR_SECRET` with HKDF, separate from
   the auth signing key.
 - Each value is encrypted with an AEAD cipher (XChaCha20-Poly1305) and a
   random nonce, and stored as `v1:<nonce>:<ciphertext>`. The version prefix
   allows a later key or cipher change.
 - One helper in `crates/db` encrypts on write and decrypts on read. No other
   code sees ciphertext.
-- A value that cannot be decrypted (wrong or lost `UNSEEN_SECRET`) is
+- A value that cannot be decrypted (wrong or lost `UNSEENARR_SECRET`) is
   reported as "secret must be re-entered"; the app still starts.
 - A backup needs both the database and the secret. A stolen database file
   alone does not reveal the secrets.
@@ -139,7 +139,7 @@ Action names are `area.verb`: `auth.sign_in`, `auth.sign_in_failed`,
 `quality_profile.deleted`, `root_folder.created`, `root_folder.deleted`,
 `setting.updated`, `api_key.created`, `api_key.revoked`. A failed sign-in names
 the email that was tried and no user. The address is the peer of the
-connection; `UNSEEN_TRUSTED_PROXIES` is not read yet. Nothing in the app
+connection; `UNSEENARR_TRUSTED_PROXIES` is not read yet. Nothing in the app
 updates or deletes a row; retention is still open (docs/04).
 
 Note: the compat API accepts `?apikey=` because Seerr sends it that way. Keys
@@ -155,14 +155,14 @@ in URLs can end up in proxy logs. Document this for users.
 
 ## VPN boundary
 
-Only qBittorrent runs inside the Gluetun network. Unseen is not behind the
+Only qBittorrent runs inside the Gluetun network. Unseenarr is not behind the
 VPN and reaches qBittorrent on the Gluetun container's published port.
 
 ## Reverse proxy
 
-- Set `UNSEEN_BASE_URL` and `UNSEEN_TRUSTED_PROXIES`.
+- Set `UNSEENARR_BASE_URL` and `UNSEENARR_TRUSTED_PROXIES`.
 - The proxy must not buffer `/api/v1/events` (SSE).
-- Sub-path hosting (`/unseen`) is not supported in V1. Use a subdomain.
+- Sub-path hosting (`/unseenarr`) is not supported in V1. Use a subdomain.
 
 ## Backups
 
@@ -182,7 +182,7 @@ The secret file decrypts them. Treat a backup that holds both as sensitive. See 
 
 Answered (2026-11-16):
 
-- Rotation of `UNSEEN_SECRET`: no rotation command in V1. A changed or lost
+- Rotation of `UNSEENARR_SECRET`: no rotation command in V1. A changed or lost
   secret means the integration secrets are entered again, and the UI shows
   which ones cannot be read. The `v1:` prefix of the stored values leaves
   room for a re-encryption command later.

@@ -13,22 +13,22 @@ use crate::secret::{self, Secret, SecretKey};
 /// every other key.
 pub const SECRET_KEYS: &[&str] = &["tmdb.api_key", "proxy.url"];
 
-/// Settings given in the environment. `UNSEEN_SETTING_<KEY>` wins over the
+/// Settings given in the environment. `UNSEENARR_SETTING_<KEY>` wins over the
 /// table, where `<KEY>` is the setting key in upper case with `.` written as
-/// `_`: `tmdb.api_key` is `UNSEEN_SETTING_TMDB_API_KEY`. The table is never
+/// `_`: `tmdb.api_key` is `UNSEENARR_SETTING_TMDB_API_KEY`. The table is never
 /// written for such a key; callers refuse the change instead.
 #[derive(Clone, Default)]
 pub struct Overrides(Arc<HashMap<String, Secret>>);
 
 impl Overrides {
-    const PREFIX: &'static str = "UNSEEN_SETTING_";
+    const PREFIX: &'static str = "UNSEENARR_SETTING_";
 
     /// Reads the process environment once, at startup.
     pub fn from_env() -> Self {
         Self::from_vars(std::env::vars())
     }
 
-    /// Keeps the variables that start with `UNSEEN_SETTING_` and have a
+    /// Keeps the variables that start with `UNSEENARR_SETTING_` and have a
     /// value. An empty value does not override.
     pub fn from_vars(vars: impl IntoIterator<Item = (String, String)>) -> Self {
         Self(Arc::new(
@@ -260,9 +260,12 @@ mod tests {
     #[test]
     fn overrides_keep_only_non_empty_setting_variables() {
         let overrides = Overrides::from_vars([
-            ("UNSEEN_SETTING_TMDB_API_KEY".to_owned(), "abc".to_owned()),
-            ("UNSEEN_SETTING_TMDB_LANGUAGE".to_owned(), String::new()),
-            ("UNSEEN_BIND".to_owned(), "0.0.0.0:1".to_owned()),
+            (
+                "UNSEENARR_SETTING_TMDB_API_KEY".to_owned(),
+                "abc".to_owned(),
+            ),
+            ("UNSEENARR_SETTING_TMDB_LANGUAGE".to_owned(), String::new()),
+            ("UNSEENARR_BIND".to_owned(), "0.0.0.0:1".to_owned()),
         ]);
         assert_eq!(overrides.get("tmdb.api_key").unwrap().expose(), "abc");
         assert!(!overrides.contains("tmdb.language"));

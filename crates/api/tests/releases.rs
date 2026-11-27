@@ -9,12 +9,12 @@ use db::entities::{custom_formats, indexers, movie_files, role_permissions, role
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
-use unseen_core::search::SearchCache;
+use unseenarr_core::search::SearchCache;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 const TMDB_KEY: &str = "fixture-tmdb-key-0123456789";
 

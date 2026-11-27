@@ -10,8 +10,8 @@ use db::entities::root_folders;
 use db::root_folders::RootFolderError;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::permission::Permission;
-use unseen_core::root_folder::{self, Overlap};
+use unseenarr_core::permission::Permission;
+use unseenarr_core::root_folder::{self, Overlap};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;
@@ -27,7 +27,7 @@ pub struct RootFolder {
     pub(crate) library_id: i32,
     /// False when the folder is missing or cannot be read right now.
     pub(crate) accessible: bool,
-    /// Bytes available to Unseen on the filesystem of the folder. Absent when
+    /// Bytes available to Unseenarr on the filesystem of the folder. Absent when
     /// the folder is not accessible.
     pub(crate) free_space: Option<u64>,
     /// Sub-folders on disk that no movie uses, sorted.
@@ -39,7 +39,7 @@ pub struct RootFolder {
 #[serde(rename_all = "camelCase")]
 pub struct NewRootFolder {
     /// An absolute path on the server. It must exist, be a directory that
-    /// Unseen can write to, and not lie inside or contain another root folder.
+    /// Unseenarr can write to, and not lie inside or contain another root folder.
     path: String,
     /// Library to place this root folder in. Defaults to the default library.
     library_id: Option<i32>,
@@ -149,7 +149,7 @@ fn clean(path: &str) -> Result<PathBuf, Problem> {
     Ok(path.components().collect())
 }
 
-/// Checks that `path` is a directory Unseen can write to and returns its
+/// Checks that `path` is a directory Unseenarr can write to and returns its
 /// canonical form, for comparison.
 fn inspect(path: &Path) -> Result<PathBuf, &'static str> {
     let meta = std::fs::metadata(path).map_err(|error| match error.kind() {
@@ -159,13 +159,13 @@ fn inspect(path: &Path) -> Result<PathBuf, &'static str> {
     if !meta.is_dir() {
         return Err("is not a directory");
     }
-    let probe = path.join(format!(".unseen-write-test-{}", std::process::id()));
+    let probe = path.join(format!(".unseenarr-write-test-{}", std::process::id()));
     std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(&probe)
-        .map_err(|_| "is not writable by Unseen")?;
+        .map_err(|_| "is not writable by Unseenarr")?;
     let _ = std::fs::remove_file(&probe);
     std::fs::canonicalize(path).map_err(|_| "cannot be read")
 }

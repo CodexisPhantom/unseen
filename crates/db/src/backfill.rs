@@ -7,8 +7,8 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
     TransactionTrait,
 };
-use unseen_core::backfill::file_quality;
-use unseen_core::quality::Quality;
+use unseenarr_core::backfill::file_quality;
+use unseenarr_core::quality::Quality;
 
 use crate::entities::{movie_files, movies};
 

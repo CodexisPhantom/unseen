@@ -48,7 +48,7 @@ RFC 9457 problem details, `Content-Type: application/problem+json`:
 
 ```json
 {
-  "type": "https://unseen.invalid/problems/validation",
+  "type": "https://unseenarr.invalid/problems/validation",
   "title": "Validation failed",
   "status": 422,
   "code": "validation",

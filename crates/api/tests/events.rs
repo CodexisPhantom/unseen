@@ -15,8 +15,8 @@ use tempfile::TempDir;
 use tokio::time::timeout;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 const EVENT_TIMEOUT: Duration = Duration::from_secs(2);
 const SILENCE_WINDOW: Duration = Duration::from_millis(120);

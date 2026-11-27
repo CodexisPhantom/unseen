@@ -55,7 +55,7 @@
 </script>
 
 <svelte:head>
-	<title>Roles · Unseen</title>
+	<title>Roles · Unseenarr</title>
 </svelte:head>
 
 <div class="flex items-center justify-between">

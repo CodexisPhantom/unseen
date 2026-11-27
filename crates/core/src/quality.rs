@@ -210,7 +210,7 @@ impl Quality {
 
     /// Sonarr's quality id, or `None` for movie-only qualities.
     ///
-    /// Four qualities differ from Unseen's stored Radarr ids: `Bluray-480p`
+    /// Four qualities differ from Unseenarr's stored Radarr ids: `Bluray-480p`
     /// (13), `Bluray-576p` (22), `Remux-1080p` (20) and `Remux-2160p` (21).
     pub const fn sonarr_id(self) -> Option<i32> {
         match self {
@@ -486,7 +486,7 @@ mod tests {
     }
 
     /// Sonarr's qualities, transcribed from `Quality.cs` (Sonarr `develop`):
-    /// Sonarr id, Sonarr name, and Unseen `Quality` variant, in the order of
+    /// Sonarr id, Sonarr name, and Unseenarr `Quality` variant, in the order of
     /// `DefaultQualityDefinitions` weights.
     const SONARR: [(i32, &str, Quality); 22] = [
         (0, "Unknown", Quality::Unknown),

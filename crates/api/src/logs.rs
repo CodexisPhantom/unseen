@@ -2,7 +2,7 @@
 //! (docs/13-deployment.md "Logging", docs/10-configuration.md).
 //!
 //! Each tracing event is written as a single JSON line to
-//! `<data_dir>/logs/unseen-YYYY-MM-DD.log` so that lines logged before a crash
+//! `<data_dir>/logs/unseenarr-YYYY-MM-DD.log` so that lines logged before a crash
 //! or restart remain available through `GET /api/v1/logs` and file download.
 
 use std::collections::BTreeMap;
@@ -42,17 +42,17 @@ pub const DEFAULT_RETENTION_DAYS: u32 = 14;
 const DEFAULT_LIMIT: usize = 100;
 const MAX_LIMIT: usize = 500;
 const LOG_READ_CHUNK_SIZE: usize = 8192;
-const FILE_PREFIX: &str = "unseen-";
+const FILE_PREFIX: &str = "unseenarr-";
 const FILE_SUFFIX: &str = ".log";
 
-/// Output format for stdout logging (`UNSEEN_LOG_FORMAT`).
+/// Output format for stdout logging (`UNSEENARR_LOG_FORMAT`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogFormat {
     Text,
     Json,
 }
 
-/// Parses `UNSEEN_LOG_LEVEL`, defaulting to `info`.
+/// Parses `UNSEENARR_LOG_LEVEL`, defaulting to `info`.
 #[must_use]
 pub fn parse_level_filter(raw: Option<&str>) -> LevelFilter {
     match raw.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
@@ -65,7 +65,7 @@ pub fn parse_level_filter(raw: Option<&str>) -> LevelFilter {
     }
 }
 
-/// Parses `UNSEEN_LOG_FORMAT`, defaulting to `text`.
+/// Parses `UNSEENARR_LOG_FORMAT`, defaulting to `text`.
 #[must_use]
 pub fn parse_log_format(raw: Option<&str>) -> LogFormat {
     match raw.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
@@ -74,13 +74,13 @@ pub fn parse_log_format(raw: Option<&str>) -> LogFormat {
     }
 }
 
-/// Returns the daily log filename for `date`, e.g. `unseen-2026-11-26.log`.
+/// Returns the daily log filename for `date`, e.g. `unseenarr-2026-11-26.log`.
 #[must_use]
 pub fn log_file_name(date: NaiveDate) -> String {
     format!("{FILE_PREFIX}{}{FILE_SUFFIX}", date.format("%Y-%m-%d"))
 }
 
-/// Parses a strictly valid daily log filename (`unseen-YYYY-MM-DD.log`).
+/// Parses a strictly valid daily log filename (`unseenarr-YYYY-MM-DD.log`).
 ///
 /// Rejects path separators, traversal sequences, extra characters, and invalid
 /// calendar dates.
@@ -138,7 +138,7 @@ pub struct LogEntry {
 #[derive(Debug, Clone, Serialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogFileInfo {
-    /// File name (`unseen-YYYY-MM-DD.log`).
+    /// File name (`unseenarr-YYYY-MM-DD.log`).
     pub name: String,
     /// File size in bytes.
     pub size_bytes: u64,
@@ -185,7 +185,7 @@ struct DailyFileState {
     file: Option<File>,
 }
 
-/// Appends JSON log lines to daily files `<dir>/unseen-YYYY-MM-DD.log`.
+/// Appends JSON log lines to daily files `<dir>/unseenarr-YYYY-MM-DD.log`.
 pub struct DailyFileSink {
     dir: PathBuf,
     state: Mutex<DailyFileState>,
@@ -396,7 +396,7 @@ pub fn init_tracing(logs_dir: PathBuf, level: LevelFilter, format: LogFormat) {
     }
 }
 
-/// Resolves `logs.retention_days` from `UNSEEN_SETTING_LOGS_RETENTION_DAYS`,
+/// Resolves `logs.retention_days` from `UNSEENARR_SETTING_LOGS_RETENTION_DAYS`,
 /// the `settings` table, or [`DEFAULT_RETENTION_DAYS`].
 pub async fn retention_days(state: &AppState) -> Result<u32, Problem> {
     if let Some(raw) = state.settings_overrides.get(RETENTION_DAYS_KEY) {
@@ -420,7 +420,7 @@ fn parse_retention_override(raw: &str) -> u32 {
         _ => {
             tracing::warn!(
                 key = RETENTION_DAYS_KEY,
-                "invalid UNSEEN_SETTING_LOGS_RETENTION_DAYS, using default"
+                "invalid UNSEENARR_SETTING_LOGS_RETENTION_DAYS, using default"
             );
             DEFAULT_RETENTION_DAYS
         }
@@ -872,14 +872,14 @@ pub async fn list(
     }))
 }
 
-/// Downloads one daily log file (`unseen-YYYY-MM-DD.log`).
+/// Downloads one daily log file (`unseenarr-YYYY-MM-DD.log`).
 #[utoipa::path(
     get,
     path = "/api/v1/logs/files/{name}",
     operation_id = "download_log_file",
     tag = "system",
     params(
-        ("name" = String, Path, description = "Daily log file name (`unseen-YYYY-MM-DD.log`)")
+        ("name" = String, Path, description = "Daily log file name (`unseenarr-YYYY-MM-DD.log`)")
     ),
     responses(
         (status = 200, description = "The daily log file contents", content_type = "text/plain; charset=utf-8", body = String),
@@ -1002,19 +1002,19 @@ mod tests {
     #[test]
     fn validates_daily_log_filenames_strictly() {
         assert_eq!(
-            parse_log_file_date("unseen-2026-11-26.log"),
+            parse_log_file_date("unseenarr-2026-11-26.log"),
             Some(NaiveDate::from_ymd_opt(2026, 11, 26).unwrap())
         );
         for invalid in [
             "",
-            "unseen.log",
-            "unseen-2026-11-26.txt",
-            "unseen-2026-02-31.log",
-            "unseen-2026-1-1.log",
-            "../unseen-2026-11-26.log",
-            "sub/unseen-2026-11-26.log",
-            "sub\\unseen-2026-11-26.log",
-            "unseen-2026-11-26.log.bak",
+            "unseenarr.log",
+            "unseenarr-2026-11-26.txt",
+            "unseenarr-2026-02-31.log",
+            "unseenarr-2026-1-1.log",
+            "../unseenarr-2026-11-26.log",
+            "sub/unseenarr-2026-11-26.log",
+            "sub\\unseenarr-2026-11-26.log",
+            "unseenarr-2026-11-26.log.bak",
             "secret",
         ] {
             assert_eq!(parse_log_file_date(invalid), None, "{invalid}");
@@ -1055,8 +1055,8 @@ mod tests {
             tracing::warn!(error = err, "after midnight");
         });
 
-        let first = std::fs::read_to_string(dir.path().join("unseen-2026-11-25.log")).unwrap();
-        let second = std::fs::read_to_string(dir.path().join("unseen-2026-11-26.log")).unwrap();
+        let first = std::fs::read_to_string(dir.path().join("unseenarr-2026-11-25.log")).unwrap();
+        let second = std::fs::read_to_string(dir.path().join("unseenarr-2026-11-26.log")).unwrap();
         let first_entry: LogEntry = serde_json::from_str(first.trim()).unwrap();
         let second_entry: LogEntry = serde_json::from_str(second.trim()).unwrap();
 
@@ -1077,24 +1077,24 @@ mod tests {
 
         // Retention = 14 keeps 2026-11-13..=2026-11-26 (14 days) and deletes 2026-11-12 and older.
         for name in [
-            "unseen-2026-11-01.log",
-            "unseen-2026-11-12.log",
-            "unseen-2026-11-13.log",
-            "unseen-2026-11-26.log",
+            "unseenarr-2026-11-01.log",
+            "unseenarr-2026-11-12.log",
+            "unseenarr-2026-11-13.log",
+            "unseenarr-2026-11-26.log",
             "unrelated.txt",
         ] {
             std::fs::write(dir.path().join(name), "line\n").unwrap();
         }
-        std::fs::create_dir(dir.path().join("unseen-2026-10-01.log")).unwrap();
+        std::fs::create_dir(dir.path().join("unseenarr-2026-10-01.log")).unwrap();
 
         let removed = prune_old_logs(dir.path(), 14, today).unwrap();
         assert_eq!(removed, 2);
-        assert!(!dir.path().join("unseen-2026-11-01.log").exists());
-        assert!(!dir.path().join("unseen-2026-11-12.log").exists());
-        assert!(dir.path().join("unseen-2026-11-13.log").exists());
-        assert!(dir.path().join("unseen-2026-11-26.log").exists());
+        assert!(!dir.path().join("unseenarr-2026-11-01.log").exists());
+        assert!(!dir.path().join("unseenarr-2026-11-12.log").exists());
+        assert!(dir.path().join("unseenarr-2026-11-13.log").exists());
+        assert!(dir.path().join("unseenarr-2026-11-26.log").exists());
         assert!(dir.path().join("unrelated.txt").exists());
-        assert!(dir.path().join("unseen-2026-10-01.log").is_dir());
+        assert!(dir.path().join("unseenarr-2026-10-01.log").is_dir());
 
         // Missing directory is not an error.
         let missing = dir.path().join("does-not-exist");

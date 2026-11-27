@@ -52,7 +52,7 @@ pub async fn update(
 #[cfg(test)]
 mod tests {
     use serde_json::Value;
-    use unseen_core::quality::Quality;
+    use unseenarr_core::quality::Quality;
 
     use super::*;
     use crate::testing::temp_db;

@@ -74,7 +74,7 @@
 </script>
 
 <svelte:head>
-	<title>Users · Unseen</title>
+	<title>Users · Unseenarr</title>
 </svelte:head>
 
 <div class="flex items-center justify-between">

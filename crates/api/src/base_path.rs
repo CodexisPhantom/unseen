@@ -1,6 +1,6 @@
-//! The mount prefix taken from UNSEEN_BASE_URL.
+//! The mount prefix taken from UNSEENARR_BASE_URL.
 
-/// The mount prefix from `UNSEEN_BASE_URL`; empty at the root.
+/// The mount prefix from `UNSEENARR_BASE_URL`; empty at the root.
 pub fn from_url(base_url: Option<&str>) -> String {
     let Some(base_url) = base_url else {
         return String::new();
@@ -34,33 +34,33 @@ mod tests {
     #[test]
     fn from_url_cases() {
         assert_eq!(from_url(None), "");
-        assert_eq!(from_url(Some("https://unseen.example.com")), "");
-        assert_eq!(from_url(Some("https://unseen.example.com/")), "");
+        assert_eq!(from_url(Some("https://unseenarr.example.com")), "");
+        assert_eq!(from_url(Some("https://unseenarr.example.com/")), "");
         assert_eq!(
-            from_url(Some("https://unseen.example.com/unseen")),
-            "/unseen"
+            from_url(Some("https://unseenarr.example.com/unseenarr")),
+            "/unseenarr"
         );
         assert_eq!(
-            from_url(Some("https://unseen.example.com/unseen/")),
-            "/unseen"
+            from_url(Some("https://unseenarr.example.com/unseenarr/")),
+            "/unseenarr"
         );
         assert_eq!(
-            from_url(Some("https://unseen.example.com/apps/unseen/")),
-            "/apps/unseen"
+            from_url(Some("https://unseenarr.example.com/apps/unseenarr/")),
+            "/apps/unseenarr"
         );
         assert_eq!(
-            from_url(Some("https://unseen.example.com/unseen?x=1")),
-            "/unseen"
+            from_url(Some("https://unseenarr.example.com/unseenarr?x=1")),
+            "/unseenarr"
         );
         assert_eq!(from_url(Some("not a url")), "");
-        assert_eq!(from_url(Some("/unseen")), "");
+        assert_eq!(from_url(Some("/unseenarr")), "");
     }
 
     #[test]
     fn origin_cases() {
         assert_eq!(
-            origin("https://unseen.example.com/unseen/?q=1"),
-            Some("https://unseen.example.com".to_owned())
+            origin("https://unseenarr.example.com/unseenarr/?q=1"),
+            Some("https://unseenarr.example.com".to_owned())
         );
         assert_eq!(
             origin("http://host:8080/base"),

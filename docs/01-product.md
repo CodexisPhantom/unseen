@@ -86,7 +86,7 @@ per-library access scoping, a recycle bin, sub-path hosting.
   and keep them in sync. The goal is that the guides are easier to find and
   use than with Radarr plus Recyclarr. Recyclarr itself (the compat write
   endpoints it needs) comes after V1.
-- Requests and approvals stay in Seerr for now. A flow inside Unseen is wanted
+- Requests and approvals stay in Seerr for now. A flow inside Unseenarr is wanted
   later; it gets a design issue in M11.
 - Metadata comes from pluggable providers, not from one fixed source. V1 ships
   the TMDB provider behind a provider trait. TVDB is added with TV in M7.

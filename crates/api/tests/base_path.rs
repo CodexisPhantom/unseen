@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
+const HOST: &str = "unseenarr.test";
 
 struct App {
     router: Router,
@@ -41,21 +41,21 @@ impl App {
 
 #[tokio::test]
 async fn api_routes_are_served_only_under_the_base_path() {
-    let app = App::new(Some("http://unseen.test/unseen"), true).await;
-    let (status, body) = app.get("/unseen/api/v1/health").await;
+    let app = App::new(Some("http://unseenarr.test/unseenarr"), true).await;
+    let (status, body) = app.get("/unseenarr/api/v1/health").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
 
     let (status, _) = app.get("/api/v1/health").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let (status, _) = app.get("/unseenfoo/api/v1/health").await;
+    let (status, _) = app.get("/unseenarrfoo/api/v1/health").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
 async fn auth_routes_are_served_under_the_base_path() {
-    let app = App::new(Some("http://unseen.test/unseen"), true).await;
-    let (status, body) = app.get("/unseen/api/auth/ok").await;
+    let app = App::new(Some("http://unseenarr.test/unseenarr"), true).await;
+    let (status, body) = app.get("/unseenarr/api/auth/ok").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["ok"], true);
 
@@ -65,11 +65,11 @@ async fn auth_routes_are_served_under_the_base_path() {
 
 #[tokio::test]
 async fn setup_works_under_the_base_path() {
-    let app = App::new(Some("http://unseen.test/unseen"), false).await;
+    let app = App::new(Some("http://unseenarr.test/unseenarr"), false).await;
     let body = json!({"name":"Owner","email":"owner@example.com","password":"correct horse"});
-    let request = Request::post("/unseen/api/v1/setup")
+    let request = Request::post("/unseenarr/api/v1/setup")
         .header(header::HOST, HOST)
-        .header(header::ORIGIN, "http://unseen.test")
+        .header(header::ORIGIN, "http://unseenarr.test")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.to_string()))
         .unwrap();

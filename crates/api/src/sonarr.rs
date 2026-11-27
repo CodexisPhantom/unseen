@@ -20,9 +20,9 @@ use axum::extract::{Path as UrlPath, State};
 use axum::http::{Method, StatusCode};
 use db::tags::TagError;
 use serde_json::json;
-use unseen_core::permission::Permission;
-use unseen_core::profile::Item;
-use unseen_core::root_folder;
+use unseenarr_core::permission::Permission;
+use unseenarr_core::profile::Item;
+use unseenarr_core::root_folder;
 
 use crate::AppState;
 use crate::access::{LibraryEdit, LibraryRead, ProfilesRead, SettingsRead};

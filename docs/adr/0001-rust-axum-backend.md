@@ -4,7 +4,7 @@ Status: accepted (2026-11-15)
 
 ## Context
 
-Unseen runs all day on small home servers, next to other containers. It does
+Unseenarr runs all day on small home servers, next to other containers. It does
 I/O-bound work: HTTP calls, polling, file operations, a small database.
 Sonarr and Radarr use .NET and need a few hundred MB of memory each.
 

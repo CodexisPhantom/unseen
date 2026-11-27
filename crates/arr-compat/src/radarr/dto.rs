@@ -1,12 +1,12 @@
 //! Radarr v3 resources, field for field as the pinned OpenAPI document
 //! (`fixtures/radarr/openapi-<version>.json`) lists them. Every field is
-//! serialised, with a default when Unseen has no value (docs/14).
+//! serialised, with a default when Unseenarr has no value (docs/14).
 //!
 //! The exceptions are objects that stand for "nothing here": `movieFile` of a
 //! movie without a file, `collection`, `movie` of a queue record that has no
 //! movie, `quality` of a quality group, `message` of a provider without a
 //! notice, and `value` of an unset provider field. Radarr leaves them out;
-//! Unseen sends `null` so that the key is present. The schema test lists them.
+//! Unseenarr sends `null` so that the key is present. The schema test lists them.
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -1038,7 +1038,7 @@ impl Default for SystemResource {
             runtime_name: ".NET".to_owned(),
             start_time: Timestamp::default(),
             package_version: String::new(),
-            package_author: "Unseen".to_owned(),
+            package_author: "Unseenarr".to_owned(),
             package_update_mechanism: UpdateMechanism::Docker,
             package_update_mechanism_message: String::new(),
         }

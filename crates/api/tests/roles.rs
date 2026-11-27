@@ -8,8 +8,8 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 struct App {
@@ -135,7 +135,7 @@ async fn lists_the_catalog_and_the_roles_with_the_owner_first() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         catalog.as_array().unwrap().len(),
-        unseen_core::permission::Permission::ALL.len()
+        unseenarr_core::permission::Permission::ALL.len()
     );
 
     let (status, roles) = app.owner(Method::GET, "/api/v1/roles", None).await;

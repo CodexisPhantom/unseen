@@ -206,7 +206,7 @@
 				<Button type="submit" disabled={add.isPending}>Add</Button>
 			</div>
 			<p class="text-xs text-muted-foreground">
-				The folder must exist, Unseen must be able to write to it, and it must not lie inside
+				The folder must exist, Unseenarr must be able to write to it, and it must not lie inside
 				another root folder.
 			</p>
 		</form>

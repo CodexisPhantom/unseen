@@ -9,7 +9,7 @@ use axum::http::StatusCode;
 use db::roles::{RoleChanges, RoleDetail, RoleError};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;

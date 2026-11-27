@@ -125,7 +125,7 @@
 </script>
 
 <svelte:head>
-	<title>{movie.data?.title ?? 'Movie'} · Unseen</title>
+	<title>{movie.data?.title ?? 'Movie'} · Unseenarr</title>
 </svelte:head>
 
 {#if !read}
@@ -265,7 +265,7 @@
 		{#if unmanaged.length > 0}
 			<h2 class="mt-8 text-lg font-semibold">Unmanaged files</h2>
 			<p class="text-sm text-muted-foreground">
-				These files belong to no profile. Unseen does not touch them.
+				These files belong to no profile. Unseenarr does not touch them.
 			</p>
 			<Table.Root class="mt-2">
 				<Table.Header>

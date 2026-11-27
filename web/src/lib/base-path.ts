@@ -5,7 +5,7 @@ export function normalizeBase(value: string): string {
 
 export function basePath(): string {
 	if (typeof document === 'undefined') return '';
-	const meta = document.querySelector('meta[name="unseen-base"]')?.getAttribute('content');
+	const meta = document.querySelector('meta[name="unseenarr-base"]')?.getAttribute('content');
 	return normalizeBase(meta ?? '');
 }
 

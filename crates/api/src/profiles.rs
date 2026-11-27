@@ -9,7 +9,7 @@ use db::entities::quality_profiles;
 use db::profiles::{FormatScore, ProfileError, ProfileFormatScore as StoredFormatScore, Values};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::profile::{self, Item, Profile};
+use unseenarr_core::profile::{self, Item, Profile};
 use utoipa::ToSchema;
 
 use crate::AppState;

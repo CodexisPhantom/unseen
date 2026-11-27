@@ -8,18 +8,18 @@ afterEach(() => {
 describe('normalizeBase', () => {
 	it('covers the empty and slash cases', () => {
 		expect(normalizeBase('')).toBe('');
-		expect(normalizeBase('/unseen/')).toBe('/unseen');
-		expect(normalizeBase('unseen')).toBe('/unseen');
-		expect(normalizeBase('  /unseen/  ')).toBe('/unseen');
+		expect(normalizeBase('/unseenarr/')).toBe('/unseenarr');
+		expect(normalizeBase('unseenarr')).toBe('/unseenarr');
+		expect(normalizeBase('  /unseenarr/  ')).toBe('/unseenarr');
 	});
 });
 
 describe('basePath', () => {
 	it('reads the injected meta tag', () => {
 		vi.stubGlobal('document', {
-			querySelector: () => ({ getAttribute: () => '/unseen' })
+			querySelector: () => ({ getAttribute: () => '/unseenarr' })
 		});
-		expect(basePath()).toBe('/unseen');
+		expect(basePath()).toBe('/unseenarr');
 	});
 
 	it('is empty without a document', () => {
@@ -30,8 +30,8 @@ describe('basePath', () => {
 describe('withBase', () => {
 	it('prefixes API paths', () => {
 		vi.stubGlobal('document', {
-			querySelector: () => ({ getAttribute: () => '/unseen' })
+			querySelector: () => ({ getAttribute: () => '/unseenarr' })
 		});
-		expect(withBase('/api/v1/health')).toBe('/unseen/api/v1/health');
+		expect(withBase('/api/v1/health')).toBe('/unseenarr/api/v1/health');
 	});
 });

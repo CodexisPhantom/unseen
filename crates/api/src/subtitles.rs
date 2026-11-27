@@ -10,8 +10,8 @@ use db::entities::{language_profiles, movie_files, movies, subtitles};
 use db::subtitles::{Found, ProfileError, Values};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::permission::Permission;
-use unseen_core::subtitle::{self, Item, Kind, Profile};
+use unseenarr_core::permission::Permission;
+use unseenarr_core::subtitle::{self, Item, Kind, Profile};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -73,7 +73,7 @@ pub struct LanguageProfile {
     /// In order of preference.
     items: Vec<LanguageItem>,
     /// Index into `items`: once that item and every item before it exist,
-    /// Unseen stops looking. Absent: look for every item.
+    /// Unseenarr stops looking. Absent: look for every item.
     cutoff: Option<i32>,
     created_at: String,
     updated_at: String,

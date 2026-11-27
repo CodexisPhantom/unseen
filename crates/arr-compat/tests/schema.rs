@@ -17,7 +17,7 @@ use arr_compat::radarr::dto::*;
 use arr_compat::radarr::map::{self, *};
 use serde::Serialize;
 use serde_json::{Value, json};
-use unseen_core::profile::Item;
+use unseenarr_core::profile::Item;
 
 /// `Schema.property` pairs that may be `null` although the schema says they
 /// cannot: an object that stands for "nothing here" (docs/14).
@@ -311,7 +311,7 @@ fn every_enum_has_the_names_of_the_schema() {
 
 #[test]
 fn every_core_quality_maps_to_a_schema_quality() {
-    for core in unseen_core::quality::Quality::ALL {
+    for core in unseenarr_core::quality::Quality::ALL {
         let quality = Quality::from(core);
         assert_valid("Quality", &quality);
         assert_eq!(quality.id, core.id());
@@ -364,7 +364,7 @@ fn view() -> MovieView {
 }
 
 /// A movie resource with every array and nested object filled, including
-/// the fields Unseen has no source for, so the checker sees all of them.
+/// the fields Unseenarr has no source for, so the checker sees all of them.
 fn full_movie() -> MovieResource {
     let mut movie = movie_resource(&view(), "2026-11-25");
     movie.alternate_titles = vec![AlternativeTitleResource {

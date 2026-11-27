@@ -21,7 +21,7 @@ use axum::routing::MethodRouter;
 use serde::Serialize;
 use serde_json::{Value, json};
 use tower::Service;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 
 use crate::AppState;
 use crate::access::{

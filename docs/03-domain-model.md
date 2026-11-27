@@ -16,12 +16,12 @@ Status: reviewed (2026-11-16). Terms match Sonarr/Radarr unless the "Differs" co
 | Quality profile | Allowed qualities in order, a cutoff, a language, custom format scores, and whether upgrades are allowed. | Also replaces separate instances |
 | Quality definition | Minimum, preferred and maximum size per minute for one quality. | No |
 | Custom format | A named set of conditions on a release (name pattern, source, resolution, language, size and others). A quality profile gives each custom format a score. | No |
-| TRaSH guide | The community guide that publishes custom formats, score sets and quality sizes. Unseen reads its published JSON. | Upstream needs Recyclarr or manual import |
+| TRaSH guide | The community guide that publishes custom formats, score sets and quality sizes. Unseenarr reads its published JSON. | Upstream needs Recyclarr or manual import |
 | Tag | A label on items, indexers and download clients. | No |
-| Monitored | Unseen searches for the item. | No |
+| Monitored | Unseenarr searches for the item. | No |
 | Minimum availability | Earliest release stage at which to search: `announced`, `inCinemas`, `released`. | No |
 | Wanted item | A monitored movie profile that has no file or whose file is below cutoff. | No separate name upstream |
-| Indexer | A Torznab or Newznab endpoint. | Managed in Unseen, not in Prowlarr |
+| Indexer | A Torznab or Newznab endpoint. | Managed in Unseenarr, not in Prowlarr |
 | Release | One search result from an indexer: a name, a size, a download link. Nothing is downloaded yet. | No |
 | Grab | The act of sending a release to a download client. | No |
 | Download | A release that a download client is handling. Has progress and a state. | Upstream calls this a "queue item" |
@@ -44,7 +44,7 @@ Status: reviewed (2026-11-16). Terms match Sonarr/Radarr unless the "Differs" co
 
 ## Release, download, file
 
-- A **release** exists on an indexer. Unseen stores it only when grabbed.
+- A **release** exists on an indexer. Unseenarr stores it only when grabbed.
 - A **download** exists in a download client. It ends when imported, failed or removed.
 - A **file** exists in the library. It outlives its download.
 
@@ -82,7 +82,7 @@ Decided 2026-11-15, see ADR 0010.
   the primary profile and its file, because Radarr's resource has room for
   one.
 - Files found on disk that belong to no profile (a second cut, an old copy)
-  are kept as unmanaged files. Unseen lists them and never upgrades or
+  are kept as unmanaged files. Unseenarr lists them and never upgrades or
   deletes them on its own.
 - Editions are a property of a file, not a separate slot. To keep two
   editions on purpose, use two profiles or leave one unmanaged.
@@ -96,7 +96,7 @@ for the provider and [09-filesystem.md](09-filesystem.md) for the names.
   item is a language (`en`, `fr`, `pt-BR`) and a kind. The kinds are
   `normal`, `hi` (hearing impaired, SDH) and `forced` (foreign parts only).
   The optional **cutoff** is an item: once that item and every item before
-  it exist, Unseen stops looking. Without a cutoff Unseen looks for every
+  it exist, Unseenarr stops looking. Without a cutoff Unseenarr looks for every
   item.
 - A movie has one language profile, or none (no subtitles wanted). The
   setting `subtitles.default_profile_id` gives the profile of a new movie.
@@ -155,7 +155,7 @@ erDiagram
 
 ### Several profiles per show
 
-ADR 0010 applies to shows. Without it the TV half of Unseen would still need
+ADR 0010 applies to shows. Without it the TV half of Unseenarr would still need
 the second Sonarr instance for 4K.
 
 - A show has one or more show profiles. Each (episode, show profile) pair is
@@ -192,7 +192,7 @@ Rules:
   API and lookups by that id.
 - The show has one **numbering provider**, `shows.metadata_provider`. Its
   seasons, episode numbers, absolute numbers and air dates are the ones
-  Unseen stores, and the ones a release name is matched against.
+  Unseenarr stores, and the ones a release name is matched against.
 - The numbering provider is chosen when the show is added: the first provider
   in the provider order (a setting, see #134) that knows the show. The default
   order is TVDB, then TMDB. TVDB is skipped while no TVDB key is configured.

@@ -36,14 +36,14 @@ COPY crates crates
 # rust-embed reads the frontend from web/build at compile time.
 COPY --from=web /web/build web/build
 RUN cargo build --release --locked -p api \
-    && cp target/release/unseen /unseen
+    && cp target/release/unseenarr /unseenarr
 
 # 3. Runtime.
 FROM ubuntu:26.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl libssl3t64 libicu78 tzdata \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=build /unseen /usr/local/bin/unseen
+COPY --from=build /unseenarr /usr/local/bin/unseenarr
 COPY docker/entrypoint.sh /entrypoint.sh
 ENV PUID=1000 PGID=1000 UMASK=022 TZ=UTC
 VOLUME /config

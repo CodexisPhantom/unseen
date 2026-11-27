@@ -17,8 +17,8 @@ use arr_compat::sonarr::dto::*;
 use arr_compat::sonarr::map::{self, *};
 use serde::Serialize;
 use serde_json::{Value, json};
-use unseen_core::profile::Item;
-use unseen_core::quality::Quality as CoreQuality;
+use unseenarr_core::profile::Item;
+use unseenarr_core::quality::Quality as CoreQuality;
 
 /// `Schema.property` pairs that may be `null` although the schema says they
 /// cannot: an object that stands for "nothing here" (docs/14).
@@ -409,7 +409,7 @@ fn episode_view() -> EpisodeView {
 }
 
 /// A series resource with every array and nested object filled, including
-/// fields Unseen has no source for, so the checker validates all of them.
+/// fields Unseenarr has no source for, so the checker validates all of them.
 fn full_series() -> SeriesResource {
     let mut series = series_resource(&show_view());
     series.alternate_titles = vec![AlternateTitleResource {

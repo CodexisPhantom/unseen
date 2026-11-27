@@ -3,7 +3,7 @@ import { loadChoices, lookupYear, pickId, saveChoices, type MovieLookup } from '
 
 function memory(initial?: string) {
 	const data = new Map<string, string>();
-	if (initial !== undefined) data.set('unseen.add.choices', initial);
+	if (initial !== undefined) data.set('unseenarr.add.choices', initial);
 	return {
 		getItem: (key: string) => data.get(key) ?? null,
 		setItem: (key: string, value: string) => void data.set(key, value)

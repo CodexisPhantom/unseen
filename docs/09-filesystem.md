@@ -11,12 +11,12 @@ below (M7).
   /media/movies/<Movie Folder>/<Movie File>.<ext>
 ```
 
-Downloads and library must be on the same filesystem and visible to Unseen
+Downloads and library must be on the same filesystem and visible to Unseenarr
 under one mount (for example `/data`). Otherwise hardlinks are impossible and
-Unseen copies instead. Unseen warns at startup and in settings when a root
+Unseenarr copies instead. Unseenarr warns at startup and in settings when a root
 folder and a download path are on different filesystems.
 
-When Unseen and qBittorrent see the same folder under different paths, a
+When Unseenarr and qBittorrent see the same folder under different paths, a
 remote path mapping per download client translates them, as in Radarr.
 
 ## Root folders
@@ -26,7 +26,7 @@ needs `settings:read`; adding, deleting and the folder browser
 (`GET /api/v1/filesystem`) need `settings:manage`.
 
 A new root folder must be an absolute path that exists, is a directory,
-and is writable (Unseen creates and removes a probe file). It must not be
+and is writable (Unseenarr creates and removes a probe file). It must not be
 the same as, lie inside, or contain another root folder; the comparison uses
 whole path components on the resolved paths. A failed check is a 422 on the
 field `path`; the same folder twice is a 409. The response carries the free
@@ -70,7 +70,7 @@ Rules, as in Radarr:
 - Prefix and suffix inside the braces (`{[Quality Full]}`, `{-Release Group}`)
   show only when the value is not empty. `{imdb-{ImdbId}}` and
   `{{Edition Tags}}` keep their outer braces the same way.
-- `{Release Group}` renders `Unseen` when the file has no group and the
+- `{Release Group}` renders `Unseenarr` when the file has no group and the
   token has no prefix or suffix (Radarr renders `Radarr`).
 - `/` and `\` in a template make sub-folders; in a value they become `+`.
   Radarr's `{Original Title}` and `{Original Filename}` are empty when a
@@ -91,7 +91,7 @@ Radarr's own unit tests and example movie).
 Whatever the template says, a rendered name is a relative path that cannot
 leave the root folder: no `.` or `..` part, none of `<>:"|?*` or control
 characters, no trailing dot or space, and no Windows device name. Radarr
-writes `Con_Game` for `Con.Game`; Unseen does the same and writes `CON_` for a
+writes `Con_Game` for `Con.Game`; Unseenarr does the same and writes `CON_` for a
 part that is the device name alone.
 
 Open question: `MediaInfo` tokens need a media probe (ffprobe or a Rust
@@ -111,13 +111,13 @@ library). Decide in M4; until then those tokens render from the release name.
    clearing its checkbox, and one quality profile and monitored state apply to
    all adopted movies. The adopt call returns when done; the page then shows one
    summary with the counts of adopted, failed and left-out folders.
-4. Unseen stores the movie with its existing folder name and relative file path.
+4. Unseenarr stores the movie with its existing folder name and relative file path.
 
 The quality of each adopted file comes from its names, not from the file: the
 release-name parser reads the file name first and then the movie folder name
 (`core::backfill::file_quality`). A name without a source, such as a
 resolution alone, gives `Unknown`. Adoption stores the result directly. At
-every start Unseen also parses the files that are still `Unknown`, which
+every start Unseenarr also parses the files that are still `Unknown`, which
 covers files adopted before this existed, and logs a warning with the path of
 each file it cannot parse. Files with a known quality are never changed.
 Probing the file with ffprobe is not part of this.
@@ -144,7 +144,7 @@ apart.
 
 ### Sidecar subtitles
 
-The name rule below is the one for subtitles that Unseen downloads (M10) as
+The name rule below is the one for subtitles that Unseenarr downloads (M10) as
 well as for those it imports.
 
 Subtitle files next to the video with the same base name (`.srt`, `.ass`,
@@ -167,7 +167,7 @@ Subtitle names are `<video base name>.<language>[.<kind>].<extension>`:
 - An imported file keeps its own language and kind suffix when it has one.
   Reading a name accepts `sdh` and `cc` as `hi`, `foreign` as `forced`, and
   three-letter codes (`eng`); the stored name is the normalised one only when
-  Unseen renames the file. A file without a language suffix is imported as it is and recorded
+  Unseenarr renames the file. A file without a language suffix is imported as it is and recorded
   with the language `und` (undetermined), which satisfies no wanted item.
 - A downloaded file is always UTF-8 text with the provider's extension
   (`srt`, `ass`). It is written to a temporary name in the movie folder and
@@ -184,7 +184,7 @@ Subtitle names are `<video base name>.<language>[.<kind>].<extension>`:
   it changes nothing on disk. When two files have the same language and kind
   (`.en.srt` and `.en.ass`), `.srt` is kept.
 
-Other extra files (`.nfo`, images, samples) are not imported: Unseen does
+Other extra files (`.nfo`, images, samples) are not imported: Unseenarr does
 not manage them and they would be left behind on upgrades.
 
 ## Case-insensitive and Windows filesystems
@@ -218,7 +218,7 @@ A packaged Windows install is a different question and not offered yet
 
 - The container runs as `PUID`:`PGID` (default 1000:1000).
 - New folders use mode 755 and files 644, adjustable with `UMASK`.
-- Unseen never changes ownership of existing files.
+- Unseenarr never changes ownership of existing files.
 
 ## TV (M7)
 

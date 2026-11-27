@@ -83,10 +83,10 @@ the item is `Missing` again and the next run picks it up.
 Each download client has the option "remove completed downloads", default
 off, as in Radarr.
 
-- Off: Unseen never removes a torrent. Seeding rules stay with the client.
+- Off: Unseenarr never removes a torrent. Seeding rules stay with the client.
 - On: after the import succeeded and the client reports that seeding is
   finished (its ratio or time limit is reached and the torrent is stopped),
-  Unseen removes the torrent and its data from the client. The library file
+  Unseenarr removes the torrent and its data from the client. The library file
   is a hardlink or a copy and is not affected.
 - A failed download is removed from the client when it is blocklisted,
   whatever the option says.

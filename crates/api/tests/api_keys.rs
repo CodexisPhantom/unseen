@@ -14,11 +14,11 @@ use db::entities::{role_permissions, roles, user_roles};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 use utoipa_axum::routes;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 /// Stand-ins for the library routes of M2.

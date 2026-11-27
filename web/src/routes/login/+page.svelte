@@ -90,14 +90,14 @@
 </script>
 
 <svelte:head>
-	<title>Sign in · Unseen</title>
+	<title>Sign in · Unseenarr</title>
 </svelte:head>
 
 <main class="flex min-h-svh items-center justify-center p-4">
 	<Card.Root class="w-full max-w-sm">
 		<Card.Header>
 			<Logo class="mb-2 size-10" />
-			<Card.Title>Sign in to Unseen</Card.Title>
+			<Card.Title>Sign in to Unseenarr</Card.Title>
 		</Card.Header>
 		<Card.Content>
 			{#if twoFactorRequired}

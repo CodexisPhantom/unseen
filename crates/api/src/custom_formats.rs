@@ -9,10 +9,10 @@ use db::custom_formats::{CustomFormatError, Values};
 use db::entities::custom_formats;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Value, json};
-use unseen_core::custom_format::{
+use unseenarr_core::custom_format::{
     self, CustomFormat as CoreCustomFormat, Field as CoreField, Specification as CoreSpecification,
 };
-use unseen_core::release;
+use unseenarr_core::release;
 use utoipa::ToSchema;
 
 use crate::AppState;

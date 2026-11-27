@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-	<title>Quality sizes · Unseen</title>
+	<title>Quality sizes · Unseenarr</title>
 </svelte:head>
 
 {#if !read}

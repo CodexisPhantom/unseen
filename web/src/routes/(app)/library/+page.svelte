@@ -23,7 +23,7 @@
 
 	/** Cards or rows added each time the end of the list scrolls into view. */
 	const CHUNK = 60;
-	const VIEW_KEY = 'unseen.library.view';
+	const VIEW_KEY = 'unseenarr.library.view';
 
 	const read = $derived(session.can('library:read'));
 
@@ -125,7 +125,7 @@
 </script>
 
 <svelte:head>
-	<title>Library · Unseen</title>
+	<title>Library · Unseenarr</title>
 </svelte:head>
 
 {#if !read}

@@ -3,7 +3,7 @@
 use axum::Json;
 use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
-use unseen_core::metadata::{LookupTerm, MetadataError, MovieSummary, parse_term};
+use unseenarr_core::metadata::{LookupTerm, MetadataError, MovieSummary, parse_term};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::AppState;

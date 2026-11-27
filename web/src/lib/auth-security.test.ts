@@ -4,13 +4,13 @@ import { formatBackupCodes, needsTwoFactorChallenge, totpSecretFromUri } from '.
 describe('totpSecretFromUri', () => {
 	it('reads the setup key from an authenticator URI', () => {
 		expect(
-			totpSecretFromUri('otpauth://totp/Unseen%3Auser%40example.com?secret=ABC123&issuer=Unseen')
+			totpSecretFromUri('otpauth://totp/Unseenarr%3Auser%40example.com?secret=ABC123&issuer=Unseenarr')
 		).toBe('ABC123');
 	});
 
 	it('returns an empty string for an invalid URI or a missing key', () => {
 		expect(totpSecretFromUri('not a URI')).toBe('');
-		expect(totpSecretFromUri('otpauth://totp/Unseen:user?issuer=Unseen')).toBe('');
+		expect(totpSecretFromUri('otpauth://totp/Unseenarr:user?issuer=Unseenarr')).toBe('');
 	});
 });
 

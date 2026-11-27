@@ -4,7 +4,7 @@ Status: reviewed (2026-11-16). Verify every endpoint against the provider's curr
 documentation when its issue is implemented.
 
 All clients: one shared `reqwest` client, timeouts (10 s connect, 30 s total),
-a user agent `Unseen/<version>`, and typed errors that map to HTTP 502 in our
+a user agent `Unseenarr/<version>`, and typed errors that map to HTTP 502 in our
 API. Every user-entered URL passes the outbound URL check in
 [11-security.md](11-security.md). Tests use recorded fixtures served by a local mock HTTP server
 (`wiremock`). No test calls the real service.
@@ -101,7 +101,7 @@ Implementation notes (`newznab.rs`):
 | Failure | See retries in [06-state-machines.md](06-state-machines.md) |
 | Mock | JSON fixtures; one integration test may use a real qBittorrent container (not in default CI) |
 
-Torrents are identified by info hash. The category is how Unseen finds its
+Torrents are identified by info hash. The category is how Unseenarr finds its
 own torrents.
 
 Rules of the client in `core` (`qbittorrent.rs`):
@@ -112,7 +112,7 @@ Rules of the client in `core` (`qbittorrent.rs`):
   delete or a properties call for its hash does nothing: the hashes sent to
   qBittorrent are the ones found in our category, never the caller's text.
 - Add takes a magnet link or an http(s) torrent URL, sets the category and
-  nothing else. The save path is left to qBittorrent, and Unseen reads
+  nothing else. The save path is left to qBittorrent, and Unseenarr reads
   `content_path` from the torrent list. The category is created when
   `torrents/categories` does not have it, without a save path. A magnet link
   gives its info hash at once; a torrent URL does not, because qBittorrent
@@ -175,9 +175,9 @@ second provider needs no new scoring code.
 | | |
 |---|---|
 | Endpoints (REST API v1, `https://api.opensubtitles.com/api/v1`) | `POST /login`, `GET /subtitles`, `POST /download` |
-| Auth | A consumer API key in the `Api-Key` header on every request, and the bearer token that `/login` returns for downloads. The user enters their own API key, username and password in settings (stored encrypted). Unseen ships no shared key. |
+| Auth | A consumer API key in the `Api-Key` header on every request, and the bearer token that `/login` returns for downloads. The user enters their own API key, username and password in settings (stored encrypted). Unseenarr ships no shared key. |
 | Search | By `tmdb_id`, `languages`, `moviehash`, `hearing_impaired` and `foreign_parts_only`. A search uses no download quota. |
-| Download quota | Each `POST /download` uses one unit. The answer carries the units left and the reset time; Unseen keeps them and never hard-codes a number, because the quota depends on the account level and the provider changes it. At zero, downloads stop until the reset time and the next scheduled run tries again. A 429 on a download is treated the same way. |
+| Download quota | Each `POST /download` uses one unit. The answer carries the units left and the reset time; Unseenarr keeps them and never hard-codes a number, because the quota depends on the account level and the provider changes it. At zero, downloads stop until the reset time and the next scheduled run tries again. A 429 on a download is treated the same way. |
 | Rate limits | Search and download calls go through one limiter, a minimum delay between calls (default 1 s). On 429, honor `Retry-After`, else back off. |
 | Failure | A failed search leaves the subtitle wanted and records the error on the task. A bad API key or login disables the provider and shows an error in settings until it is changed. |
 | Mock | JSON fixtures: search results, a login answer, a download answer, a quota-exhausted answer |
@@ -272,6 +272,6 @@ Sonarr: v3, same pattern with `/series`. Prowlarr: API v1, `GET /api/v1/indexer`
   not practical enough to build. A Bazarr language profile has a few items
   that a user recreates in a minute, its provider logins are secrets that
   cannot be read back, and the part that matters, the subtitle files, is
-  already adopted from disk because Bazarr and Unseen both name them
+  already adopted from disk because Bazarr and Unseenarr both name them
   `<video>.<language>[.hi|.forced].srt`. Bazarr's own API was not checked.
 - Subtitle providers: OpenSubtitles only in V1, behind a trait.

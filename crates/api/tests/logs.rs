@@ -16,8 +16,8 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 use tracing_subscriber::layer::SubscriberExt;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 struct App {
@@ -399,8 +399,8 @@ async fn filters_and_pages_backwards_across_files() {
     .join("\n")
         + "\n";
 
-    std::fs::write(app.logs_dir.join("unseen-2026-11-24.log"), &day1).unwrap();
-    std::fs::write(app.logs_dir.join("unseen-2026-11-25.log"), &day2).unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-24.log"), &day1).unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-25.log"), &day2).unwrap();
     std::fs::write(app.logs_dir.join("notes.txt"), "ignored\n").unwrap();
 
     // Level filter: warn includes warn and error only.
@@ -417,9 +417,9 @@ async fn filters_and_pages_backwards_across_files() {
         ["disk busy", "Rate limit approaching", "Indexer Timeout"]
     );
     assert_eq!(warn_body["files"].as_array().unwrap().len(), 2);
-    assert_eq!(warn_body["files"][0]["name"], "unseen-2026-11-25.log");
+    assert_eq!(warn_body["files"][0]["name"], "unseenarr-2026-11-25.log");
     assert_eq!(warn_body["files"][0]["date"], "2026-11-25");
-    assert_eq!(warn_body["files"][1]["name"], "unseen-2026-11-24.log");
+    assert_eq!(warn_body["files"][1]["name"], "unseenarr-2026-11-24.log");
 
     // Case-insensitive search matches message, target, and field values.
     let (_, by_msg) = app.owner("/api/v1/logs?search=ALIEN").await;
@@ -455,7 +455,7 @@ async fn filters_and_pages_backwards_across_files() {
         json!({}),
     ));
     appended.push('\n');
-    std::fs::write(app.logs_dir.join("unseen-2026-11-25.log"), appended).unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-25.log"), appended).unwrap();
 
     let (status, p2) = app
         .owner(&format!("/api/v1/logs?limit=2&before={cursor1}"))
@@ -507,7 +507,7 @@ async fn pages_large_log_files_from_the_end_with_byte_offset_cursors() {
         ));
         content.push('\n');
     }
-    std::fs::write(app.logs_dir.join("unseen-2026-11-26.log"), &content).unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-26.log"), &content).unwrap();
 
     let (status, first_page) = app.owner("/api/v1/logs?limit=3").await;
     assert_eq!(status, StatusCode::OK);
@@ -551,7 +551,7 @@ async fn pages_empty_unterminated_and_split_utf8_log_lines_with_correct_cursors(
     let app = App::new().await;
     std::fs::create_dir_all(&app.logs_dir).unwrap();
 
-    std::fs::write(app.logs_dir.join("unseen-2026-11-24.log"), "").unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-24.log"), "").unwrap();
     let unterminated = entry_line(
         "2026-11-25T10:00:00.000Z",
         "info",
@@ -559,7 +559,7 @@ async fn pages_empty_unterminated_and_split_utf8_log_lines_with_correct_cursors(
         "without trailing newline",
         json!({}),
     );
-    std::fs::write(app.logs_dir.join("unseen-2026-11-25.log"), &unterminated).unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-25.log"), &unterminated).unwrap();
 
     let base = entry_line(
         "2026-11-26T10:00:00.000Z",
@@ -581,7 +581,11 @@ async fn pages_empty_unterminated_and_split_utf8_log_lines_with_correct_cursors(
         json!({}),
     );
     let split_content = format!("{older}\n{newer}\n");
-    std::fs::write(app.logs_dir.join("unseen-2026-11-26.log"), &split_content).unwrap();
+    std::fs::write(
+        app.logs_dir.join("unseenarr-2026-11-26.log"),
+        &split_content,
+    )
+    .unwrap();
 
     let (status, empty_page) = app.owner("/api/v1/logs?limit=1").await;
     assert_eq!(status, StatusCode::OK);
@@ -632,7 +636,7 @@ async fn listing_and_paging_ignore_symlinks_outside_the_logs_directory() {
         ) + "\n",
     )
     .unwrap();
-    symlink(&outside, app.logs_dir.join("unseen-2026-11-26.log")).unwrap();
+    symlink(&outside, app.logs_dir.join("unseenarr-2026-11-26.log")).unwrap();
 
     let (status, body) = app.owner("/api/v1/logs").await;
     assert_eq!(status, StatusCode::OK);
@@ -642,7 +646,7 @@ async fn listing_and_paging_ignore_symlinks_outside_the_logs_directory() {
     let reply = app
         .send_raw(
             Method::GET,
-            "/api/v1/logs/files/unseen-2026-11-26.log",
+            "/api/v1/logs/files/unseenarr-2026-11-26.log",
             Some(&app.owner),
         )
         .await;
@@ -662,9 +666,9 @@ async fn retention_setting_override_and_startup_pruning() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["retentionDays"], 7);
 
-    // Environment override UNSEEN_SETTING_LOGS_RETENTION_DAYS wins over DB.
+    // Environment override UNSEENARR_SETTING_LOGS_RETENTION_DAYS wins over DB.
     app.state.settings_overrides = Overrides::from_vars([(
-        "UNSEEN_SETTING_LOGS_RETENTION_DAYS".to_owned(),
+        "UNSEENARR_SETTING_LOGS_RETENTION_DAYS".to_owned(),
         "3".to_owned(),
     )]);
     app.router = router(app.state.clone());
@@ -694,7 +698,7 @@ async fn retention_setting_override_and_startup_pruning() {
 
     // Invalid override falls back to default 14.
     app.state.settings_overrides = Overrides::from_vars([(
-        "UNSEEN_SETTING_LOGS_RETENTION_DAYS".to_owned(),
+        "UNSEENARR_SETTING_LOGS_RETENTION_DAYS".to_owned(),
         "not-a-number".to_owned(),
     )]);
     app.router = router(app.state.clone());
@@ -714,14 +718,14 @@ async fn downloads_log_file_and_blocks_path_traversal() {
         "downloadable line",
         json!({}),
     ) + "\n";
-    std::fs::write(app.logs_dir.join("unseen-2026-11-25.log"), &content).unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-25.log"), &content).unwrap();
     // Place a sensitive file in the parent directory to verify traversal cannot reach it.
     std::fs::write(app._dir.path().join("secret"), "top-secret-key").unwrap();
 
     let reply = app
         .send_raw(
             Method::GET,
-            "/api/v1/logs/files/unseen-2026-11-25.log",
+            "/api/v1/logs/files/unseenarr-2026-11-25.log",
             Some(&app.owner),
         )
         .await;
@@ -729,7 +733,7 @@ async fn downloads_log_file_and_blocks_path_traversal() {
     assert_eq!(reply.content_type, "text/plain; charset=utf-8");
     assert_eq!(
         reply.content_disposition,
-        "attachment; filename=\"unseen-2026-11-25.log\""
+        "attachment; filename=\"unseenarr-2026-11-25.log\""
     );
     assert_eq!(String::from_utf8(reply.bytes).unwrap(), content);
 
@@ -737,7 +741,7 @@ async fn downloads_log_file_and_blocks_path_traversal() {
     let missing = app
         .send_raw(
             Method::GET,
-            "/api/v1/logs/files/unseen-2026-11-01.log",
+            "/api/v1/logs/files/unseenarr-2026-11-01.log",
             Some(&app.owner),
         )
         .await;
@@ -748,8 +752,8 @@ async fn downloads_log_file_and_blocks_path_traversal() {
         "/api/v1/logs/files/..%2Fsecret",
         "/api/v1/logs/files/..%5Csecret",
         "/api/v1/logs/files/secret",
-        "/api/v1/logs/files/unseen-2026-99-99.log",
-        "/api/v1/logs/files/unseen-2026-11-25.log.bak",
+        "/api/v1/logs/files/unseenarr-2026-99-99.log",
+        "/api/v1/logs/files/unseenarr-2026-11-25.log.bak",
         "/api/v1/logs/files/..",
     ] {
         let reply = app.send_raw(Method::GET, path, Some(&app.owner)).await;
@@ -769,10 +773,13 @@ async fn downloads_log_file_and_blocks_path_traversal() {
 async fn requires_auth_and_system_logs_permission() {
     let app = App::new().await;
     std::fs::create_dir_all(&app.logs_dir).unwrap();
-    std::fs::write(app.logs_dir.join("unseen-2026-11-25.log"), "hello\n").unwrap();
+    std::fs::write(app.logs_dir.join("unseenarr-2026-11-25.log"), "hello\n").unwrap();
 
     // 401 without credentials.
-    for path in ["/api/v1/logs", "/api/v1/logs/files/unseen-2026-11-25.log"] {
+    for path in [
+        "/api/v1/logs",
+        "/api/v1/logs/files/unseenarr-2026-11-25.log",
+    ] {
         let (status, _, body) = app.send(Method::GET, path, None, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
         assert_eq!(body["code"], "unauthorized");
@@ -782,7 +789,10 @@ async fn requires_auth_and_system_logs_permission() {
     let without = app
         .member("no-logs@example.com", &["system:audit", "library:read"])
         .await;
-    for path in ["/api/v1/logs", "/api/v1/logs/files/unseen-2026-11-25.log"] {
+    for path in [
+        "/api/v1/logs",
+        "/api/v1/logs/files/unseenarr-2026-11-25.log",
+    ] {
         let (status, _, body) = app.send(Method::GET, path, Some(&without), None).await;
         assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
         assert_eq!(body["requiredPermission"], "system:logs");
@@ -797,7 +807,7 @@ async fn requires_auth_and_system_logs_permission() {
     let download = app
         .send_raw(
             Method::GET,
-            "/api/v1/logs/files/unseen-2026-11-25.log",
+            "/api/v1/logs/files/unseenarr-2026-11-25.log",
             Some(&with_perm),
         )
         .await;

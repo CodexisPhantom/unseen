@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Unseen API",
+    "title": "Unseenarr API",
     "description": "",
     "license": {
       "name": ""
@@ -2415,13 +2415,13 @@
         "tags": [
           "system"
         ],
-        "summary": "Downloads one daily log file (`unseen-YYYY-MM-DD.log`).",
+        "summary": "Downloads one daily log file (`unseenarr-YYYY-MM-DD.log`).",
         "operationId": "download_log_file",
         "parameters": [
           {
             "name": "name",
             "in": "path",
-            "description": "Daily log file name (`unseen-YYYY-MM-DD.log`)",
+            "description": "Daily log file name (`unseenarr-YYYY-MM-DD.log`)",
             "required": true,
             "schema": {
               "type": "string"
@@ -2685,7 +2685,7 @@
         "tags": [
           "movies"
         ],
-        "summary": "Adds a movie by TMDB id. Unseen fetches the metadata and names the movie\nfolder with the default template `{Movie Title} ({Release Year})`.",
+        "summary": "Adds a movie by TMDB id. Unseenarr fetches the metadata and names the movie\nfolder with the default template `{Movie Title} ({Release Year})`.",
         "operationId": "create_movie",
         "requestBody": {
           "content": {
@@ -6322,7 +6322,7 @@
           },
           "category": {
             "type": "string",
-            "description": "The category of the torrents or NZBs Unseen adds."
+            "description": "The category of the torrents or NZBs Unseenarr adds."
           },
           "createdAt": {
             "type": "string"
@@ -6332,7 +6332,7 @@
           },
           "hasApiKey": {
             "type": "boolean",
-            "description": "The API key (qBittorrent 5.2 or later) is never returned. When one is\nset, Unseen uses it and ignores the username and password. SABnzbd\nrequires one."
+            "description": "The API key (qBittorrent 5.2 or later) is never returned. When one is\nset, Unseenarr uses it and ignores the username and password. SABnzbd\nrequires one."
           },
           "hasPassword": {
             "type": "boolean",
@@ -6351,7 +6351,7 @@
               "string",
               "null"
             ],
-            "description": "... and the same folder as Unseen sees it."
+            "description": "... and the same folder as Unseenarr sees it."
           },
           "name": {
             "type": "string"
@@ -6793,7 +6793,7 @@
               "null"
             ],
             "format": "int32",
-            "description": "Index into `items`: once that item and every item before it exist,\nUnseen stops looking. Absent: look for every item."
+            "description": "Index into `items`: once that item and every item before it exist,\nUnseenarr stops looking. Absent: look for every item."
           },
           "id": {
             "type": "integer",
@@ -6908,7 +6908,7 @@
           },
           "name": {
             "type": "string",
-            "description": "File name (`unseen-YYYY-MM-DD.log`)."
+            "description": "File name (`unseenarr-YYYY-MM-DD.log`)."
           },
           "sizeBytes": {
             "type": "integer",
@@ -7611,7 +7611,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields set by an environment variable (`UNSEEN_SETTING_...`). They are\nread-only: a change is refused with 409 `setting_overridden`."
+            "description": "Fields set by an environment variable (`UNSEENARR_SETTING_...`). They are\nread-only: a change is refused with 409 `setting_overridden`."
           },
           "renameMovies": {
             "type": "boolean",
@@ -7972,7 +7972,7 @@
           },
           "path": {
             "type": "string",
-            "description": "An absolute path on the server. It must exist, be a directory that\nUnseen can write to, and not lie inside or contain another root folder."
+            "description": "An absolute path on the server. It must exist, be a directory that\nUnseenarr can write to, and not lie inside or contain another root folder."
           }
         }
       },
@@ -8301,7 +8301,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields set by an environment variable (`UNSEEN_SETTING_...`)."
+            "description": "Fields set by an environment variable (`UNSEENARR_SETTING_...`)."
           },
           "urlMustBeReentered": {
             "type": "boolean",
@@ -9016,7 +9016,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "Bytes available to Unseen on the filesystem of the folder. Absent when\nthe folder is not accessible.",
+            "description": "Bytes available to Unseenarr on the filesystem of the folder. Absent when\nthe folder is not accessible.",
             "minimum": 0
           },
           "id": {
@@ -9447,7 +9447,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields set by an environment variable (`UNSEEN_SETTING_...`). They are\nread-only: a change is refused with 409 `setting_overridden`."
+            "description": "Fields set by an environment variable (`UNSEENARR_SETTING_...`). They are\nread-only: a change is refused with 409 `setting_overridden`."
           }
         }
       },

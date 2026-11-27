@@ -13,8 +13,8 @@ use axum::extract::{Path, Query, State};
 use axum::http::Method;
 use db::entities::movie_files;
 use db::movies::Movie as StoredMovie;
-use unseen_core::metadata::{LookupTerm, MetadataError, MovieDetails, parse_term};
-use unseen_core::permission::Permission;
+use unseenarr_core::metadata::{LookupTerm, MetadataError, MovieDetails, parse_term};
+use unseenarr_core::permission::Permission;
 
 use crate::AppState;
 use crate::compat::{ApiKeyCaller, CompatError};
@@ -162,7 +162,7 @@ fn details_to_view(details: &MovieDetails) -> MovieView {
         imdb_id: details.imdb_id.clone(),
         title: summary.title.clone(),
         original_title: non_empty(&summary.original_title),
-        sort_title: unseen_core::naming::sort_title(&summary.title),
+        sort_title: unseenarr_core::naming::sort_title(&summary.title),
         year: summary.year().unwrap_or(0),
         overview: non_empty(&summary.overview),
         runtime: details

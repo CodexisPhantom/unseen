@@ -36,7 +36,7 @@ async fn unknown_route_returns_problem_details() {
     assert_eq!(content_type, "application/problem+json");
     assert_eq!(body["code"], "not_found");
     assert_eq!(body["status"], 404);
-    assert_eq!(body["type"], "https://unseen.invalid/problems/not_found");
+    assert_eq!(body["type"], "https://unseenarr.invalid/problems/not_found");
 }
 
 #[tokio::test]

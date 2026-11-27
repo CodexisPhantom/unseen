@@ -140,7 +140,7 @@ for every movie. With tags, it is used only for movies that share at least
 one tag.
 
 A download client's remote path mapping is `remote_path` (the folder as the
-client sees it) and `local_path` (the same folder as Unseen sees it). Both are
+client sees it) and `local_path` (the same folder as Unseenarr sees it). Both are
 set or both are null.
 
 ## Subtitle tables (M10)

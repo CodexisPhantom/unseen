@@ -7,7 +7,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, Set, SqlErr, Statement, TransactionTrait,
 };
-use unseen_core::profile::{LANGUAGE_ANY, default_profiles};
+use unseenarr_core::profile::{LANGUAGE_ANY, default_profiles};
 
 use crate::entities::{
     custom_formats, movie_profiles, quality_profile_custom_formats, quality_profiles,

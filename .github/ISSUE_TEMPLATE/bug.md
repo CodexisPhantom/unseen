@@ -14,7 +14,7 @@ labels: type:bug
 
 ## Environment
 
-- Unseen version:
+- Unseenarr version:
 - Install method (Docker, binary):
 - Download client and version:
 - Companion tool and version, if relevant (Seerr, ...):

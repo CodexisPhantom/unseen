@@ -65,7 +65,7 @@
 		{/if}
 	</div>
 	<p class="mt-1 text-sm text-muted-foreground">
-		Unseen sends releases to qBittorrent or SABnzbd and follows them by category.
+		Unseenarr sends releases to qBittorrent or SABnzbd and follows them by category.
 	</p>
 
 	{#if failure}

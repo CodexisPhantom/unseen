@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const HOST: &str = "unseen.test";
+const HOST: &str = "unseenarr.test";
 const EMAIL: &str = "owner@example.com";
 const PASSWORD: &str = "correct horse";
 
@@ -48,7 +48,7 @@ impl App {
         let state = AppState::new(db, "test secret", base_url).await.unwrap();
         Self {
             router: router(state.clone()),
-            origin: base_url.unwrap_or("http://unseen.test").to_owned(),
+            origin: base_url.unwrap_or("http://unseenarr.test").to_owned(),
             state,
             _dir: dir,
         }
@@ -236,7 +236,7 @@ async fn password_hash_is_argon2() {
 
 #[tokio::test]
 async fn cookie_is_secure_when_the_base_url_is_https() {
-    let app = App::new(Some("https://unseen.example.com")).await;
+    let app = App::new(Some("https://unseenarr.example.com")).await;
     app.seed_user().await;
     let reply = app.sign_in(PASSWORD).await;
     assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);

@@ -6,25 +6,25 @@ Status: reviewed (2026-11-16).
 
 | Container | Contains | Network |
 |---|---|---|
-| `unseen` | One binary: API, embedded UI, scheduler, SQLite file | LAN or reverse proxy |
+| `unseenarr` | One binary: API, embedded UI, scheduler, SQLite file | LAN or reverse proxy |
 | `gluetun` | VPN tunnel | Internet through VPN |
 | `qbittorrent` | Torrent client, uses the `gluetun` network | Behind VPN |
 | `sabnzbd` | Usenet client (M9) | Direct |
 
-Unseen talks to indexers and TMDB directly, not through the VPN. An optional
+Unseenarr talks to indexers and TMDB directly, not through the VPN. An optional
 HTTP or SOCKS5 proxy can be set for indexer traffic
 ([08-integrations.md](08-integrations.md)).
 
 ```mermaid
 flowchart LR
-  Browser --> Unseen
-  Seerr -->|/radarr/api/v3| Unseen
-  Unseen --> SQLite[(SQLite)]
-  Unseen --> TMDB
-  Unseen --> Indexers[Torznab indexers]
-  Unseen --> QB[qBittorrent]
+  Browser --> Unseenarr
+  Seerr -->|/radarr/api/v3| Unseenarr
+  Unseenarr --> SQLite[(SQLite)]
+  Unseenarr --> TMDB
+  Unseenarr --> Indexers[Torznab indexers]
+  Unseenarr --> QB[qBittorrent]
   QB --- Gluetun
-  Unseen --> Media[/media and downloads volume/]
+  Unseenarr --> Media[/media and downloads volume/]
   QB --> Media
 ```
 
@@ -32,7 +32,7 @@ flowchart LR
 
 ```
 /                   UI (static files embedded in the binary, SPA fallback)
-/api/v1/...         Unseen API. OpenAPI is the source of truth.
+/api/v1/...         Unseenarr API. OpenAPI is the source of truth.
 /api/auth/...       Better Auth RS endpoints
 /radarr/api/v3/...  Radarr-compatible subset
 /sonarr/api/v3/...  Sonarr-compatible subset (M8)

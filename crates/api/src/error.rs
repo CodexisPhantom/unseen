@@ -33,7 +33,7 @@ pub struct FieldError {
 impl Problem {
     pub fn new(status: StatusCode, code: &str, title: &str) -> Self {
         Self {
-            kind: format!("https://unseen.invalid/problems/{code}"),
+            kind: format!("https://unseenarr.invalid/problems/{code}"),
             title: title.into(),
             status: status.as_u16(),
             code: code.into(),
@@ -55,7 +55,7 @@ impl Problem {
         )
     }
 
-    pub fn forbidden(permission: unseen_core::permission::Permission) -> Self {
+    pub fn forbidden(permission: unseenarr_core::permission::Permission) -> Self {
         let mut problem = Self::new(StatusCode::FORBIDDEN, "forbidden", "Permission denied");
         problem.detail = Some(format!("missing permission `{permission}`"));
         problem.required_permission = Some(permission.as_str().to_owned());

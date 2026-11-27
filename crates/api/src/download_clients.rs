@@ -9,9 +9,9 @@ use db::download_clients::{Client as Stored, ClientError, Values};
 use db::secret::{Secret, decrypt, encrypt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use unseen_core::http::check_url_text;
-use unseen_core::qbittorrent::{QbAuth, QbClient, QbError};
-use unseen_core::sabnzbd::{SabClient, SabError};
+use unseenarr_core::http::check_url_text;
+use unseenarr_core::qbittorrent::{QbAuth, QbClient, QbError};
+use unseenarr_core::sabnzbd::{SabClient, SabError};
 use utoipa::ToSchema;
 
 use crate::AppState;
@@ -40,17 +40,17 @@ pub struct DownloadClient {
     /// A password is stored but cannot be decrypted: enter it again.
     password_must_be_reentered: bool,
     /// The API key (qBittorrent 5.2 or later) is never returned. When one is
-    /// set, Unseen uses it and ignores the username and password. SABnzbd
+    /// set, Unseenarr uses it and ignores the username and password. SABnzbd
     /// requires one.
     has_api_key: bool,
     /// An API key is stored but cannot be decrypted: enter it again. SABnzbd
     /// requires one.
     api_key_must_be_reentered: bool,
-    /// The category of the torrents or NZBs Unseen adds.
+    /// The category of the torrents or NZBs Unseenarr adds.
     category: String,
     /// Remote path mapping: a path as the client sees it ...
     remote_path: Option<String>,
-    /// ... and the same folder as Unseen sees it.
+    /// ... and the same folder as Unseenarr sees it.
     local_path: Option<String>,
     enabled: bool,
     /// A client without tags serves every movie; one with tags serves the

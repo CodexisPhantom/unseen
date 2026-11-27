@@ -4,7 +4,7 @@ Status: accepted (2026-11-16). The M0 spike passed; see "Spike results".
 
 ## Context
 
-Unseen is multi-user from the start. Password hashing, sessions, cookies and
+Unseenarr is multi-user from the start. Password hashing, sessions, cookies and
 CSRF should not be written by hand. Later milestones want passkeys, 2FA and
 OAuth.
 

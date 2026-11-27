@@ -1,4 +1,4 @@
-//! Mapping between Unseen's data and the Radarr resources (docs/14, "Field
+//! Mapping between Unseenarr's data and the Radarr resources (docs/14, "Field
 //! mapping"). `arr-compat` never touches the database, so the `*View` structs
 //! hold what the API layer has read; they follow the `db` models.
 
@@ -6,20 +6,20 @@ use std::fmt;
 
 use chrono::NaiveDate;
 use serde::Deserialize;
-use unseen_core::profile::{self, Item};
-use unseen_core::quality::{self, Quality as CoreQuality};
+use unseenarr_core::profile::{self, Item};
+use unseenarr_core::quality::{self, Quality as CoreQuality};
 
 use super::dto::*;
 
-/// Where TMDB serves the images whose path Unseen stores.
+/// Where TMDB serves the images whose path Unseenarr stores.
 const TMDB_IMAGES: &str = "https://image.tmdb.org/t/p/original";
 
-/// Why a request body cannot become an Unseen operation.
+/// Why a request body cannot become an Unseenarr operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MapError {
     /// A field the operation needs is absent or empty.
     Missing(&'static str),
-    /// A field has a value Unseen does not accept.
+    /// A field has a value Unseenarr does not accept.
     Invalid(&'static str, String),
 }
 
@@ -78,7 +78,7 @@ impl From<CoreQuality> for Quality {
     }
 }
 
-/// The quality with this Radarr id; `Unknown` for an id Unseen lacks.
+/// The quality with this Radarr id; `Unknown` for an id Unseenarr lacks.
 pub fn quality(id: i32) -> Quality {
     CoreQuality::from_id(id)
         .unwrap_or(CoreQuality::Unknown)
@@ -154,7 +154,7 @@ const LANGUAGES: &[(&str, i32, &str)] = &[
     ("ga", 58, "Irish"),
 ];
 
-/// The Radarr language of an Unseen profile or file language: `any`,
+/// The Radarr language of an Unseenarr profile or file language: `any`,
 /// `original` or an ISO 639-1 code. Anything else is `Unknown`.
 pub fn language(code: &str) -> Language {
     let code = code.trim().to_ascii_lowercase();
@@ -193,7 +193,7 @@ impl MinimumAvailability {
         }
     }
 
-    /// `None` for a value Unseen does not know.
+    /// `None` for a value Unseenarr does not know.
     pub fn parse(text: &str) -> Option<Self> {
         match text {
             "announced" => Some(Self::Announced),
@@ -457,7 +457,7 @@ pub struct MovieRequest {
     pub add_options: Option<AddMovieOptions>,
 }
 
-/// What `POST /movie` asks Unseen to do.
+/// What `POST /movie` asks Unseenarr to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddMovie {
     pub tmdb_id: i32,
@@ -470,7 +470,7 @@ pub struct AddMovie {
     pub search_for_movie: bool,
 }
 
-/// What `PUT /movie` asks Unseen to change. `None` keeps the stored value.
+/// What `PUT /movie` asks Unseenarr to change. `None` keeps the stored value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateMovie {
     pub id: i32,
@@ -482,7 +482,7 @@ pub struct UpdateMovie {
 
 impl MovieRequest {
     /// A new movie: it needs a TMDB id, a quality profile and a root folder.
-    /// A movie is monitored and `released` by default, as in Unseen's own API.
+    /// A movie is monitored and `released` by default, as in Unseenarr's own API.
     pub fn into_add(self) -> Result<AddMovie, MapError> {
         let positive =
             |value: Option<i32>, field| value.filter(|id| *id > 0).ok_or(MapError::Missing(field));
@@ -505,7 +505,7 @@ impl MovieRequest {
         })
     }
 
-    /// A change of an existing movie: it needs the Unseen id.
+    /// A change of an existing movie: it needs the Unseenarr id.
     pub fn into_update(self) -> Result<UpdateMovie, MapError> {
         Ok(UpdateMovie {
             id: self
@@ -747,7 +747,7 @@ pub struct CommandRequest {
     pub movie_ids: Vec<i32>,
 }
 
-/// The commands Unseen runs; any other name is answered with 501 (docs/14).
+/// The commands Unseenarr runs; any other name is answered with 501 (docs/14).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandKind {
     MoviesSearch { movie_ids: Vec<i32> },
@@ -839,7 +839,7 @@ pub struct SystemView {
     pub os_version: String,
 }
 
-/// The status of an Unseen that poses as the pinned Radarr release.
+/// The status of an Unseenarr that poses as the pinned Radarr release.
 pub fn system(view: &SystemView) -> SystemResource {
     SystemResource {
         start_time: Timestamp::parse(&view.start_time),

@@ -24,10 +24,10 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 use tracing::instrument::WithSubscriber;
 use tracing_subscriber::prelude::*;
-use unseen_core::permission::Permission;
+use unseenarr_core::permission::Permission;
 
-const HOST: &str = "unseen.test";
-const ORIGIN: &str = "http://unseen.test";
+const HOST: &str = "unseenarr.test";
+const ORIGIN: &str = "http://unseenarr.test";
 const PASSWORD: &str = "correct horse";
 
 #[derive(Debug, Clone)]
@@ -1002,7 +1002,7 @@ fn compat_router_verify_catches_missing_and_duplicate_declarations() {
 }
 
 #[tokio::test]
-async fn radarr_tags_list_create_rename_match_fixture_and_appear_in_unseen_ui() {
+async fn radarr_tags_list_create_rename_match_fixture_and_appear_in_unseenarr_ui() {
     let app = App::new().await;
     let (key, _) = app
         .create_key(&app.owner, &["library:read", "library:edit"])
@@ -1072,8 +1072,8 @@ async fn radarr_tags_list_create_rename_match_fixture_and_appear_in_unseen_ui() 
     assert_eq!(listed.status, StatusCode::OK);
     assert_eq!(listed.body, expected);
 
-    // Tags created through the compat API appear in the Unseen UI (`/api/v1/tags`).
-    let unseen_list = app
+    // Tags created through the compat API appear in the Unseenarr UI (`/api/v1/tags`).
+    let unseenarr_list = app
         .send(
             req(Method::GET, "/api/v1/tags")
                 .header(header::COOKIE, &app.owner)
@@ -1082,8 +1082,8 @@ async fn radarr_tags_list_create_rename_match_fixture_and_appear_in_unseen_ui() 
                 .unwrap(),
         )
         .await;
-    assert_eq!(unseen_list.status, StatusCode::OK);
-    assert_eq!(unseen_list.body, expected);
+    assert_eq!(unseenarr_list.status, StatusCode::OK);
+    assert_eq!(unseenarr_list.body, expected);
 
     // Rename a tag via compat PUT /tag/{id} (Seerr user rename flow).
     let renamed = app
@@ -1114,7 +1114,7 @@ async fn radarr_tags_list_create_rename_match_fixture_and_appear_in_unseen_ui() 
     assert_eq!(same_label.status, StatusCode::ACCEPTED);
     assert_eq!(same_label.body, json!({ "id": 2, "label": "1-alice" }));
 
-    // Unseen UI reflects the rename, and tags created in Unseen appear in compat GET /tag.
+    // Unseenarr UI reflects the rename, and tags created in Unseenarr appear in compat GET /tag.
     let ui_created = app
         .send(
             req(Method::POST, "/api/v1/tags")

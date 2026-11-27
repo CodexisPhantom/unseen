@@ -1,24 +1,24 @@
-//! Mapping between Unseen's data and the Sonarr resources (docs/14, "Sonarr
+//! Mapping between Unseenarr's data and the Sonarr resources (docs/14, "Sonarr
 //! endpoints (M8)"). `arr-compat` never touches the database, so the `*View`
 //! structs hold what the API layer has read; they follow the `db` models.
 
 use std::fmt;
 
 use serde::Deserialize;
-use unseen_core::profile::{self, Item};
-use unseen_core::quality::Quality as CoreQuality;
+use unseenarr_core::profile::{self, Item};
+use unseenarr_core::quality::Quality as CoreQuality;
 
 use super::dto::*;
 
-/// Where TMDB serves the images whose relative path Unseen stores.
+/// Where TMDB serves the images whose relative path Unseenarr stores.
 const TMDB_IMAGES: &str = "https://image.tmdb.org/t/p/original";
 
-/// Why a request body cannot become an Unseen operation.
+/// Why a request body cannot become an Unseenarr operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MapError {
     /// A field the operation needs is absent or empty.
     Missing(&'static str),
-    /// A field has a value Unseen does not accept.
+    /// A field has a value Unseenarr does not accept.
     Invalid(&'static str, String),
 }
 
@@ -35,8 +35,8 @@ impl std::error::Error for MapError {}
 
 // ---------------------------------------------------------------- qualities
 
-/// The four qualities whose ids differ between Unseen (Radarr) and Sonarr
-/// (`docs/07-release-scoring.md`, "Qualities for TV"): `(unseen_id, sonarr_id)`.
+/// The four qualities whose ids differ between Unseenarr (Radarr) and Sonarr
+/// (`docs/07-release-scoring.md`, "Qualities for TV"): `(unseenarr_id, sonarr_id)`.
 pub const QUALITY_ID_TRANSLATIONS: &[(i32, i32)] = &[
     (20, 13), // Bluray-480p
     (21, 22), // Bluray-576p
@@ -191,16 +191,16 @@ const TV_QUALITIES: &[(CoreQuality, i32, &str, QualitySource, i32)] = &[
     ),
 ];
 
-/// Translates an Unseen (Radarr) quality id to Sonarr's id. Returns `None`
+/// Translates an Unseenarr (Radarr) quality id to Sonarr's id. Returns `None`
 /// for movie-only or unknown quality ids.
-pub fn to_sonarr_quality_id(unseen_id: i32) -> Option<i32> {
+pub fn to_sonarr_quality_id(unseenarr_id: i32) -> Option<i32> {
     TV_QUALITIES
         .iter()
-        .find(|(core, ..)| core.id() == unseen_id)
+        .find(|(core, ..)| core.id() == unseenarr_id)
         .map(|(_, sonarr_id, ..)| *sonarr_id)
 }
 
-/// Translates a Sonarr quality id to Unseen's (Radarr's) id. Returns `None`
+/// Translates a Sonarr quality id to Unseenarr's (Radarr's) id. Returns `None`
 /// for ids Sonarr does not define.
 pub fn from_sonarr_quality_id(sonarr_id: i32) -> Option<i32> {
     TV_QUALITIES
@@ -222,10 +222,10 @@ pub fn quality_from_core(core: CoreQuality) -> Option<Quality> {
     )
 }
 
-/// The Sonarr quality of an Unseen quality id; `Unknown` for a movie-only or
+/// The Sonarr quality of an Unseenarr quality id; `Unknown` for a movie-only or
 /// unknown id.
-pub fn quality(unseen_id: i32) -> Quality {
-    CoreQuality::from_id(unseen_id)
+pub fn quality(unseenarr_id: i32) -> Quality {
+    CoreQuality::from_id(unseenarr_id)
         .and_then(quality_from_core)
         .unwrap_or_else(|| Quality {
             id: 0,
@@ -235,9 +235,9 @@ pub fn quality(unseen_id: i32) -> Quality {
         })
 }
 
-fn quality_model(unseen_id: i32) -> QualityModel {
+fn quality_model(unseenarr_id: i32) -> QualityModel {
     QualityModel {
-        quality: quality(unseen_id),
+        quality: quality(unseenarr_id),
         revision: Revision::default(),
     }
 }
@@ -302,7 +302,7 @@ const LANGUAGES: &[(&str, i32, &str)] = &[
     ("ga", 53, "Irish"),
 ];
 
-/// The Sonarr language of an Unseen language code: `any`, `original` or an
+/// The Sonarr language of an Unseenarr language code: `any`, `original` or an
 /// ISO 639-1 / regional code. Anything else is `Unknown`.
 pub fn language(code: &str) -> Language {
     let code = code.trim().to_ascii_lowercase();
@@ -406,7 +406,7 @@ impl AddMonitor {
         }
     }
 
-    /// `None` for a value Unseen does not accept.
+    /// `None` for a value Unseenarr does not accept.
     pub fn parse(text: &str) -> Option<Self> {
         match text {
             "all" => Some(Self::All),
@@ -673,7 +673,7 @@ pub struct SeriesRequest {
     pub add_options: Option<AddSeriesOptionsRequest>,
 }
 
-/// What `POST /series` asks Unseen to do.
+/// What `POST /series` asks Unseenarr to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddSeries {
     pub tvdb_id: i32,
@@ -694,7 +694,7 @@ pub struct AddSeries {
     pub search_for_cutoff_unmet_episodes: bool,
 }
 
-/// What `PUT /series` asks Unseen to change. `None` keeps the stored value.
+/// What `PUT /series` asks Unseenarr to change. `None` keeps the stored value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateSeries {
     pub id: i32,
@@ -709,7 +709,7 @@ pub struct UpdateSeries {
 
 impl SeriesRequest {
     /// A new series: it needs a TVDB id, a quality profile and a root folder.
-    /// Defaults match Unseen's schema (`monitored = true`,
+    /// Defaults match Unseenarr's schema (`monitored = true`,
     /// `monitorNewItems = all`, `seriesType = standard`, `seasonFolder = true`).
     pub fn into_add(self) -> Result<AddSeries, MapError> {
         let positive =
@@ -743,7 +743,7 @@ impl SeriesRequest {
         })
     }
 
-    /// A change of an existing series: it needs the Unseen id.
+    /// A change of an existing series: it needs the Unseenarr id.
     pub fn into_update(self) -> Result<UpdateSeries, MapError> {
         Ok(UpdateSeries {
             id: self
@@ -772,7 +772,7 @@ pub struct EpisodeFileView {
     /// Relative to the show folder.
     pub relative_path: String,
     pub size: i64,
-    /// Unseen (Radarr) quality id; translated to Sonarr's id on output.
+    /// Unseenarr (Radarr) quality id; translated to Sonarr's id on output.
     pub quality_id: i32,
     pub release_group: Option<String>,
     pub scene_name: Option<String>,
@@ -867,7 +867,7 @@ pub struct EpisodeMonitorRequest {
     pub monitored: Option<bool>,
 }
 
-/// What `PUT /episode/monitor` asks Unseen to change.
+/// What `PUT /episode/monitor` asks Unseenarr to change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpisodeMonitor {
     pub episode_ids: Vec<i32>,
@@ -901,7 +901,7 @@ pub struct ProfileView {
     pub id: i32,
     pub name: String,
     pub upgrade_allowed: bool,
-    /// Unseen quality id or group id (`>= 1000`); quality ids are translated
+    /// Unseenarr quality id or group id (`>= 1000`); quality ids are translated
     /// to Sonarr's numbering on output.
     pub cutoff_quality_id: i32,
     pub items: Vec<Item>,
@@ -910,9 +910,9 @@ pub struct ProfileView {
     pub min_upgrade_format_score: i32,
 }
 
-fn quality_item(unseen_quality_id: i32, allowed: bool) -> QualityProfileQualityItemResource {
+fn quality_item(unseenarr_quality_id: i32, allowed: bool) -> QualityProfileQualityItemResource {
     QualityProfileQualityItemResource {
-        quality: Some(quality(unseen_quality_id)),
+        quality: Some(quality(unseenarr_quality_id)),
         allowed,
         ..QualityProfileQualityItemResource::default()
     }
@@ -1059,7 +1059,7 @@ pub struct QueueView {
     pub series: Option<SeriesView>,
     pub episode: Option<EpisodeView>,
     pub season_number: Option<i32>,
-    /// Unseen (Radarr) quality id; translated to Sonarr's id on output.
+    /// Unseenarr (Radarr) quality id; translated to Sonarr's id on output.
     pub quality_id: i32,
     /// Language codes, see [`language`].
     pub languages: Vec<String>,
@@ -1177,7 +1177,7 @@ pub struct CommandRequest {
     pub series_id: Option<i32>,
 }
 
-/// The commands Unseen runs; any other name is answered with 501 (docs/14).
+/// The commands Unseenarr runs; any other name is answered with 501 (docs/14).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandKind {
     MissingEpisodeSearch { series_id: Option<i32> },
@@ -1270,7 +1270,7 @@ pub struct SystemView {
     pub sqlite_version: String,
 }
 
-/// The status of an Unseen that poses as the pinned Sonarr release.
+/// The status of an Unseenarr that poses as the pinned Sonarr release.
 pub fn system(view: &SystemView) -> SystemResource {
     SystemResource {
         start_time: Timestamp::parse(&view.start_time),
@@ -1362,9 +1362,9 @@ mod tests {
     #[test]
     fn quality_ids_translate_in_both_directions() {
         assert_eq!(QUALITY_ID_TRANSLATIONS.len(), 4);
-        for &(unseen, sonarr) in QUALITY_ID_TRANSLATIONS {
-            assert_eq!(to_sonarr_quality_id(unseen), Some(sonarr));
-            assert_eq!(from_sonarr_quality_id(sonarr), Some(unseen));
+        for &(unseenarr, sonarr) in QUALITY_ID_TRANSLATIONS {
+            assert_eq!(to_sonarr_quality_id(unseenarr), Some(sonarr));
+            assert_eq!(from_sonarr_quality_id(sonarr), Some(unseenarr));
         }
 
         // Exact pairs from docs/07-release-scoring.md ("Qualities for TV").
@@ -1732,10 +1732,10 @@ mod tests {
             id: 1,
             name: "Remux".to_owned(),
             upgrade_allowed: true,
-            cutoff_quality_id: CoreQuality::Remux1080p.id(), // Unseen 30 -> Sonarr 20
+            cutoff_quality_id: CoreQuality::Remux1080p.id(), // Unseenarr 30 -> Sonarr 20
             items: vec![
                 Item::Quality {
-                    quality_id: CoreQuality::Bluray480p.id(), // Unseen 20 -> Sonarr 13
+                    quality_id: CoreQuality::Bluray480p.id(), // Unseenarr 20 -> Sonarr 13
                     allowed: false,
                 },
                 Item::Group {
@@ -1745,7 +1745,7 @@ mod tests {
                     allowed: true,
                 },
                 Item::Quality {
-                    quality_id: CoreQuality::Remux1080p.id(), // Unseen 30 -> Sonarr 20
+                    quality_id: CoreQuality::Remux1080p.id(), // Unseenarr 30 -> Sonarr 20
                     allowed: true,
                 },
             ],
