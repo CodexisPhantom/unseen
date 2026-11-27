@@ -254,7 +254,9 @@ impl RunGuard {
     /// `None` when `id` is already running.
     fn acquire(id: i32) -> Option<Self> {
         let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
-        running.insert(id).then_some(Self(id))
+        // Lazy on purpose: an eagerly built `Self` would be dropped while
+        // `running` is locked when `id` is taken, and its `Drop` would deadlock.
+        running.insert(id).then(|| Self(id))
     }
 }
 
