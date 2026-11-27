@@ -117,18 +117,16 @@ pub async fn grab_release(
                 // qBittorrent fetches a torrent URL itself and reports no hash,
                 // so the torrent is found again in the list of the category.
                 None => {
-                    let torrents = qbittorrent
-                        .torrents(&category)
-                        .await
-                        .map_err(qb_error)?;
-                    let wanted = release
-                        .info_hash
-                        .as_deref()
-                        .map(str::to_ascii_lowercase);
+                    let torrents = qbittorrent.torrents(&category).await.map_err(qb_error)?;
+                    let wanted = release.info_hash.as_deref().map(str::to_ascii_lowercase);
                     let found = wanted
                         .as_deref()
                         .and_then(|hash| torrents.iter().find(|torrent| torrent.hash == hash))
-                        .or_else(|| torrents.iter().find(|torrent| torrent.name == release.title))
+                        .or_else(|| {
+                            torrents
+                                .iter()
+                                .find(|torrent| torrent.name == release.title)
+                        })
                         .ok_or_else(|| {
                             Problem::new(
                                 StatusCode::BAD_GATEWAY,
@@ -157,7 +155,8 @@ pub async fn grab_release(
         .await
         .map_err(failed)?
         .map(|indexer| indexer.model.id);
-    let download = db::downloads::create(        &state.db,
+    let download = db::downloads::create(
+        &state.db,
         db::downloads::NewDownload {
             movie_id: release.movie_id,
             movie_profile_id: Some(release.movie_profile_id),
@@ -182,8 +181,8 @@ pub async fn grab_release(
         "qualityId": release.quality_id,
         "size": release.size,
     });
-    if let Err(error) = db::history::record_grabbed(&state.db, release.movie_id, data.to_string())
-        .await
+    if let Err(error) =
+        db::history::record_grabbed(&state.db, release.movie_id, data.to_string()).await
     {
         // The client already holds the release: a missing activity row must not
         // turn a successful grab into an error.
