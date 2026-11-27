@@ -426,6 +426,27 @@ fn app_router_passes_route_coverage() {
             ),
             profiles(Method::POST, "/api/v1/library/scan", Permission::ImportRun),
             profiles(Method::POST, "/api/v1/library/adopt", Permission::ImportRun),
+            profiles(Method::GET, "/api/v1/import-sources", Permission::ImportRun),
+            profiles(
+                Method::POST,
+                "/api/v1/import-sources",
+                Permission::ImportRun
+            ),
+            profiles(
+                Method::DELETE,
+                "/api/v1/import-sources/{id}",
+                Permission::ImportRun
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/import-sources/{id}/preview",
+                Permission::ImportRun
+            ),
+            profiles(
+                Method::POST,
+                "/api/v1/import-sources/{id}/run",
+                Permission::ImportRun
+            ),
             profiles(Method::GET, "/api/v1/movies/lookup", Permission::LibraryAdd),
             profiles(Method::GET, "/api/v1/movies", Permission::LibraryRead),
             profiles(Method::POST, "/api/v1/movies", Permission::LibraryAdd),

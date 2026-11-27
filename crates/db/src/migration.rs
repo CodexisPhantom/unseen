@@ -26,6 +26,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0015Libraries),
             Box::new(M0016TvShows),
             Box::new(M0017History),
+            Box::new(M0018ImportSources),
         ]
     }
 }
@@ -1021,6 +1022,53 @@ impl MigrationTrait for M0017History {
         manager
             .get_connection()
             .execute_unprepared(M0017_UP)
+            .await?;
+        Ok(())
+    }
+}
+
+struct M0018ImportSources;
+
+impl MigrationName for M0018ImportSources {
+    fn name(&self) -> &str {
+        "m0018_import_sources"
+    }
+}
+
+/// Import sources and the map that makes a run safe to repeat
+/// (docs/04-database.md, "System tables"). A path mapping translates the
+/// source's paths, like a download client's remote path mapping.
+const M0018_UP: &str = r#"
+CREATE TABLE import_sources (
+    id integer PRIMARY KEY AUTOINCREMENT,
+    kind text NOT NULL CHECK (kind IN ('radarr')),
+    name text NOT NULL,
+    url text NOT NULL UNIQUE,
+    api_key text NOT NULL,
+    target_quality_profile_id integer REFERENCES quality_profiles (id) ON DELETE SET NULL,
+    remote_path text,
+    local_path text,
+    last_import_at text,
+    created_at text NOT NULL,
+    updated_at text NOT NULL,
+    CHECK ((remote_path IS NULL) = (local_path IS NULL))
+);
+
+CREATE TABLE import_map (
+    source_id integer NOT NULL REFERENCES import_sources (id) ON DELETE CASCADE,
+    resource text NOT NULL,
+    source_resource_id integer NOT NULL,
+    local_id integer NOT NULL,
+    PRIMARY KEY (source_id, resource, source_resource_id)
+);
+"#;
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0018ImportSources {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(M0018_UP)
             .await?;
         Ok(())
     }

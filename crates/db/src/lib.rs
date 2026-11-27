@@ -20,6 +20,7 @@ pub mod download_clients;
 pub mod downloads;
 pub mod entities;
 pub mod history;
+pub mod import_sources;
 pub mod indexers;
 pub mod libraries;
 mod migration;
@@ -120,6 +121,8 @@ mod tests {
             "episode_files",
             "episodes",
             "api_keys",
+            "import_map",
+            "import_sources",
             "indexer_tags",
             "indexers",
             "language_profiles",

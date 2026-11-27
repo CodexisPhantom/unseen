@@ -13,6 +13,7 @@ pub mod error;
 pub mod events;
 mod grab;
 mod health;
+pub mod import_sources;
 mod indexers;
 mod libraries;
 mod library;
@@ -79,6 +80,8 @@ pub struct AppState {
     pub search_cache: unseen_core::search::SearchCache,
     /// Serializes grabs per movie profile, so one profile gets one download.
     pub(crate) grabs: grab::ProfileLocks,
+    /// The import sources whose import is running.
+    pub(crate) import_runs: import_sources::RunSet,
     /// UTC ISO 8601 timestamp recorded when the server state was created.
     pub started_at: String,
 }
@@ -296,6 +299,7 @@ impl AppState {
             logs_dir: std::env::temp_dir().join("unseen-logs-default"),
             search_cache: unseen_core::search::SearchCache::new(),
             grabs: grab::ProfileLocks::default(),
+            import_runs: import_sources::RunSet::default(),
             started_at: db::now(),
         })
     }
@@ -411,6 +415,19 @@ pub fn routes() -> ApiRouter {
         )
         .require(Permission::ImportRun, routes!(library::scan))
         .require(Permission::ImportRun, routes!(library::adopt))
+        .require(
+            Permission::ImportRun,
+            routes!(import_sources::list_sources, import_sources::create_source),
+        )
+        .require(
+            Permission::ImportRun,
+            routes!(import_sources::delete_source),
+        )
+        .require(
+            Permission::ImportRun,
+            routes!(import_sources::preview_source),
+        )
+        .require(Permission::ImportRun, routes!(import_sources::run_source))
         .require(Permission::LibraryAdd, routes!(lookup::lookup))
         .require(Permission::LibraryRead, routes!(movies::list_movies))
         .require(Permission::LibraryAdd, routes!(movies::create_movie))

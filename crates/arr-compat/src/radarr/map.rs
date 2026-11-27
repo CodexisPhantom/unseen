@@ -172,6 +172,19 @@ pub fn language(code: &str) -> Language {
     }
 }
 
+/// The Unseen language of a Radarr language: `any`, `original` or an ISO
+/// 639-1 code. `None` for an id Unseen does not know.
+pub fn language_code(language: &Language) -> Option<String> {
+    match language.id {
+        -1 => Some(profile::LANGUAGE_ANY.to_owned()),
+        -2 => Some(profile::LANGUAGE_ORIGINAL.to_owned()),
+        id => LANGUAGES
+            .iter()
+            .find(|(_, known, _)| *known == id)
+            .map(|(code, ..)| (*code).to_owned()),
+    }
+}
+
 // ------------------------------------------------------------------- movies
 
 /// The release window a movie must reach before Radarr searches for it.
@@ -587,6 +600,36 @@ pub fn quality_profile(view: &ProfileView) -> QualityProfileResource {
         format_items: Vec::new(),
         language: language(&view.language),
     }
+}
+
+/// The items of a Radarr profile as Unseen items. Radarr and Unseen share the
+/// quality ids and the group id range, so nothing is renumbered.
+pub fn profile_items(profile: &QualityProfileResource) -> Vec<Item> {
+    profile
+        .items
+        .iter()
+        .map(|item| match &item.quality {
+            Some(quality) => Item::Quality {
+                quality_id: quality.id,
+                allowed: item.allowed,
+            },
+            None => Item::Group {
+                id: item.id,
+                name: item.name.clone(),
+                quality_ids: item
+                    .items
+                    .iter()
+                    .filter_map(|member| member.quality.as_ref().map(|q| q.id))
+                    .collect(),
+                allowed: item.allowed,
+            },
+        })
+        .collect()
+}
+
+/// The quality id of a Radarr movie file; `0` (`Unknown`) when it has none.
+pub fn movie_quality_id(file: &MovieFileResource) -> i32 {
+    file.quality.quality.id
 }
 
 // ------------------------------------------------------------ root folders
@@ -1079,6 +1122,60 @@ mod tests {
         assert_eq!(language("EN").name, "English");
         assert_eq!(language("ja").id, 8);
         assert_eq!(language("xyz").id, 0);
+    }
+
+    #[test]
+    fn language_codes_round_trip() {
+        for code in ["any", "original", "en", "ja"] {
+            assert_eq!(language_code(&language(code)).as_deref(), Some(code));
+        }
+        let unknown = Language {
+            id: 999,
+            name: "x".to_owned(),
+        };
+        assert_eq!(language_code(&unknown), None);
+        assert_eq!(language_code(&language("xyz")), None);
+    }
+
+    #[test]
+    fn radarr_profile_items_become_unseen_items() {
+        let group = QualityProfileQualityItemResource {
+            id: 1000,
+            name: "WEB 1080p".to_owned(),
+            quality: None,
+            items: vec![
+                quality_item(CoreQuality::WebDl1080p.id(), true),
+                quality_item(CoreQuality::WebRip1080p.id(), true),
+            ],
+            allowed: true,
+        };
+        let profile = QualityProfileResource {
+            items: vec![quality_item(CoreQuality::WebDl1080p.id(), false), group],
+            ..QualityProfileResource::default()
+        };
+        assert_eq!(
+            profile_items(&profile),
+            vec![
+                Item::Quality {
+                    quality_id: CoreQuality::WebDl1080p.id(),
+                    allowed: false,
+                },
+                Item::Group {
+                    id: 1000,
+                    name: "WEB 1080p".to_owned(),
+                    quality_ids: vec![CoreQuality::WebDl1080p.id(), CoreQuality::WebRip1080p.id()],
+                    allowed: true,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_movie_file_reports_its_quality_id() {
+        let mut file = MovieFileResource::default();
+        assert_eq!(movie_quality_id(&file), 0);
+        file.quality.quality = quality(CoreQuality::WebDl1080p.id());
+        assert_eq!(movie_quality_id(&file), CoreQuality::WebDl1080p.id());
     }
 
     #[test]
