@@ -232,6 +232,7 @@ impl App {
         library_ids: Option<&[i32]>,
     ) -> String {
         let prefix = &self.state.base_path;
+        self.state.policy.admit_next_signup();
         let sign_up = json!({ "email": email, "password": PASSWORD, "name": "Seerr" });
         let reply = self
             .send(
@@ -1258,6 +1259,9 @@ async fn episode_list_filters_by_season_and_validates_series_id() {
             .await
             .unwrap();
     let show_id = add_show(&app, root.id, 81189, "Breaking Bad").await;
+    for season in 0..=2 {
+        add_season(&app, show_id, season).await;
+    }
     add_episode(&app, show_id, 0, 1, "2008-01-20T02:00:00Z").await;
     add_episode(&app, show_id, 1, 1, "2008-01-27T02:00:00Z").await;
     add_episode(&app, show_id, 2, 1, "2009-03-08T02:00:00Z").await;

@@ -181,7 +181,10 @@ pub async fn list_episodes(
             }
         },
         db::shows::files_of(&state.db, show_id),
-        db::shows::file_links_of(&state.db, &[show_id]),
+        async {
+            let show_ids = [show_id];
+            db::shows::file_links_of(&state.db, &show_ids).await
+        },
     )
     .map_err(db_failed)?;
     let series = if include_series {
