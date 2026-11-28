@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
+use arr_compat::prowlarr::{ProwlarrClient, ProwlarrError, feed_url};
 use arr_compat::radarr::client::RadarrClient;
 use arr_compat::radarr::dto::{
     Field, MovieFileResource, MovieResource, MovieStatusType, Timestamp,
@@ -68,6 +69,29 @@ fn radarr_failed(error: RadarrError) -> Problem {
     );
     problem.detail = Some(error.to_string());
     problem
+}
+
+fn prowlarr_failed(error: ProwlarrError) -> Problem {
+    let mut problem = Problem::new(
+        StatusCode::BAD_GATEWAY,
+        "import_source_failed",
+        "The source did not answer",
+    );
+    problem.detail = Some(error.to_string());
+    tracing::error!(?error, "prowlarr import");
+    problem
+}
+
+/// The local indexer kind for a Prowlarr protocol, or `None` when the
+/// protocol has no local kind.
+fn prowlarr_kind(protocol: &str) -> Option<&'static str> {
+    if protocol.eq_ignore_ascii_case("torrent") {
+        Some("torznab")
+    } else if protocol.eq_ignore_ascii_case("usenet") {
+        Some("newznab")
+    } else {
+        None
+    }
 }
 
 fn trim_separators(path: &str) -> &str {
@@ -1003,6 +1027,96 @@ impl Run<'_> {
         Ok(())
     }
 
+    async fn prowlarr_indexers(
+        &mut self,
+        remote: &[arr_compat::prowlarr::dto::IndexerResource],
+        base_url: &str,
+    ) -> Result<(), Problem> {
+        let mut known: Vec<Known> = indexers::list(&self.state.db)
+            .await
+            .map_err(failed)?
+            .into_iter()
+            .map(|row| Known {
+                id: row.model.id,
+                name: row.model.name.clone(),
+                signature: json!({"kind": row.model.kind, "url": row.model.url}),
+            })
+            .collect();
+        let mut arrived = false;
+        for item in remote {
+            let Some(kind) = prowlarr_kind(&item.protocol) else {
+                self.report.indexers.skipped += 1;
+                continue;
+            };
+            let url = feed_url(base_url, item.id)
+                .map_err(|error| prowlarr_failed(ProwlarrError::Url(error)))?;
+            let signature = json!({"kind": kind, "url": url});
+            let mapped = self.mapped(store::INDEXER, item.id).await?;
+            if mapped.is_some_and(|id| known.iter().any(|k| k.id == id)) {
+                self.report.indexers.matched += 1;
+                continue;
+            }
+            let alt = self.renamed_name(&item.name);
+            match pick(&known, &item.name, &alt, &signature) {
+                Pick::Matched(id) => {
+                    self.report.indexers.matched += 1;
+                    self.remember(store::INDEXER, item.id, id).await?;
+                }
+                Pick::Skip => {
+                    self.report.indexers.skipped += 1;
+                    self.report.notes.push(format!(
+                        "Indexer \"{}\" differs from the stored one and \"{alt}\" is taken too; skipped.",
+                        item.name
+                    ));
+                }
+                Pick::Create { name, renamed } => {
+                    if renamed {
+                        self.report.notes.push(format!(
+                            "Indexer \"{}\" differs from the stored one; imported as \"{name}\".",
+                            item.name
+                        ));
+                    }
+                    let id = if self.apply {
+                        indexers::create(
+                            &self.state.db,
+                            indexers::Values {
+                                name: name.clone(),
+                                kind: kind.to_owned(),
+                                url,
+                                api_key: self.source.api_key.clone(),
+                                categories: json!(item.categories()),
+                                priority: item.priority.clamp(1, 50),
+                                use_proxy: false,
+                                enabled: true,
+                                tags: Vec::new(),
+                            },
+                        )
+                        .await
+                        .map_err(failed)?
+                        .model
+                        .id
+                    } else {
+                        self.placeholder()
+                    };
+                    known.push(Known {
+                        id,
+                        name,
+                        signature,
+                    });
+                    arrived = true;
+                    self.report.indexers.created += 1;
+                    self.remember(store::INDEXER, item.id, id).await?;
+                }
+            }
+        }
+        if arrived {
+            self.report.notes.push(
+                "Indexers point at Prowlarr's per-indexer feed and use its API key.".to_owned(),
+            );
+        }
+        Ok(())
+    }
+
     async fn download_clients(
         &mut self,
         remote: &[arr_compat::radarr::dto::DownloadClientResource],
@@ -1135,6 +1249,42 @@ fn metadata(movie: &MovieResource) -> Metadata {
 /// Reads the source and merges it into the library. With `apply == false`
 /// nothing is written and the source is not marked as imported.
 pub async fn import(state: &AppState, source: &Source, apply: bool) -> Result<Report, Problem> {
+    if source.kind == "prowlarr" {
+        return import_prowlarr(state, source, apply).await;
+    }
+    import_radarr(state, source, apply).await
+}
+
+async fn import_prowlarr(
+    state: &AppState,
+    source: &Source,
+    apply: bool,
+) -> Result<Report, Problem> {
+    let key = db::secret::decrypt(&state.secrets, &source.api_key).map_err(failed)?;
+    let client = ProwlarrClient::new(state.http.clone(), &source.url, key.expose());
+    let indexers = client.indexers().await.map_err(prowlarr_failed)?;
+    let mut run = Run {
+        state,
+        source,
+        apply,
+        report: Report::default(),
+        synthetic: 0,
+        roots: Vec::new(),
+        tag_ids: HashMap::new(),
+        format_ids: HashMap::new(),
+        profile_ids: HashMap::new(),
+        collection_ids: HashMap::new(),
+    };
+    run.prowlarr_indexers(&indexers, &source.url).await?;
+    if apply {
+        store::mark_imported(&state.db, source.id)
+            .await
+            .map_err(failed)?;
+    }
+    Ok(run.report)
+}
+
+async fn import_radarr(state: &AppState, source: &Source, apply: bool) -> Result<Report, Problem> {
     let key = db::secret::decrypt(&state.secrets, &source.api_key).map_err(failed)?;
     let client = RadarrClient::new(state.http.clone(), &source.url, key.expose());
     let root_folders = client.root_folders().await.map_err(radarr_failed)?;
@@ -1223,7 +1373,7 @@ impl From<Source> for ImportSource {
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewSource {
-    /// The kind of source. Only `radarr` exists.
+    /// The kind of source: `radarr` or `prowlarr`.
     kind: String,
     name: String,
     /// Base URL of the source, such as `http://radarr:7878`.
@@ -1242,8 +1392,31 @@ pub struct NewSource {
 
 /// Checks a request before it reaches the database.
 fn validate(body: &NewSource) -> Result<(), Problem> {
-    if body.kind != "radarr" {
-        return Err(Problem::validation("kind", "must be `radarr`"));
+    if body.kind != "radarr" && body.kind != "prowlarr" {
+        return Err(Problem::validation(
+            "kind",
+            "must be `radarr` or `prowlarr`",
+        ));
+    }
+    if body.kind == "prowlarr" {
+        if body.target_quality_profile_id.is_some() {
+            return Err(Problem::validation(
+                "targetQualityProfileId",
+                "is only used by a Radarr source",
+            ));
+        }
+        if body.remote_path.is_some() {
+            return Err(Problem::validation(
+                "remotePath",
+                "is only used by a Radarr source",
+            ));
+        }
+        if body.local_path.is_some() {
+            return Err(Problem::validation(
+                "remotePath",
+                "is only used by a Radarr source",
+            ));
+        }
     }
     if body.name.trim().is_empty() {
         return Err(Problem::validation("name", "must not be blank"));
@@ -1482,6 +1655,41 @@ mod tests {
         let mut b = body();
         b.url = String::new();
         assert_eq!(field(&b).as_deref(), Some("url"));
+    }
+
+    #[test]
+    fn prowlarr_protocols_map_to_indexer_kinds() {
+        assert_eq!(prowlarr_kind("torrent"), Some("torznab"));
+        assert_eq!(prowlarr_kind("Torrent"), Some("torznab"));
+        assert_eq!(prowlarr_kind("usenet"), Some("newznab"));
+        assert_eq!(prowlarr_kind("other"), None);
+    }
+
+    fn prowlarr_body() -> NewSource {
+        NewSource {
+            kind: "prowlarr".to_owned(),
+            name: "Prowlarr".to_owned(),
+            url: "http://prowlarr:9696".to_owned(),
+            api_key: "key".to_owned(),
+            target_quality_profile_id: None,
+            remote_path: None,
+            local_path: None,
+        }
+    }
+
+    #[test]
+    fn a_prowlarr_source_takes_no_radarr_fields() {
+        assert!(validate(&prowlarr_body()).is_ok());
+        let mut b = prowlarr_body();
+        b.target_quality_profile_id = Some(1);
+        assert_eq!(field(&b).as_deref(), Some("targetQualityProfileId"));
+        let mut b = prowlarr_body();
+        b.remote_path = Some("/movies".to_owned());
+        b.local_path = Some("/data".to_owned());
+        assert_eq!(field(&b).as_deref(), Some("remotePath"));
+        let mut b = prowlarr_body();
+        b.remote_path = Some("/movies".to_owned());
+        assert_eq!(field(&b).as_deref(), Some("remotePath"));
     }
 
     #[test]
