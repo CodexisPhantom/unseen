@@ -1080,6 +1080,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/releases/grab": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sends a release of the search cache to the download client that serves the
+         *     movie, and records the download as `queued`.
+         */
+        post: operations["grab_release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/roles": {
         parameters: {
             query?: never;
@@ -1658,6 +1678,20 @@ export interface components {
             /** Format: int32 */
             score: number;
         };
+        /** @description Body of `POST /api/v1/releases/grab`. */
+        GrabRequest: {
+            /** @description Release id from a manual search. */
+            id: string;
+        };
+        /** @description The download row a grab created. */
+        Grabbed: {
+            /** @description The torrent hash, or the nzo id SABnzbd assigned. */
+            clientDownloadId: string;
+            /** Format: int32 */
+            downloadClientId: number;
+            /** Format: int32 */
+            downloadId: number;
+        };
         Health: {
             database: components["schemas"]["DatabaseStatus"];
             /** @description Version of the running binary. */
@@ -2171,7 +2205,7 @@ export interface components {
              * @description The source's API key. It is stored encrypted and never returned.
              */
             apiKey: string;
-            /** @description The kind of source. Only `radarr` exists. */
+            /** @description The kind of source: `radarr` or `prowlarr`. */
             kind: string;
             /** @description The same prefix on this machine. Needs `remotePath`. */
             localPath?: string | null;
@@ -2180,7 +2214,8 @@ export interface components {
             remotePath?: string | null;
             /**
              * Format: int32
-             * @description Quality profile for movies whose source profile has no match.
+             * @description Quality profile given to every movie imported from this source. When
+             *     set, the source's own quality profiles are not imported.
              */
             targetQualityProfileId?: number | null;
             /** @description Base URL of the source, such as `http://radarr:7878`. */
@@ -4049,6 +4084,15 @@ export interface operations {
             };
             /** @description No such import source */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An import of this source is already running */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6242,6 +6286,75 @@ export interface operations {
                 };
             };
             /** @description The download client refused or failed the delete */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    grab_release: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrabRequest"];
+            };
+        };
+        responses: {
+            /** @description The release was sent to the download client */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Grabbed"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The release id is unknown or the movie is gone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The movie profile already has an active download, or no enabled download client serves the movie */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The profile rejected the release */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The download client did not accept the release */
             502: {
                 headers: {
                     [name: string]: unknown;

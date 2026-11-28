@@ -8489,7 +8489,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "The kind of source. Only `radarr` exists."
+            "description": "The kind of source: `radarr` or `prowlarr`."
           },
           "localPath": {
             "type": [
